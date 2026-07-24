@@ -1,8 +1,10 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { DateTime } from "luxon";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking } from "@/lib/anthropic";
 import { buildSystemPrompt, buildNumerologyPrompt } from "@/lib/astrology/prompt";
 import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
+import { computeChart } from "@/lib/astrology/chart";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 
@@ -31,13 +33,14 @@ export async function POST(request: Request) {
   try {
     const { data: profile } = await supabase
       .from("birth_profiles")
-      .select("first_name, last_name, birth_date, chart")
+      .select("first_name, last_name, birth_date, lat, lng, timezone, chart")
       .maybeSingle();
     if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
 
-    const today = new Date().toLocaleDateString("en-US", {
-      weekday: "long", year: "numeric", month: "long", day: "numeric",
-    });
+    // "Today"/"now" framed in the USER's timezone (e.g. IST), not the server's.
+    const userTz = String(profile.timezone || "UTC");
+    const nowLocal = DateTime.now().setZone(userTz);
+    const today = `${nowLocal.toFormat("cccc, LLLL d, yyyy")} — their local time is ${nowLocal.toFormat("h:mm a")} (${userTz})`;
     const num = computeNumerology(String(profile.birth_date));
 
     if (body.tradition === "numerology") {
@@ -52,12 +55,35 @@ export async function POST(request: Request) {
       });
     } else {
       const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
+
+      // Live transits: compute the current sky at the user's location right now.
+      let transits: string | undefined;
+      try {
+        const nowUtc = new Date();
+        const transitChart = await computeChart(
+          {
+            birthDate: nowUtc.toISOString().slice(0, 10),
+            birthTime: nowUtc.toISOString().slice(11, 16),
+            lat: Number(profile.lat),
+            lng: Number(profile.lng),
+            timezone: "UTC",
+          },
+          body.tradition as Tradition,
+        );
+        transits = transitChart.planets
+          .map((p) => `${p.name} in ${p.sign}${p.retrograde ? " (retrograde)" : ""}`)
+          .join(", ");
+      } catch {
+        transits = undefined;
+      }
+
       system = buildSystemPrompt({
         firstName: profile.first_name,
         tradition: body.tradition as Tradition,
         chart,
         today,
         numerology: num,
+        transits,
       });
     }
 

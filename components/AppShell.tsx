@@ -25,6 +25,13 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
         New reading
       </Link>
+      <Link href="/app/profile" onClick={() => setOpen(false)}
+        className={`mb-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+          pathname === "/app/profile" ? "bg-white/10 text-fg" : "text-muted hover:bg-white/5 hover:text-fg"
+        }`}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM5 20a7 7 0 0114 0" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        Profile
+      </Link>
       <div className="px-2 pb-1 text-[11px] uppercase tracking-wide text-muted/60">Past readings</div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto">
         {conversations.length === 0 && <p className="px-2 py-1 text-xs text-muted/60">No readings yet.</p>}
