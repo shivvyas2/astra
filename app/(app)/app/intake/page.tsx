@@ -3,7 +3,7 @@ import { saveIntake } from "./actions";
 
 export default function IntakePage() {
   return (
-    <div className="relative mx-auto flex h-full max-w-md flex-col items-center justify-center overflow-y-auto px-5 py-8">
+    <div className="relative mx-auto flex h-full max-w-md flex-col items-center justify-center overflow-y-auto px-5 py-5">
       {/* cosmic glow */}
       <div
         aria-hidden
@@ -13,9 +13,9 @@ export default function IntakePage() {
             "radial-gradient(closest-side, rgba(99,91,255,0.22), rgba(232,102,61,0.06) 45%, transparent 72%)",
         }}
       />
-      <div className="mb-8 text-center">
-        <h1 className="text-2xl font-light tracking-tight sm:text-3xl">Your birth details</h1>
-        <p className="mt-2 text-sm text-muted">
+      <div className="mb-4 text-center">
+        <h1 className="text-xl font-light tracking-tight sm:text-2xl">Your birth details</h1>
+        <p className="mt-1 text-xs text-muted">
           We compute your real chart from the exact moment and place you were born.
         </p>
       </div>

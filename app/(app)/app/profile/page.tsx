@@ -8,10 +8,10 @@ export default async function ProfilePage() {
   if (!p) redirect("/app/intake");
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col justify-center overflow-y-auto px-5 py-10">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-light tracking-tight sm:text-3xl">Your profile</h1>
-        <p className="mt-2 text-sm text-muted">Update your details or photo. Changing your birth data recomputes your chart.</p>
+    <div className="mx-auto flex h-full max-w-md flex-col justify-center overflow-y-auto px-5 py-5">
+      <div className="mb-4 text-center">
+        <h1 className="text-xl font-light tracking-tight sm:text-2xl">Your profile</h1>
+        <p className="mt-1 text-xs text-muted">Update your details or photo. Changing your birth data recomputes your chart.</p>
       </div>
       <IntakeForm
         action={saveIntake}

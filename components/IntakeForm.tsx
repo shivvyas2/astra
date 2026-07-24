@@ -43,10 +43,10 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
   }
 
   return (
-    <form action={action} className="w-full max-w-md space-y-4">
-      <div className="flex flex-col items-center gap-2">
+    <form action={action} className="w-full max-w-md space-y-3">
+      <div className="flex flex-col items-center gap-1.5">
         <label className="cursor-pointer">
-          <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-center text-[11px] text-muted transition-colors hover:border-accent">
+          <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-center text-[10px] text-muted transition-colors hover:border-accent">
             {preview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
@@ -57,7 +57,7 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
           <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; setPreview(f ? URL.createObjectURL(f) : null); }} />
         </label>
-        <span className="text-xs text-muted/70">Optional profile photo</span>
+        <span className="text-[11px] text-muted/70">Optional photo</span>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -147,8 +147,7 @@ function TimePicker({ initialTime }: { initialTime?: string }) {
           <option value="PM">PM</option>
         </select>
       </div>
-      <span className="mt-1 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem}</span>
-      <p className="mt-1 text-xs text-muted/70">If you don&apos;t know it exactly, noon (12 PM) is a reasonable default.</p>
+      <span className="mt-1 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem} · noon is fine if unknown</span>
       <input type="hidden" name="birth_time" value={value} />
     </div>
   );
