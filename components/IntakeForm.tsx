@@ -20,13 +20,13 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
   return (
     <form action={action} className="w-full max-w-md space-y-4">
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        <input name="first_name" required placeholder="First name" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
-        <input name="last_name" required placeholder="Last name" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
+        <input name="first_name" required placeholder="First name" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
+        <input name="last_name" required placeholder="Last name" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
       </div>
 
       <label className="block text-sm text-muted">Birth date
         <input name="birth_date" type="date" required
-          className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none [color-scheme:dark] focus:border-accent" />
+          className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none [color-scheme:dark] focus:border-accent" />
       </label>
 
       <TimePicker />
@@ -46,7 +46,7 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
       <input type="hidden" name="lat" value={geo?.lat ?? ""} />
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
       <input type="hidden" name="timezone" value={geo?.timezone ?? ""} />
-      <button disabled={!geo} className="w-full rounded-md bg-fg px-3 py-2.5 font-medium text-bg disabled:opacity-40">
+      <button disabled={!geo} className="w-full rounded-lg bg-fg px-3 py-2.5 font-medium text-bg disabled:opacity-40">
         Save &amp; build my chart
       </button>
       {geo && <p className="text-xs text-muted">Timezone: {geo.timezone}</p>}
@@ -65,7 +65,7 @@ function TimePicker() {
   const value = `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
   const selectCls =
-    "w-full min-w-0 appearance-none rounded-md border border-white/15 bg-white/5 px-3 py-2.5 text-center outline-none [color-scheme:dark] focus:border-accent";
+    "w-full min-w-0 appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 text-center outline-none [color-scheme:dark] focus:border-accent";
 
   return (
     <div className="text-sm text-muted">
@@ -102,14 +102,14 @@ function ManualCoords({
     onChange(parseFloat(nLat), parseFloat(nLng), nPlace);
   }
   return (
-    <div className="w-full space-y-2 rounded-md border border-white/15 p-3">
+    <div className="w-full space-y-2 rounded-lg border border-white/10 p-3">
       <input value={place} onChange={(e) => { setPlace(e.target.value); push(lat, lng, e.target.value); }}
-        placeholder="Place name (optional)" className="w-full min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
+        placeholder="Place name (optional)" className="w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
       <div className="grid grid-cols-2 gap-2">
         <input value={lat} onChange={(e) => { setLat(e.target.value); push(e.target.value, lng, place); }}
-          placeholder="Latitude" inputMode="decimal" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
+          placeholder="Latitude" inputMode="decimal" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
         <input value={lng} onChange={(e) => { setLng(e.target.value); push(lat, e.target.value, place); }}
-          placeholder="Longitude" inputMode="decimal" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
+          placeholder="Longitude" inputMode="decimal" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
       </div>
       <button type="button" onClick={onBack} className="text-xs text-muted underline">Back to search</button>
     </div>

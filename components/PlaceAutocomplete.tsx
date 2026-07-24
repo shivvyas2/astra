@@ -21,11 +21,11 @@ export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }
         value={q}
         onChange={(e) => search(e.target.value)}
         placeholder="Birthplace (city)"
-        className="w-full min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent"
+        className="w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent"
       />
       {picked && <p className="mt-1 text-xs text-muted">Selected: {picked}</p>}
       {results.length > 0 && !picked && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-md border border-white/15 bg-bg">
+        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-white/10 bg-bg">
           {results.map((r, i) => (
             <li key={i}>
               <button type="button"

@@ -3,8 +3,23 @@ import { saveIntake } from "./actions";
 
 export default function IntakePage() {
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-bold sm:text-3xl">Your birth details</h1>
+    <div className="relative mx-auto flex min-h-[calc(100dvh-8rem)] max-w-md flex-col items-center justify-center px-1">
+      {/* cosmic glow */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-1/4 -z-10 mx-auto h-[380px] max-w-lg blur-2xl"
+        style={{
+          background:
+            "radial-gradient(closest-side, rgba(99,91,255,0.22), rgba(232,102,61,0.06) 45%, transparent 72%)",
+        }}
+      />
+      <div className="mb-8 text-center">
+        <span aria-hidden className="text-2xl text-accent">✦</span>
+        <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">Your birth details</h1>
+        <p className="mt-2 text-sm text-muted">
+          We compute your real chart from the exact moment and place you were born.
+        </p>
+      </div>
       <IntakeForm action={saveIntake} />
     </div>
   );
