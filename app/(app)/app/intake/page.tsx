@@ -14,8 +14,7 @@ export default function IntakePage() {
         }}
       />
       <div className="mb-8 text-center">
-        <span aria-hidden className="text-2xl text-accent">✦</span>
-        <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">Your birth details</h1>
+        <h1 className="text-2xl font-light tracking-tight sm:text-3xl">Your birth details</h1>
         <p className="mt-2 text-sm text-muted">
           We compute your real chart from the exact moment and place you were born.
         </p>

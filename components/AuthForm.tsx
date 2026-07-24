@@ -19,8 +19,7 @@ export function AuthForm({
 }) {
   return (
     <div className="w-full max-w-sm text-center">
-      <span aria-hidden className="text-2xl text-accent">✦</span>
-      <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">{title}</h1>
+      <h1 className="text-2xl font-light tracking-tight sm:text-3xl">{title}</h1>
       {subtitle && <p className="mt-2 text-sm text-muted">{subtitle}</p>}
       {error && <p className="mt-4 text-sm text-accent">{error}</p>}
       {notice && <p className="mt-4 text-sm text-muted">{notice}</p>}

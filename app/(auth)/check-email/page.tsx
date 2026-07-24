@@ -11,8 +11,7 @@ export default async function CheckEmailPage({
 
   return (
     <div className="w-full max-w-sm text-center">
-      <span aria-hidden className="text-3xl text-accent">✦</span>
-      <h1 className="mt-4 text-2xl font-light tracking-tight sm:text-3xl">Confirm your email</h1>
+      <h1 className="text-2xl font-light tracking-tight sm:text-3xl">Confirm your email</h1>
       <p className="mt-3 text-sm text-muted">
         We sent a confirmation link to{" "}
         <span className="text-fg">{email || "your email"}</span>. Open it to activate your account,

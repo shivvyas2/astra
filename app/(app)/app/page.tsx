@@ -21,8 +21,7 @@ export default async function AppHome() {
     return (
       <div className="relative mx-auto flex h-full max-w-md flex-col items-center justify-center overflow-y-auto px-5 py-8 text-center">
         <Glow />
-        <span aria-hidden className="text-2xl text-accent">✦</span>
-        <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">Let&apos;s build your chart</h1>
+        <h1 className="text-2xl font-light tracking-tight sm:text-3xl">Let&apos;s build your chart</h1>
         <p className="mt-2 max-w-sm text-sm text-muted">
           We compute your real birth chart from your date, time, and place.
         </p>
@@ -39,9 +38,7 @@ export default async function AppHome() {
       {profile.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={profile.avatar_url} alt="" className="mb-1 h-16 w-16 rounded-full object-cover" />
-      ) : (
-        <span aria-hidden className="text-2xl text-accent">✦</span>
-      )}
+      ) : null}
       <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">Hello, {profile.first_name}</h1>
       <p className="mt-2 max-w-sm text-sm text-muted">
         Your chart is ready. Ask about your future, a kundli reading, or life advice.

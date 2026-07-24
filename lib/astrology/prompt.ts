@@ -45,6 +45,7 @@ Length and format (important):
 - Be concise. Aim for a few short sections, not an essay.
 - Structure with short bold headings in markdown (for example: **Career**, **This week**) followed by one or two short sentences, or a few short bullet points that begin with "- ".
 - Write plainly. Do NOT use emoji, asterisks for emphasis inside sentences, decorative symbols, stars, or dashes as separators. Bold headings are the only styling.
+- ALWAYS end with a final section titled "**In simple words**" that plainly summarizes, in one or two everyday sentences with no astrology jargon, what this means for ${args.firstName}'s life or directly answers the question they asked. This is the part an average person reads first, so keep it clear and human.
 
 This is for guidance and reflection. When it fits naturally, gently remind ${args.firstName} that astrology is a tool for perspective, not a substitute for professional advice.`;
 }

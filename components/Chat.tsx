@@ -96,8 +96,7 @@ export function Chat({
 
   const composer = (
     <div className="mx-auto w-full max-w-2xl">
-      <div className="flex items-center gap-2 rounded-[28px] border border-white/10 bg-white/[0.04] px-3 py-2 shadow-[0_8px_40px_-12px_rgba(120,110,255,0.25)] backdrop-blur-sm transition-colors focus-within:border-white/20 sm:px-4">
-        <span aria-hidden className="select-none pl-1 text-lg text-muted">✦</span>
+      <div className="flex items-center gap-2 rounded-[28px] border border-white/10 bg-white/[0.04] px-4 py-2 shadow-[0_8px_40px_-12px_rgba(120,110,255,0.25)] backdrop-blur-sm transition-colors focus-within:border-white/20 sm:px-5">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -108,7 +107,7 @@ export function Chat({
         <div className="flex shrink-0 items-center gap-1">
           <button type="button" onClick={() => setTradition((t) => (t === "vedic" ? "western" : "vedic"))} title="Switch tradition"
             className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs text-muted transition-colors hover:bg-white/5 hover:text-fg">
-            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            <span className={`h-1.5 w-1.5 rounded-full ${tradition === "vedic" ? "bg-accent" : "bg-[#6b74ff]"}`} />
             {tradition === "vedic" ? "Vedic" : "Western"}
           </button>
           <button type="button" onClick={() => setDeep((d) => !d)} title="Deep reading uses a more powerful model"
