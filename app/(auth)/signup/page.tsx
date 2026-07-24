@@ -1,18 +1,21 @@
-import Link from "next/link";
 import { AuthForm } from "@/components/AuthForm";
-import { signUpWithPassword } from "../actions";
+import { authenticate, sendMagicLink } from "../actions";
 
 export default async function SignupPage({
   searchParams,
-}: { searchParams: Promise<{ error?: string }> }) {
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const sp = await searchParams;
   return (
     <AuthForm
-      title="Create your Astra account"
-      primaryLabel="Sign up"
-      primaryAction={signUpWithPassword}
+      title="Create your account"
+      subtitle="Enter your email and password to begin. Already have an account? This logs you in."
+      primaryLabel="Continue"
+      primaryAction={authenticate}
+      magicAction={sendMagicLink}
       error={sp.error}
-      footer={<>Already have an account? <Link className="text-fg underline" href="/login">Log in</Link></>}
+      footer={<>For guidance and reflection. Not a substitute for professional advice.</>}
     />
   );
 }
