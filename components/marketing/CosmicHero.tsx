@@ -288,8 +288,8 @@ export default function CosmicHero() {
         <canvas ref={canvasRef} className={`fixed inset-0 -z-10 h-full w-full transition-opacity duration-1000 ${shown ? "opacity-100" : "opacity-0"}`} />
       )}
 
-      {/* Sections */}
-      {SECTIONS.map((s, i) => (
+      {/* Single hero section */}
+      {SECTIONS.slice(0, 1).map((s, i) => (
         <section key={i} className="relative flex min-h-[100svh] flex-col items-center justify-center px-6 text-center">
           <p className="mb-4 text-xs uppercase tracking-[0.3em] text-muted">{s.eyebrow}</p>
           {i === 0 ? (
