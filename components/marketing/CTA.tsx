@@ -3,10 +3,10 @@ import Image from "next/image";
 
 export function CTA() {
   return (
-    <section className="relative overflow-hidden px-6 py-32 text-center md:px-16">
+    <section className="relative overflow-hidden px-5 py-20 text-center sm:px-6 sm:py-32 md:px-16">
       <Image src="/images/starfield.jpg" alt="" fill className="object-cover opacity-50" />
       <div className="relative z-10">
-        <h2 className="mx-auto max-w-2xl text-5xl font-bold tracking-tight md:text-7xl">
+        <h2 className="mx-auto max-w-2xl text-3xl font-bold tracking-tight sm:text-5xl md:text-7xl">
           Ask the sky your first question.
         </h2>
         <Link href="/signup" className="mt-8 inline-block rounded-md bg-accent px-8 py-3 font-medium text-bg">

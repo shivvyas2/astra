@@ -9,14 +9,14 @@ export default async function AdminUser({ params }: { params: Promise<{ id: stri
   return (
     <div>
       <Link href="/admin" className="text-sm text-muted">← Users</Link>
-      <h1 className="my-4 text-2xl font-bold">Conversations</h1>
+      <h1 className="my-4 text-xl font-bold sm:text-2xl">Conversations</h1>
       <ul className="space-y-2">
         {convs.map((c) => (
           <li key={c.id} className="border-t border-white/10 py-2">
-            <Link className="text-accent" href={`/admin/conversations/${c.id}`}>
+            <Link className="break-words text-accent" href={`/admin/conversations/${c.id}`}>
               [{c.tradition}] {c.title ?? "(untitled)"}
             </Link>
-            <span className="ml-2 text-xs text-muted">{new Date(c.created_at).toLocaleString()}</span>
+            <span className="ml-2 block text-xs text-muted sm:inline">{new Date(c.created_at).toLocaleString()}</span>
           </li>
         ))}
         {convs.length === 0 && <p className="text-muted">No conversations.</p>}

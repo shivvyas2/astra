@@ -79,7 +79,7 @@ export async function POST(request: Request) {
         }
       } catch (err) {
         console.error("chat stream error", err);
-        controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded — please try again.]"));
+        controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded. Please try again.]"));
       } finally {
         if (full.trim()) await appendMessage(conversationId, "assistant", full);
         controller.close();

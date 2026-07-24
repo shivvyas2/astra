@@ -36,7 +36,7 @@ export function Chat({ initialConversationId }: { initialConversationId?: string
       convId.current = res.headers.get("x-conversation-id") ?? convId.current;
 
       if (!res.ok || !res.body) {
-        setLastAssistantContent("Something went wrong — please try again.");
+        setLastAssistantContent("Something went wrong. Please try again.");
         return;
       }
 
@@ -53,17 +53,17 @@ export function Chat({ initialConversationId }: { initialConversationId?: string
         });
       }
     } catch {
-      setLastAssistantContent("Something went wrong — please try again.");
+      setLastAssistantContent("Something went wrong. Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-2xl flex-col">
-      <div className="mb-3 flex items-center gap-2 text-sm">
+    <div className="mx-auto flex h-[calc(100dvh-8rem)] max-w-2xl flex-col">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
         <select value={tradition} onChange={(e) => setTradition(e.target.value as Tradition)}
-          className="rounded-md border border-white/15 bg-white/5 px-2 py-1">
+          className="rounded-md border border-white/15 bg-white/5 px-2 py-1.5">
           <option value="vedic">Vedic (kundli)</option>
           <option value="western">Western</option>
         </select>
@@ -72,13 +72,13 @@ export function Chat({ initialConversationId }: { initialConversationId?: string
         </label>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto rounded-md border border-white/10 p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto rounded-md border border-white/10 p-3 sm:p-4">
         {messages.length === 0 && (
           <p className="text-muted">Ask about your future, a kundli reading, or advice.</p>
         )}
         {messages.map((m, i) => (
           <div key={i} className={m.role === "user" ? "text-right" : ""}>
-            <div className={`inline-block whitespace-pre-wrap rounded-lg px-3 py-2 ${m.role === "user" ? "bg-fg text-bg" : "bg-white/5"}`}>
+            <div className={`inline-block max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-3 py-2 ${m.role === "user" ? "bg-fg text-bg" : "bg-white/5"}`}>
               {m.content || "…"}
             </div>
           </div>
@@ -89,9 +89,9 @@ export function Chat({ initialConversationId }: { initialConversationId?: string
         <input value={input} onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
           placeholder="Ask Astra…"
-          className="flex-1 rounded-md border border-white/15 bg-white/5 px-3 py-2 outline-none focus:border-accent" />
+          className="min-w-0 flex-1 rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
         <button onClick={send} disabled={busy}
-          className="rounded-md bg-accent px-4 py-2 font-medium text-bg disabled:opacity-40">Send</button>
+          className="shrink-0 rounded-md bg-accent px-4 py-2.5 font-medium text-bg disabled:opacity-40">Send</button>
       </div>
       <p className="mt-2 text-center text-xs text-muted">
         For guidance and reflection. Not a substitute for professional advice.

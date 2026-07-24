@@ -18,16 +18,16 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
   }
 
   return (
-    <form action={action} className="max-w-md space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <input name="first_name" required placeholder="First name" className="rounded-md border border-white/15 bg-white/5 px-3 py-2" />
-        <input name="last_name" required placeholder="Last name" className="rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+    <form action={action} className="w-full max-w-md space-y-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
+        <input name="first_name" required placeholder="First name" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
+        <input name="last_name" required placeholder="Last name" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
       </div>
       <label className="block text-sm text-muted">Birth date
-        <input name="birth_date" type="date" required className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+        <input name="birth_date" type="date" required className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
       </label>
       <label className="block text-sm text-muted">Birth time (as exact as you know)
-        <input name="birth_time" type="time" required className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+        <input name="birth_time" type="time" required className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
       </label>
 
       {!manual ? (
@@ -45,7 +45,7 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
       <input type="hidden" name="lat" value={geo?.lat ?? ""} />
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
       <input type="hidden" name="timezone" value={geo?.timezone ?? ""} />
-      <button disabled={!geo} className="w-full rounded-md bg-fg px-3 py-2 font-medium text-bg disabled:opacity-40">
+      <button disabled={!geo} className="w-full rounded-md bg-fg px-3 py-2.5 font-medium text-bg disabled:opacity-40">
         Save & build my chart
       </button>
       {geo && <p className="text-xs text-muted">Timezone: {geo.timezone}</p>}
@@ -63,14 +63,14 @@ function ManualCoords({
     onChange(parseFloat(nLat), parseFloat(nLng), nPlace);
   }
   return (
-    <div className="space-y-2 rounded-md border border-white/15 p-3">
+    <div className="w-full space-y-2 rounded-md border border-white/15 p-3">
       <input value={place} onChange={(e) => { setPlace(e.target.value); push(lat, lng, e.target.value); }}
-        placeholder="Place name (optional)" className="w-full rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+        placeholder="Place name (optional)" className="w-full min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
       <div className="grid grid-cols-2 gap-2">
         <input value={lat} onChange={(e) => { setLat(e.target.value); push(e.target.value, lng, place); }}
-          placeholder="Latitude" inputMode="decimal" className="rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+          placeholder="Latitude" inputMode="decimal" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
         <input value={lng} onChange={(e) => { setLng(e.target.value); push(lat, e.target.value, place); }}
-          placeholder="Longitude" inputMode="decimal" className="rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+          placeholder="Longitude" inputMode="decimal" className="min-w-0 rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />
       </div>
       <button type="button" onClick={onBack} className="text-xs text-muted underline">Back to search</button>
     </div>
