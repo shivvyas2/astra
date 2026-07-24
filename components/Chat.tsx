@@ -148,26 +148,32 @@ export function Chat({
         </div>
       ) : (
         <>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-6">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto overscroll-contain px-4 py-6">
             <div className="mx-auto max-w-2xl space-y-6">
-              {messages.map((m, i) => (
-                <div key={i} className={`animate-fade-up ${m.role === "user" ? "flex justify-end" : ""}`}>
-                  {m.role === "user" ? (
-                    <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl bg-white/[0.06] px-4 py-2.5 text-[15px]">
-                      {m.content}
-                    </div>
-                  ) : m.content ? (
-                    <div className="prose-reading max-w-none break-words text-[15px] text-fg/90">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div className="animate-fade-in text-sm text-muted">Reading your chart…</div>
-                  )}
-                </div>
-              ))}
+              {messages.map((m, i) => {
+                const streaming = busy && i === messages.length - 1;
+                return (
+                  <div key={i} className={`animate-fade-up ${m.role === "user" ? "flex justify-end" : ""}`}>
+                    {m.role === "user" ? (
+                      <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-2xl bg-white/[0.06] px-4 py-2.5 text-[15px]">
+                        {m.content}
+                      </div>
+                    ) : (
+                      <div className="prose-reading max-w-none break-words text-[15px] text-fg/90">
+                        {m.content ? (
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                        ) : (
+                          <span className="animate-shimmer text-sm text-muted">Reading your chart…</span>
+                        )}
+                        {streaming && m.content && <span className="caret">▍</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <div className="px-4 pb-4 pt-2">{composer}</div>
+          <div className="px-4 pt-2" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>{composer}</div>
         </>
       )}
     </div>
