@@ -15,6 +15,7 @@
   --font-display: ui-sans-serif, system-ui, sans-serif;
 }
 
+html { scroll-behavior: smooth; }
 html, body { background: var(--bg); color: var(--fg); overflow-x: hidden; max-width: 100%; }
 * { box-sizing: border-box; }
 

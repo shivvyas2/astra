@@ -58,6 +58,7 @@ export default function CosmicHero() {
   const heroSubRef = useRef<HTMLDivElement>(null);
   const [progress, setProgress] = useState(0);
   const [reduced, setReduced] = useState(false);
+  const [shown, setShown] = useState(false);
 
   const refs = useRef<any>({ stars: [], animationId: 0, targetZ: 320, smoothZ: 320 });
 
@@ -229,6 +230,8 @@ export default function CosmicHero() {
       else renderer.render(scene, camera);
     };
     animate();
+    // Fade the canvas in once the first frames are drawn (no pop-in).
+    requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
 
     // GSAP intro
     if (heroTitleRef.current) {
@@ -280,15 +283,15 @@ export default function CosmicHero() {
       {/* Real photo background */}
       <div aria-hidden className="fixed inset-0 -z-30 bg-cover bg-center"
         style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
-      {/* Darken + tint for legibility */}
+      {/* Light vignette so the planet/sun photo shows through, text stays readable */}
       <div aria-hidden className="fixed inset-0 -z-20"
-        style={{ background: "linear-gradient(180deg, rgba(5,5,10,0.55), rgba(5,5,10,0.75))" }} />
+        style={{ background: "radial-gradient(130% 90% at 62% 32%, rgba(5,5,10,0.12), rgba(5,5,10,0.66) 82%)" }} />
       {/* Fixed 3D starfield overlay (transparent; falls back to a glow for reduced motion) */}
       {reduced ? (
         <div aria-hidden className="fixed inset-0 -z-10"
           style={{ background: "radial-gradient(60% 50% at 60% 40%, rgba(232,102,61,0.18), rgba(58,43,255,0.10) 45%, transparent 75%)" }} />
       ) : (
-        <canvas ref={canvasRef} className="fixed inset-0 -z-10 h-full w-full" />
+        <canvas ref={canvasRef} className={`fixed inset-0 -z-10 h-full w-full transition-opacity duration-1000 ${shown ? "opacity-100" : "opacity-0"}`} />
       )}
 
       {/* Scroll progress rail */}
