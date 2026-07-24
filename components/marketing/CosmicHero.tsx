@@ -56,7 +56,6 @@ export default function CosmicHero() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const heroTitleRef = useRef<HTMLHeadingElement>(null);
   const heroSubRef = useRef<HTMLDivElement>(null);
-  const [progress, setProgress] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [shown, setShown] = useState(false);
 
@@ -266,7 +265,6 @@ export default function CosmicHero() {
     const onScroll = () => {
       const max = document.documentElement.scrollHeight - window.innerHeight;
       const p = max > 0 ? Math.min(window.scrollY / max, 1) : 0;
-      setProgress(p);
       // fly from z=320 (near) to z=-520 (deep) as you scroll
       refs.current.targetZ = 320 - p * 840;
     };
@@ -276,10 +274,9 @@ export default function CosmicHero() {
   }, []);
 
   const split = (s: string) => s.split("").map((ch, i) => <span key={i} className="ch inline-block">{ch === " " ? " " : ch}</span>);
-  const sectionNo = Math.min(SECTIONS.length, Math.floor(progress * SECTIONS.length) + 1);
 
   return (
-    <div className="relative bg-bg">
+    <div className="relative">
       {/* Real photo background (no dark overlay) */}
       <div aria-hidden className="fixed inset-0 -z-20 bg-cover bg-center"
         style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
@@ -290,15 +287,6 @@ export default function CosmicHero() {
       ) : (
         <canvas ref={canvasRef} className={`fixed inset-0 -z-10 h-full w-full transition-opacity duration-1000 ${shown ? "opacity-100" : "opacity-0"}`} />
       )}
-
-      {/* Scroll progress rail */}
-      <div className="fixed bottom-6 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 text-[11px] uppercase tracking-widest text-muted">
-        <span className="hidden sm:inline">Scroll</span>
-        <span className="h-px w-24 overflow-hidden bg-white/15">
-          <span className="block h-full bg-accent transition-[width] duration-150" style={{ width: `${progress * 100}%` }} />
-        </span>
-        <span>{String(sectionNo).padStart(2, "0")} / {String(SECTIONS.length).padStart(2, "0")}</span>
-      </div>
 
       {/* Sections */}
       {SECTIONS.map((s, i) => (
