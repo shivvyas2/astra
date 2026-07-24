@@ -16,3 +16,9 @@ export async function adminSignIn(formData: FormData) {
   }
   redirect("/admin");
 }
+
+export async function adminSignOut() {
+  const supabase = await createServerSupabase();
+  await supabase.auth.signOut();
+  redirect("/admin/login");
+}
