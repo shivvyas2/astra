@@ -1,0 +1,25 @@
+import Image from "next/image";
+import Link from "next/link";
+
+export function Hero() {
+  return (
+    <section className="relative flex min-h-[90vh] items-center overflow-hidden">
+      <Image src="/images/planet-sun.jpg" alt="" fill priority className="object-cover opacity-60" />
+      <div className="absolute inset-0 bg-gradient-to-r from-bg via-bg/70 to-transparent" />
+      <div className="relative z-10 px-6 md:px-16">
+        <p className="mb-4 text-sm uppercase tracking-widest text-muted">Astrology, computed — not guessed</p>
+        <h1 className="max-w-3xl text-6xl font-bold leading-[0.95] tracking-tight md:text-8xl">
+          Your chart,<br />read by the stars.
+        </h1>
+        <p className="mt-6 max-w-xl text-lg text-muted">
+          Enter your birth date, time, and place. We compute your real Vedic or Western birth chart and let you
+          ask it anything — your future, a kundli reading, or life advice.
+        </p>
+        <div className="mt-8 flex gap-3">
+          <Link href="/signup" className="rounded-md bg-fg px-6 py-3 font-medium text-bg">Get your reading</Link>
+          <Link href="/login" className="rounded-md border border-white/25 px-6 py-3">Log in</Link>
+        </div>
+      </div>
+    </section>
+  );
+}
