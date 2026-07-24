@@ -7,6 +7,13 @@ import { resolveTimezone } from "@/lib/geo";
 export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
   const [geo, setGeo] = useState<GeoResult | null>(null);
   const [manual, setManual] = useState(false);
+  const [birthDate, setBirthDate] = useState("");
+
+  const prettyDate = birthDate
+    ? new Date(`${birthDate}T00:00:00`).toLocaleDateString("en-US", {
+        weekday: "long", year: "numeric", month: "long", day: "numeric",
+      })
+    : "";
 
   // Manual mode: user types lat/lng; timezone is derived offline via tz-lookup.
   function manualGeo(lat: number, lng: number, placeName: string) {
@@ -25,8 +32,11 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
       </div>
 
       <label className="block text-sm text-muted">Birth date
-        <input name="birth_date" type="date" required
+        <input name="birth_date" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
           className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none [color-scheme:dark] focus:border-accent" />
+        <span className={`mt-1 block text-xs ${birthDate ? "text-accent" : "text-muted/60"}`}>
+          {birthDate ? `Selected: ${prettyDate}` : "No date selected yet"}
+        </span>
       </label>
 
       <TimePicker />
@@ -86,6 +96,7 @@ function TimePicker() {
           <option value="PM">PM</option>
         </select>
       </div>
+      <span className="mt-1 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem}</span>
       <p className="mt-1 text-xs text-muted/70">If you don&apos;t know it exactly, noon (12 PM) is a reasonable default.</p>
       <input type="hidden" name="birth_time" value={value} />
     </div>

@@ -17,3 +17,37 @@
 
 html, body { background: var(--bg); color: var(--fg); overflow-x: hidden; }
 * { box-sizing: border-box; }
+
+/* Animations */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.85; transform: scale(1); }
+  50%      { opacity: 1; transform: scale(1.06); }
+}
+.animate-fade-up { animation: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in { animation: fade-in 0.5s ease-out both; }
+.animate-glow { animation: glow-pulse 7s ease-in-out infinite; }
+.delay-1 { animation-delay: 0.08s; }
+.delay-2 { animation-delay: 0.16s; }
+.delay-3 { animation-delay: 0.24s; }
+
+/* Markdown reading styles */
+.prose-reading { line-height: 1.6; }
+.prose-reading > *:first-child { margin-top: 0; }
+.prose-reading p { margin: 0.6rem 0; }
+.prose-reading strong { font-weight: 700; color: var(--fg); }
+.prose-reading h1, .prose-reading h2, .prose-reading h3 { font-weight: 700; margin: 1.1rem 0 0.4rem; font-size: 1rem; }
+.prose-reading ul { margin: 0.5rem 0; padding-left: 1.1rem; list-style: disc; }
+.prose-reading li { margin: 0.25rem 0; }
+.prose-reading a { color: var(--accent); text-decoration: underline; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up, .animate-fade-in, .animate-glow { animation: none; }
+}

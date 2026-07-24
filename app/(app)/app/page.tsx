@@ -19,7 +19,7 @@ export default async function AppHome() {
 
   if (!profile) {
     return (
-      <div className="relative mx-auto flex min-h-[calc(100dvh-8rem)] max-w-md flex-col items-center justify-center px-1 text-center">
+      <div className="relative mx-auto flex h-full max-w-md flex-col items-center justify-center overflow-y-auto px-5 py-8 text-center">
         <Glow />
         <span aria-hidden className="text-2xl text-accent">✦</span>
         <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">Let&apos;s build your chart</h1>

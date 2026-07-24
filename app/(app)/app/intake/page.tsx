@@ -3,7 +3,7 @@ import { saveIntake } from "./actions";
 
 export default function IntakePage() {
   return (
-    <div className="relative mx-auto flex min-h-[calc(100dvh-8rem)] max-w-md flex-col items-center justify-center px-1">
+    <div className="relative mx-auto flex h-full max-w-md flex-col items-center justify-center overflow-y-auto px-5 py-8">
       {/* cosmic glow */}
       <div
         aria-hidden

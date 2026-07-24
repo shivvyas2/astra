@@ -35,7 +35,10 @@ export async function POST(request: Request) {
     if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
 
     const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition];
-    system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart });
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long", year: "numeric", month: "long", day: "numeric",
+    });
+    system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart, today });
 
     conversationId = await getOrCreateConversation({
       userId: user.id,
@@ -45,8 +48,11 @@ export async function POST(request: Request) {
     });
 
     // Build history from persisted messages, then append the new user turn.
+    // Cap history to the last 10 turns to bound input tokens (cost) on long chats.
     const history = await getMessages(conversationId);
-    messages = history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    messages = history
+      .slice(-10)
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
     messages.push({ role: "user", content: body.message });
     await appendMessage(conversationId, "user", body.message);
   } catch (err) {
@@ -63,7 +69,8 @@ export async function POST(request: Request) {
       try {
         const s = anthropic().messages.stream({
           model,
-          max_tokens: 4096,
+          // Readings are short; cap output to keep cost low (deep gets a bit more room).
+          max_tokens: body.deep ? 2048 : 1024,
           // Only the deep (Opus) model supports adaptive thinking; Haiku rejects it.
           // The installed SDK's types predate "adaptive", so cast through unknown to
           // keep the runtime value exact while satisfying the older union at compile time.
