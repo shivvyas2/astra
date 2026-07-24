@@ -15,8 +15,13 @@
   --font-display: ui-sans-serif, system-ui, sans-serif;
 }
 
-html, body { background: var(--bg); color: var(--fg); overflow-x: hidden; }
+html, body { background: var(--bg); color: var(--fg); overflow-x: hidden; max-width: 100%; }
 * { box-sizing: border-box; }
+
+/* On phones, focusable form controls must be >=16px or iOS Safari zooms in on focus. */
+@media (max-width: 767px) {
+  input, select, textarea { font-size: 16px !important; }
+}
 
 /* Animations */
 @keyframes fade-up {
