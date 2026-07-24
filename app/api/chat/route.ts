@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { anthropic, READING_MODEL, DEEP_READING_MODEL } from "@/lib/anthropic";
+import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking } from "@/lib/anthropic";
 import { buildSystemPrompt } from "@/lib/astrology/prompt";
 import type { Chart, Tradition } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
@@ -64,10 +64,12 @@ export async function POST(request: Request) {
         const s = anthropic().messages.stream({
           model,
           max_tokens: 4096,
-          // The installed SDK's types predate the "adaptive" thinking mode; the API
-          // itself accepts it. Cast through unknown to keep the runtime value exact
-          // while satisfying the older ThinkingConfigParam union at compile time.
-          thinking: { type: "adaptive" } as unknown as Anthropic.ThinkingConfigParam,
+          // Only the deep (Opus) model supports adaptive thinking; Haiku rejects it.
+          // The installed SDK's types predate "adaptive", so cast through unknown to
+          // keep the runtime value exact while satisfying the older union at compile time.
+          ...(supportsAdaptiveThinking(model)
+            ? { thinking: { type: "adaptive" } as unknown as Anthropic.ThinkingConfigParam }
+            : {}),
           system,
           messages,
         });
