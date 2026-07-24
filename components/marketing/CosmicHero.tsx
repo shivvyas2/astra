@@ -32,11 +32,10 @@ export default function CosmicHero() {
     ));
 
   return (
-    <div className="relative min-h-[100svh]">
-      {/* Planet photo background */}
-      <div aria-hidden className="fixed inset-0 -z-10 bg-cover bg-center"
-        style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
-
+    <div
+      className="relative min-h-[100svh] bg-cover bg-center"
+      style={{ backgroundImage: "url(/images/planet-sun.jpg)" }}
+    >
       <section className="relative flex min-h-[100svh] flex-col items-center justify-center px-6 text-center">
         <p className="animate-fade-in mb-4 text-xs uppercase tracking-[0.3em] text-muted">
           Computed astrology, never guessed

@@ -46,6 +46,9 @@ export default async function AppHome() {
       <Link href="/app/chat" className="mt-7 w-full max-w-xs rounded-lg bg-accent px-4 py-2.5 text-center font-medium text-bg">
         Start a reading
       </Link>
+      <a href="/api/kundli" className="mt-3 text-sm text-muted underline transition-colors hover:text-fg">
+        Download your kundli (PDF)
+      </a>
     </div>
   );
 }
