@@ -23,10 +23,11 @@ export async function updateSession(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const isProtected = path.startsWith("/app");
-  if (isProtected && !user) {
+  const isProtectedApp = path.startsWith("/app");
+  const isProtectedAdmin = path.startsWith("/admin") && path !== "/admin/login";
+  if ((isProtectedApp || isProtectedAdmin) && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = isProtectedAdmin ? "/admin/login" : "/login";
     return NextResponse.redirect(url);
   }
   return response;
