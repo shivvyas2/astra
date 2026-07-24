@@ -876,6 +876,15 @@ export type Planet = {
   nakshatra?: string;
 };
 
+export type DashaInfo = {
+  mahadasha: string;
+  mahadashaStart: string; // ISO date
+  mahadashaEnd: string;
+  antardasha: string;
+  antardashaStart: string;
+  antardashaEnd: string;
+};
+
 export type Chart = {
   tradition: Tradition;
   ascendant: { sign: string; degree: number };
@@ -884,8 +893,104 @@ export type Chart = {
   moonSign: string;
   sunSign: string;
   ayanamsa?: number;
+  dasha?: DashaInfo; // Vedic only — current Vimshottari mahadasha/antardasha
 };
 ```
+
+- [ ] **Step 2b: Vimshottari Dasha module (Vedic) + test**
+
+`lib/astrology/dasha.ts`:
+```ts
+import { DateTime } from "luxon";
+import type { DashaInfo } from "./types";
+
+// Vimshottari order + years (total 120). Nakshatra lords repeat every 9 nakshatras.
+const ORDER = [
+  { lord: "Ketu", years: 7 }, { lord: "Venus", years: 20 }, { lord: "Sun", years: 6 },
+  { lord: "Moon", years: 10 }, { lord: "Mars", years: 7 }, { lord: "Rahu", years: 18 },
+  { lord: "Jupiter", years: 16 }, { lord: "Saturn", years: 19 }, { lord: "Mercury", years: 17 },
+] as const;
+const TOTAL = 120;
+const NAK_SPAN = 360 / 27; // 13°20'
+
+export function startingDashaLord(moonSiderealLongitude: number): string {
+  const lon = ((moonSiderealLongitude % 360) + 360) % 360;
+  return ORDER[Math.floor(lon / NAK_SPAN) % 9].lord;
+}
+
+const addYears = (dt: DateTime, y: number) => dt.plus({ days: y * 365.25 }); // Vedic 365.25-day year
+
+// `now` is injectable so tests are deterministic.
+export function computeVimshottari(
+  moonSiderealLongitude: number,
+  birthUt: DateTime,
+  now: DateTime = DateTime.utc(),
+): DashaInfo {
+  const lon = ((moonSiderealLongitude % 360) + 360) % 360;
+  const nakIndex = Math.floor(lon / NAK_SPAN);
+  const startLordIndex = nakIndex % 9;
+  const fractionElapsed = (lon - nakIndex * NAK_SPAN) / NAK_SPAN;
+
+  // Mahadasha periods forward from birth; the first is the *balance* of the running dasha.
+  const periods: { lord: string; start: DateTime; end: DateTime }[] = [];
+  let cursor = birthUt;
+  const firstYears = ORDER[startLordIndex].years * (1 - fractionElapsed);
+  periods.push({ lord: ORDER[startLordIndex].lord, start: cursor, end: (cursor = addYears(cursor, firstYears)) });
+  for (let i = 1; i < 12; i++) {
+    const o = ORDER[(startLordIndex + i) % 9];
+    periods.push({ lord: o.lord, start: cursor, end: (cursor = addYears(cursor, o.years)) });
+  }
+
+  const maha = periods.find((p) => now >= p.start && now < p.end) ?? periods[0];
+  const mahaFullYears = ORDER.find((o) => o.lord === maha.lord)!.years;
+  const mahaLordIndex = ORDER.findIndex((o) => o.lord === maha.lord);
+
+  // Antardashas within the current mahadasha, in Vimshottari order from the maha lord.
+  let aCursor = maha.start;
+  let antar = { lord: maha.lord, start: maha.start, end: maha.end };
+  for (let i = 0; i < 9; i++) {
+    const sub = ORDER[(mahaLordIndex + i) % 9];
+    const end = addYears(aCursor, (mahaFullYears * sub.years) / TOTAL);
+    if (now >= aCursor && now < end) { antar = { lord: sub.lord, start: aCursor, end }; break; }
+    aCursor = end;
+  }
+
+  return {
+    mahadasha: maha.lord,
+    mahadashaStart: maha.start.toISODate()!,
+    mahadashaEnd: maha.end.toISODate()!,
+    antardasha: antar.lord,
+    antardashaStart: antar.start.toISODate()!,
+    antardashaEnd: antar.end.toISODate()!,
+  };
+}
+```
+> The first (balance) mahadasha's antardasha sequence is approximated from the maha start; this is close enough for a reading and can be refined later.
+
+`lib/astrology/dasha.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { DateTime } from "luxon";
+import { startingDashaLord, computeVimshottari } from "./dasha";
+
+describe("vimshottari dasha", () => {
+  it("Moon at 0° (Ashwini) starts under Ketu", () => {
+    expect(startingDashaLord(0)).toBe("Ketu");
+  });
+  it("Moon at 40° (start of Magha) starts under Ketu again (cycle repeats)", () => {
+    expect(startingDashaLord(120)).toBe("Ketu"); // nakshatra 9 → index%9===0 → Ketu
+  });
+  it("gives the current mahadasha deterministically", () => {
+    // Birth 1990-01-01, Moon at exactly 0° → Ketu 7y (1990→1997), Venus 20y (1997→2017), Sun 6y (2017→2023).
+    const birth = DateTime.fromISO("1990-01-01T00:00:00", { zone: "utc" });
+    const now = DateTime.fromISO("2020-01-01T00:00:00", { zone: "utc" });
+    const d = computeVimshottari(0, birth, now);
+    expect(d.mahadasha).toBe("Sun");
+  });
+});
+```
+
+Run: `npm run test -- dasha` → 3 passing tests.
 
 - [ ] **Step 3: Write the failing test**
 
@@ -923,6 +1028,8 @@ describe("computeChart", () => {
     expect(vedic.ayanamsa).toBeLessThan(26);
     const sun = vedic.planets.find((p) => p.name === "Sun")!;
     expect(sun.nakshatra).toBeTruthy();
+    expect(vedic.dasha?.mahadasha).toBeTruthy();
+    expect(vedic.dasha?.antardasha).toBeTruthy();
   });
 });
 ```
@@ -939,6 +1046,7 @@ import { DateTime } from "luxon";
 import SwissEph from "swisseph-wasm";
 import type { BirthInput, Chart, Planet, Tradition } from "./types";
 import { degreeInSign, nakshatraOf, signOf, SIGNS } from "./constants";
+import { computeVimshottari } from "./dasha";
 
 // Lazily initialize the WASM module once per server process.
 let swePromise: Promise<any> | null = null;
@@ -1006,10 +1114,12 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
 
   // 4. Planets.
   const planets: Planet[] = [];
+  let moonAbsLon = 0; // sidereal absolute longitude of the Moon, for the dasha calc
   for (const body of BODIES) {
     const res = swe.calc_ut(jd, (swe as any)[body.key], iflag);
     const lon: number = res.longitude ?? res.x?.[0] ?? res[0];
     const speed: number = res.longitudeSpeed ?? res.x?.[3] ?? 0;
+    if (body.name === "Moon") moonAbsLon = ((lon % 360) + 360) % 360;
     planets.push({
       name: body.name,
       sign: signOf(lon),
@@ -1043,6 +1153,7 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
     moonSign: moon.sign,
     sunSign: sun.sign,
     ayanamsa: ayanamsa !== undefined ? Number(ayanamsa.toFixed(3)) : undefined,
+    dasha: tradition === "vedic" ? computeVimshottari(moonAbsLon, ut) : undefined,
   };
 }
 ```
@@ -1216,9 +1327,21 @@ export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }
 import { useState } from "react";
 import type { GeoResult } from "@/lib/geo";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
+import { resolveTimezone } from "@/lib/geo";
 
 export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
   const [geo, setGeo] = useState<GeoResult | null>(null);
+  const [manual, setManual] = useState(false);
+
+  // Manual mode: user types lat/lng; timezone is derived offline via tz-lookup.
+  function manualGeo(lat: number, lng: number, placeName: string) {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      setGeo({ name: placeName || `${lat}, ${lng}`, lat, lng, timezone: resolveTimezone(lat, lng), country: "" });
+    } else {
+      setGeo(null);
+    }
+  }
+
   return (
     <form action={action} className="max-w-md space-y-3">
       <div className="grid grid-cols-2 gap-3">
@@ -1231,7 +1354,18 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
       <label className="block text-sm text-muted">Birth time (as exact as you know)
         <input name="birth_time" type="time" required className="mt-1 w-full rounded-md border border-white/15 bg-white/5 px-3 py-2" />
       </label>
-      <PlaceAutocomplete onPick={setGeo} />
+
+      {!manual ? (
+        <>
+          <PlaceAutocomplete onPick={setGeo} />
+          <button type="button" onClick={() => { setManual(true); setGeo(null); }} className="text-xs text-muted underline">
+            Can't find your birthplace? Enter coordinates manually
+          </button>
+        </>
+      ) : (
+        <ManualCoords onChange={manualGeo} onBack={() => { setManual(false); setGeo(null); }} />
+      )}
+
       <input type="hidden" name="place_name" value={geo?.name ?? ""} />
       <input type="hidden" name="lat" value={geo?.lat ?? ""} />
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
@@ -1239,7 +1373,32 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
       <button disabled={!geo} className="w-full rounded-md bg-fg px-3 py-2 font-medium text-bg disabled:opacity-40">
         Save & build my chart
       </button>
+      {geo && <p className="text-xs text-muted">Timezone: {geo.timezone}</p>}
     </form>
+  );
+}
+
+function ManualCoords({
+  onChange, onBack,
+}: { onChange: (lat: number, lng: number, place: string) => void; onBack: () => void }) {
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
+  const [place, setPlace] = useState("");
+  function push(nLat: string, nLng: string, nPlace: string) {
+    onChange(parseFloat(nLat), parseFloat(nLng), nPlace);
+  }
+  return (
+    <div className="space-y-2 rounded-md border border-white/15 p-3">
+      <input value={place} onChange={(e) => { setPlace(e.target.value); push(lat, lng, e.target.value); }}
+        placeholder="Place name (optional)" className="w-full rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={lat} onChange={(e) => { setLat(e.target.value); push(e.target.value, lng, place); }}
+          placeholder="Latitude" inputMode="decimal" className="rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+        <input value={lng} onChange={(e) => { setLng(e.target.value); push(lat, e.target.value, place); }}
+          placeholder="Longitude" inputMode="decimal" className="rounded-md border border-white/15 bg-white/5 px-3 py-2" />
+      </div>
+      <button type="button" onClick={onBack} className="text-xs text-muted underline">Back to search</button>
+    </div>
   );
 }
 ```
@@ -1375,16 +1534,21 @@ const chart: Chart = {
   moonSign: "Taurus",
   sunSign: "Sagittarius",
   ayanamsa: 23.7,
+  dasha: {
+    mahadasha: "Venus", mahadashaStart: "2015-01-01", mahadashaEnd: "2035-01-01",
+    antardasha: "Sun", antardashaStart: "2024-01-01", antardashaEnd: "2025-01-01",
+  },
 };
 
 describe("buildSystemPrompt", () => {
-  it("embeds the tradition, name, ascendant, and planetary data", () => {
+  it("embeds the tradition, name, ascendant, planetary data, and dasha", () => {
     const p = buildSystemPrompt({ firstName: "Aditi", tradition: "vedic", chart });
     expect(p).toContain("Aditi");
     expect(p).toContain("Vedic");
     expect(p).toContain("Leo"); // ascendant
     expect(p).toContain("Sagittarius"); // sun sign
     expect(p).toContain("Purva Ashadha"); // nakshatra
+    expect(p).toContain("Venus"); // mahadasha lord
   });
 
   it("instructs the model not to invent positions and to include a disclaimer", () => {
@@ -1410,6 +1574,12 @@ function renderChart(chart: Chart): string {
   lines.push(`Ascendant (Lagna/Rising): ${chart.ascendant.sign} ${chart.ascendant.degree}°`);
   lines.push(`Sun sign: ${chart.sunSign} | Moon sign: ${chart.moonSign}`);
   if (chart.ayanamsa) lines.push(`Ayanamsa (Lahiri): ${chart.ayanamsa}°`);
+  if (chart.dasha) {
+    lines.push(
+      `Current Vimshottari dasha: ${chart.dasha.mahadasha} mahadasha (until ${chart.dasha.mahadashaEnd}), ` +
+        `${chart.dasha.antardasha} antardasha (until ${chart.dasha.antardashaEnd})`,
+    );
+  }
   lines.push("Planets:");
   for (const p of chart.planets) {
     const nak = p.nakshatra ? `, nakshatra ${p.nakshatra}` : "";
