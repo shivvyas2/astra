@@ -19,6 +19,11 @@ html { scroll-behavior: smooth; }
 html, body { background: var(--bg); color: var(--fg); overflow-x: hidden; max-width: 100%; }
 * { box-sizing: border-box; }
 
+/* Form controls must never exceed their container (iOS date/time inputs have a
+   large intrinsic width that otherwise overflows the screen). */
+input, select, textarea { max-width: 100%; min-width: 0; }
+input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: none; }
+
 /* On phones, focusable form controls must be >=16px or iOS Safari zooms in on focus. */
 @media (max-width: 767px) {
   input, select, textarea { font-size: 16px !important; }
