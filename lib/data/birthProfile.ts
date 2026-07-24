@@ -13,6 +13,7 @@ export type BirthProfileRow = {
   lat: number;
   lng: number;
   timezone: string;
+  avatar_url: string | null;
   chart: { vedic: unknown; western: unknown } | null;
 };
 
@@ -32,6 +33,7 @@ export async function saveBirthProfile(input: {
   lat: number;
   lng: number;
   timezone: string;
+  avatarUrl?: string | null;
 }) {
   const supabase = await createServerSupabase();
   const birth: BirthInput = {
@@ -45,21 +47,22 @@ export async function saveBirthProfile(input: {
     computeChart(birth, "vedic"),
     computeChart(birth, "western"),
   ]);
-  const { error } = await supabase.from("birth_profiles").upsert(
-    {
-      user_id: input.userId,
-      first_name: input.firstName,
-      last_name: input.lastName,
-      birth_date: input.birthDate,
-      birth_time: input.birthTime,
-      place_name: input.placeName,
-      lat: input.lat,
-      lng: input.lng,
-      timezone: input.timezone,
-      chart: { vedic, western },
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id" },
-  );
+  const row: Record<string, unknown> = {
+    user_id: input.userId,
+    first_name: input.firstName,
+    last_name: input.lastName,
+    birth_date: input.birthDate,
+    birth_time: input.birthTime,
+    place_name: input.placeName,
+    lat: input.lat,
+    lng: input.lng,
+    timezone: input.timezone,
+    chart: { vedic, western },
+    updated_at: new Date().toISOString(),
+  };
+  // Only overwrite the avatar when a new one was uploaded.
+  if (input.avatarUrl) row.avatar_url = input.avatarUrl;
+
+  const { error } = await supabase.from("birth_profiles").upsert(row, { onConflict: "user_id" });
   if (error) throw new Error(error.message);
 }

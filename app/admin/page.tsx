@@ -41,9 +41,14 @@ export default async function AdminUsers() {
               className="grid grid-cols-1 items-center gap-2 border-b border-white/5 px-4 py-3 transition-colors last:border-0 hover:bg-white/[0.03] sm:grid-cols-[1fr,auto,auto,2rem] sm:gap-4"
             >
               <div className="flex min-w-0 items-center gap-3">
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
-                  {initials(u.firstName, u.lastName, u.email)}
-                </span>
+                {u.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={u.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
+                    {initials(u.firstName, u.lastName, u.email)}
+                  </span>
+                )}
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">
                     {u.firstName || u.lastName ? `${u.firstName} ${u.lastName}`.trim() : "(no profile yet)"}

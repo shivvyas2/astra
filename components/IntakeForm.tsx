@@ -8,6 +8,7 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
   const [geo, setGeo] = useState<GeoResult | null>(null);
   const [manual, setManual] = useState(false);
   const [birthDate, setBirthDate] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
 
   const prettyDate = birthDate
     ? new Date(`${birthDate}T00:00:00`).toLocaleDateString("en-US", {
@@ -26,6 +27,22 @@ export function IntakeForm({ action }: { action: (fd: FormData) => void }) {
 
   return (
     <form action={action} className="w-full max-w-md space-y-4">
+      <div className="flex flex-col items-center gap-2">
+        <label className="cursor-pointer">
+          <div className="grid h-20 w-20 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-center text-[11px] text-muted transition-colors hover:border-accent">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
+            ) : (
+              <span>Add photo</span>
+            )}
+          </div>
+          <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; setPreview(f ? URL.createObjectURL(f) : null); }} />
+        </label>
+        <span className="text-xs text-muted/70">Optional profile photo</span>
+      </div>
+
       <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <input name="first_name" required placeholder="First name" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
         <input name="last_name" required placeholder="Last name" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />

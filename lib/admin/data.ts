@@ -10,6 +10,7 @@ export type AdminUserRow = {
   lastName: string;
   place: string;
   birthDate: string;
+  avatarUrl: string | null;
   conversationCount: number;
 };
 
@@ -20,7 +21,7 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
 
   const { data: profiles } = await db
     .from("birth_profiles")
-    .select("user_id, first_name, last_name, place_name, birth_date");
+    .select("user_id, first_name, last_name, place_name, birth_date, avatar_url");
   const { data: convs } = await db.from("conversations").select("id, user_id");
 
   const bp = new Map((profiles ?? []).map((p) => [p.user_id as string, p]));
@@ -31,7 +32,7 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
   return users
     .map((u) => {
       const p = bp.get(u.id) as
-        | { first_name?: string; last_name?: string; place_name?: string; birth_date?: string }
+        | { first_name?: string; last_name?: string; place_name?: string; birth_date?: string; avatar_url?: string }
         | undefined;
       return {
         id: u.id,
@@ -42,6 +43,7 @@ export async function adminListUsers(): Promise<AdminUserRow[]> {
         lastName: p?.last_name ?? "",
         place: p?.place_name ?? "",
         birthDate: p?.birth_date ?? "",
+        avatarUrl: p?.avatar_url ?? null,
         conversationCount: counts.get(u.id) ?? 0,
       };
     })

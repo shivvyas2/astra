@@ -36,7 +36,12 @@ export default async function AppHome() {
   return (
     <div className="relative mx-auto flex min-h-[calc(100dvh-8rem)] max-w-md flex-col items-center justify-center px-1 text-center">
       <Glow />
-      <span aria-hidden className="text-2xl text-accent">✦</span>
+      {profile.avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={profile.avatar_url} alt="" className="mb-1 h-16 w-16 rounded-full object-cover" />
+      ) : (
+        <span aria-hidden className="text-2xl text-accent">✦</span>
+      )}
       <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">Hello, {profile.first_name}</h1>
       <p className="mt-2 max-w-sm text-sm text-muted">
         Your chart is ready. Ask about your future, a kundli reading, or life advice.

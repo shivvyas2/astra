@@ -42,9 +42,14 @@ export default async function AdminUser({
 
         {/* header */}
         <div className="mt-4 flex items-center gap-4">
-          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-accent/15 text-lg font-semibold text-accent">
-            {(b.first_name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
-          </span>
+          {b.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={b.avatar_url} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+          ) : (
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-accent/15 text-lg font-semibold text-accent">
+              {(b.first_name?.[0] ?? user?.email?.[0] ?? "?").toUpperCase()}
+            </span>
+          )}
           <div className="min-w-0">
             <h1 className="truncate text-2xl font-semibold tracking-tight">{fullName}</h1>
             <p className="truncate text-sm text-muted">{user?.email}</p>
