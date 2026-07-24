@@ -95,7 +95,9 @@ export function Chat({
   const empty = messages.length === 0;
 
   const composer = (
-    <div className="mx-auto w-full max-w-2xl">
+    <div className="relative mx-auto w-full max-w-2xl">
+      {/* heartbeat glow behind the bar */}
+      <div aria-hidden className="animate-heartbeat pointer-events-none absolute -inset-3 -z-10 rounded-[36px] bg-accent/25 blur-2xl" />
       <div className="flex items-center gap-2 rounded-[28px] border border-white/10 bg-white/[0.04] px-4 py-2 shadow-[0_8px_40px_-12px_rgba(120,110,255,0.25)] backdrop-blur-sm transition-colors focus-within:border-white/20 sm:px-5">
         <input
           value={input}

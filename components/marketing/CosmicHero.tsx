@@ -183,6 +183,34 @@ export default function CosmicHero() {
     scene.add(orb);
     r.orb = orb;
 
+    // Parallax mountain / hill silhouettes forming a horizon
+    r.mountains = [];
+    const mLayers = [
+      { z: -30, h: 70, color: 0x0b0b16, op: 1 },
+      { z: -80, h: 95, color: 0x141029, op: 0.9 },
+      { z: -140, h: 125, color: 0x1d1636, op: 0.7 },
+    ];
+    mLayers.forEach((L, idx) => {
+      const pts: THREE.Vector2[] = [];
+      const seg = 64;
+      for (let i = 0; i <= seg; i++) {
+        const x = (i / seg - 0.5) * 1500;
+        const y =
+          Math.sin(i * 0.35 + idx * 1.3) * L.h * 0.45 +
+          Math.sin(i * 0.12) * L.h +
+          Math.random() * L.h * 0.15 - 205;
+        pts.push(new THREE.Vector2(x, y));
+      }
+      pts.push(new THREE.Vector2(3000, -700));
+      pts.push(new THREE.Vector2(-3000, -700));
+      const geo = new THREE.ShapeGeometry(new THREE.Shape(pts));
+      const mat = new THREE.MeshBasicMaterial({ color: L.color, transparent: true, opacity: L.op, side: THREE.DoubleSide });
+      const m = new THREE.Mesh(geo, mat);
+      m.position.z = L.z;
+      scene.add(m);
+      r.mountains.push(m);
+    });
+
     const clock = new THREE.Clock();
     const animate = () => {
       r.animationId = requestAnimationFrame(animate);
@@ -190,6 +218,7 @@ export default function CosmicHero() {
       r.stars.forEach((s: any) => (s.material.uniforms.time.value = t));
       nebMat.uniforms.time.value = t * 0.5;
       orbMat.uniforms.time.value = t;
+      r.mountains.forEach((m: any, i: number) => { m.position.x = Math.sin(t * 0.08) * 3 * (1 + i * 0.4); });
       // smooth fly-through on scroll + gentle drift
       r.smoothZ += (r.targetZ - r.smoothZ) * 0.05;
       camera.position.z = r.smoothZ;
@@ -223,6 +252,7 @@ export default function CosmicHero() {
       cancelAnimationFrame(r.animationId);
       window.removeEventListener("resize", onResize);
       r.stars.forEach((s: any) => { s.geometry.dispose(); s.material.dispose(); });
+      r.mountains.forEach((m: any) => { m.geometry.dispose(); m.material.dispose(); });
       nebGeo.dispose(); nebMat.dispose(); orb.geometry.dispose(); orbMat.dispose();
       renderer.dispose();
     };

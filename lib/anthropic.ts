@@ -2,14 +2,14 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 
-// Default readings run on Haiku (fast + cheap; a chart interpretation is a short task).
-// "Deep reading" upgrades to Opus with adaptive thinking.
-export const READING_MODEL = "claude-haiku-4-5";
+// Default readings run on Sonnet 5 (intelligent + stable, with adaptive thinking for
+// well-reasoned interpretation). "Deep reading" upgrades to Opus 4.8.
+export const READING_MODEL = "claude-sonnet-5";
 export const DEEP_READING_MODEL = "claude-opus-4-8";
 
-// Haiku 4.5 does not support adaptive thinking; only the deep (Opus) model does.
+// Both current models support adaptive thinking (Haiku 4.5 would not).
 export function supportsAdaptiveThinking(model: string): boolean {
-  return model === DEEP_READING_MODEL;
+  return model === "claude-sonnet-5" || model === "claude-opus-4-8";
 }
 
 let client: Anthropic | null = null;

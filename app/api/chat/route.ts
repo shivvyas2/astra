@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking } from "@/lib/anthropic";
 import { buildSystemPrompt } from "@/lib/astrology/prompt";
+import { computeNumerology } from "@/lib/astrology/numerology";
 import type { Chart, Tradition } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
   try {
     const { data: profile } = await supabase
       .from("birth_profiles")
-      .select("first_name, chart")
+      .select("first_name, birth_date, chart")
       .maybeSingle();
     if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
 
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
     const today = new Date().toLocaleDateString("en-US", {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
     });
-    system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart, today });
+    const numerology = computeNumerology(String(profile.birth_date));
+    system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart, today, numerology });
 
     conversationId = await getOrCreateConversation({
       userId: user.id,
@@ -69,8 +71,8 @@ export async function POST(request: Request) {
       try {
         const s = anthropic().messages.stream({
           model,
-          // Readings are short; cap output to keep cost low (deep gets a bit more room).
-          max_tokens: body.deep ? 2048 : 1024,
+          // Room for adaptive thinking + a concise reading (deep gets more).
+          max_tokens: body.deep ? 4096 : 2048,
           // Only the deep (Opus) model supports adaptive thinking; Haiku rejects it.
           // The installed SDK's types predate "adaptive", so cast through unknown to
           // keep the runtime value exact while satisfying the older union at compile time.

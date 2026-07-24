@@ -17,6 +17,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
     const initialMessages = msgs.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
     return (
       <Chat
+        key={c}
         firstName={profile.first_name}
         initialConversationId={c}
         initialMessages={initialMessages}
@@ -26,5 +27,5 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   }
 
   // New chat. Auto-generate a "today" reading only on the user's very first visit.
-  return <Chat firstName={profile.first_name} autostart={conversations.length === 0} />;
+  return <Chat key="new" firstName={profile.first_name} autostart={conversations.length === 0} />;
 }
