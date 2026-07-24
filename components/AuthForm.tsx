@@ -16,20 +16,21 @@ export function AuthForm({
   notice?: string;
 }) {
   return (
-    <div className="w-full max-w-sm">
-      <h1 className="mb-6 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
-      {error && <p className="mb-4 text-sm text-accent">{error}</p>}
-      {notice && <p className="mb-4 text-sm text-muted">{notice}</p>}
-      <form className="space-y-3">
+    <div className="w-full max-w-sm text-center">
+      <span aria-hidden className="text-2xl text-accent">✦</span>
+      <h1 className="mt-3 text-2xl font-light tracking-tight sm:text-3xl">{title}</h1>
+      {error && <p className="mt-4 text-sm text-accent">{error}</p>}
+      {notice && <p className="mt-4 text-sm text-muted">{notice}</p>}
+      <form className="mt-6 space-y-3 text-left">
         <input name="email" type="email" required placeholder="you@email.com"
-          className="w-full rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
+          className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
         <input name="password" type="password" placeholder="password"
-          className="w-full rounded-md border border-white/15 bg-white/5 px-3 py-2.5 outline-none focus:border-accent" />
+          className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
         <button formAction={primaryAction}
-          className="w-full rounded-md bg-fg px-3 py-2.5 font-medium text-bg">{primaryLabel}</button>
+          className="w-full rounded-lg bg-fg px-3 py-2.5 font-medium text-bg">{primaryLabel}</button>
         {magicAction && (
           <button formAction={magicAction}
-            className="w-full rounded-md border border-white/20 px-3 py-2.5 text-sm">
+            className="w-full rounded-lg border border-white/15 px-3 py-2.5 text-sm text-muted transition-colors hover:text-fg">
             Email me a magic link instead
           </button>
         )}
