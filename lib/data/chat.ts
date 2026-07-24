@@ -8,7 +8,18 @@ export async function getOrCreateConversation(args: {
   title: string;
 }): Promise<string> {
   const supabase = await createServerSupabase();
-  if (args.conversationId) return args.conversationId;
+  if (args.conversationId) {
+    // Defense-in-depth on top of RLS: verify the conversation actually
+    // belongs to this user before reusing it.
+    const { data: existing } = await supabase
+      .from("conversations")
+      .select("id")
+      .eq("id", args.conversationId)
+      .eq("user_id", args.userId)
+      .maybeSingle();
+    if (!existing) throw new Error("Conversation not found");
+    return existing.id as string;
+  }
   const { data, error } = await supabase
     .from("conversations")
     .insert({ user_id: args.userId, tradition: args.tradition, title: args.title.slice(0, 80) })

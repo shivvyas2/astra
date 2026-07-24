@@ -19,28 +19,40 @@ export async function POST(request: Request) {
     deep?: boolean;
   };
   if (!body.message?.trim()) return new Response("Empty message", { status: 400 });
+  if (body.tradition !== "vedic" && body.tradition !== "western") {
+    return new Response("Invalid tradition", { status: 400 });
+  }
 
-  const { data: profile } = await supabase
-    .from("birth_profiles")
-    .select("first_name, chart")
-    .maybeSingle();
-  if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
+  let conversationId: string;
+  let messages: { role: "user" | "assistant"; content: string }[];
+  let system: string;
 
-  const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition];
-  const system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart });
+  try {
+    const { data: profile } = await supabase
+      .from("birth_profiles")
+      .select("first_name, chart")
+      .maybeSingle();
+    if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
 
-  const conversationId = await getOrCreateConversation({
-    userId: user.id,
-    conversationId: body.conversationId,
-    tradition: body.tradition,
-    title: body.message,
-  });
+    const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition];
+    system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart });
 
-  // Build history from persisted messages, then append the new user turn.
-  const history = await getMessages(conversationId);
-  const messages = history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
-  messages.push({ role: "user", content: body.message });
-  await appendMessage(conversationId, "user", body.message);
+    conversationId = await getOrCreateConversation({
+      userId: user.id,
+      conversationId: body.conversationId,
+      tradition: body.tradition,
+      title: body.message,
+    });
+
+    // Build history from persisted messages, then append the new user turn.
+    const history = await getMessages(conversationId);
+    messages = history.map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+    messages.push({ role: "user", content: body.message });
+    await appendMessage(conversationId, "user", body.message);
+  } catch (err) {
+    console.error("chat pre-stream error", err);
+    return new Response("Something went wrong preparing your reading. Please try again.", { status: 500 });
+  }
 
   const model = body.deep ? DEEP_READING_MODEL : READING_MODEL;
 
@@ -66,8 +78,8 @@ export async function POST(request: Request) {
           }
         }
       } catch (err) {
+        console.error("chat stream error", err);
         controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded — please try again.]"));
-        full ||= "";
       } finally {
         if (full.trim()) await appendMessage(conversationId, "assistant", full);
         controller.close();
