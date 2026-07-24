@@ -75,6 +75,14 @@ export default function CosmicHero() {
     scene.fog = new THREE.FogExp2(0x05050a, 0.00035);
     r.scene = scene;
 
+    // Use the planet photo as the 3D scene background so the WebGL output is
+    // never opaque-black over the image; stars/nebula render on top of it.
+    new THREE.TextureLoader().load("/images/planet-sun.jpg", (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      scene.background = tex;
+      setShown(true);
+    });
+
     const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 3000);
     camera.position.set(0, 8, 320);
     r.camera = camera;
@@ -229,8 +237,7 @@ export default function CosmicHero() {
       else renderer.render(scene, camera);
     };
     animate();
-    // Fade the canvas in once the first frames are drawn (no pop-in).
-    requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
+    // The canvas fades in once the background texture has loaded (see TextureLoader above).
 
     // GSAP intro
     if (heroTitleRef.current) {
