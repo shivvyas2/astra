@@ -1,28 +1,75 @@
 import "server-only";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 
-export async function adminListUsers() {
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  createdAt: string;
+  lastSignIn: string | null;
+  firstName: string;
+  lastName: string;
+  place: string;
+  birthDate: string;
+  conversationCount: number;
+};
+
+export async function adminListUsers(): Promise<AdminUserRow[]> {
   const db = createAdminSupabase();
-  const { data: profiles } = await db.from("profiles").select("id, display_name, created_at");
+  const { data: list } = await db.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const users = list?.users ?? [];
+
+  const { data: profiles } = await db
+    .from("birth_profiles")
+    .select("user_id, first_name, last_name, place_name, birth_date");
   const { data: convs } = await db.from("conversations").select("id, user_id");
+
+  const bp = new Map((profiles ?? []).map((p) => [p.user_id as string, p]));
   const counts = new Map<string, number>();
-  for (const c of convs ?? []) counts.set(c.user_id, (counts.get(c.user_id) ?? 0) + 1);
-  return (profiles ?? []).map((p) => ({
-    id: p.id,
-    displayName: p.display_name ?? "(unnamed)",
-    createdAt: p.created_at,
-    conversationCount: counts.get(p.id) ?? 0,
-  }));
+  for (const c of convs ?? [])
+    counts.set(c.user_id as string, (counts.get(c.user_id as string) ?? 0) + 1);
+
+  return users
+    .map((u) => {
+      const p = bp.get(u.id) as
+        | { first_name?: string; last_name?: string; place_name?: string; birth_date?: string }
+        | undefined;
+      return {
+        id: u.id,
+        email: u.email ?? "",
+        createdAt: u.created_at,
+        lastSignIn: u.last_sign_in_at ?? null,
+        firstName: p?.first_name ?? "",
+        lastName: p?.last_name ?? "",
+        place: p?.place_name ?? "",
+        birthDate: p?.birth_date ?? "",
+        conversationCount: counts.get(u.id) ?? 0,
+      };
+    })
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
 }
 
-export async function adminListConversations(userId: string) {
+export async function adminGetUser(id: string) {
   const db = createAdminSupabase();
-  const { data } = await db
+  const { data } = await db.auth.admin.getUserById(id);
+  const { data: birth } = await db.from("birth_profiles").select("*").eq("user_id", id).maybeSingle();
+  const { data: conversations } = await db
     .from("conversations")
     .select("id, tradition, title, created_at")
-    .eq("user_id", userId)
+    .eq("user_id", id)
     .order("created_at", { ascending: false });
-  return data ?? [];
+  return {
+    user: data?.user
+      ? {
+          id: data.user.id,
+          email: data.user.email ?? "",
+          createdAt: data.user.created_at,
+          lastSignIn: data.user.last_sign_in_at ?? null,
+          confirmed: !!data.user.email_confirmed_at,
+        }
+      : null,
+    birth: birth as Record<string, unknown> | null,
+    conversations: conversations ?? [],
+  };
 }
 
 export async function adminGetTranscript(conversationId: string) {
