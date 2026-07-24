@@ -1,9 +1,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking } from "@/lib/anthropic";
-import { buildSystemPrompt } from "@/lib/astrology/prompt";
-import { computeNumerology } from "@/lib/astrology/numerology";
-import type { Chart, Tradition } from "@/lib/astrology/types";
+import { buildSystemPrompt, buildNumerologyPrompt } from "@/lib/astrology/prompt";
+import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
+import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 
 export const runtime = "nodejs";
@@ -15,13 +15,13 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as {
     conversationId?: string;
-    tradition: Tradition;
+    tradition: ChatMode;
     message: string;
     deep?: boolean;
   };
   if (!body.message?.trim()) return new Response("Empty message", { status: 400 });
-  if (body.tradition !== "vedic" && body.tradition !== "western") {
-    return new Response("Invalid tradition", { status: 400 });
+  if (!["vedic", "western", "numerology"].includes(body.tradition)) {
+    return new Response("Invalid mode", { status: 400 });
   }
 
   let conversationId: string;
@@ -31,16 +31,35 @@ export async function POST(request: Request) {
   try {
     const { data: profile } = await supabase
       .from("birth_profiles")
-      .select("first_name, birth_date, chart")
+      .select("first_name, last_name, birth_date, chart")
       .maybeSingle();
     if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
 
-    const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition];
     const today = new Date().toLocaleDateString("en-US", {
       weekday: "long", year: "numeric", month: "long", day: "numeric",
     });
-    const numerology = computeNumerology(String(profile.birth_date));
-    system = buildSystemPrompt({ firstName: profile.first_name, tradition: body.tradition, chart, today, numerology });
+    const num = computeNumerology(String(profile.birth_date));
+
+    if (body.tradition === "numerology") {
+      const fullName = `${profile.first_name} ${profile.last_name}`.trim();
+      system = buildNumerologyPrompt({
+        firstName: profile.first_name,
+        fullName,
+        mulank: num.mulank,
+        bhagyank: num.bhagyank,
+        namank: computeNameNumber(fullName),
+        today,
+      });
+    } else {
+      const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
+      system = buildSystemPrompt({
+        firstName: profile.first_name,
+        tradition: body.tradition as Tradition,
+        chart,
+        today,
+        numerology: num,
+      });
+    }
 
     conversationId = await getOrCreateConversation({
       userId: user.id,

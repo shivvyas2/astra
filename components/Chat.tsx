@@ -3,9 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Tradition } from "@/lib/astrology/types";
+import type { ChatMode } from "@/lib/astrology/types";
 
 type Msg = { role: "user" | "assistant"; content: string };
+
+const MODES: { key: ChatMode; label: string; dot: string }[] = [
+  { key: "vedic", label: "Vedic", dot: "bg-accent" },
+  { key: "western", label: "Western", dot: "bg-[#6b74ff]" },
+  { key: "numerology", label: "Numerology", dot: "bg-[#f0b429]" },
+];
 
 export function Chat({
   firstName,
@@ -17,11 +23,11 @@ export function Chat({
   firstName?: string;
   initialConversationId?: string;
   initialMessages?: Msg[];
-  initialTradition?: Tradition;
+  initialTradition?: ChatMode;
   autostart?: boolean;
 }) {
   const router = useRouter();
-  const [tradition, setTradition] = useState<Tradition>(initialTradition);
+  const [tradition, setTradition] = useState<ChatMode>(initialTradition);
   const [deep, setDeep] = useState(false);
   const [messages, setMessages] = useState<Msg[]>(initialMessages);
   const [input, setInput] = useState("");
@@ -107,10 +113,12 @@ export function Chat({
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] outline-none placeholder:text-muted"
         />
         <div className="flex shrink-0 items-center gap-1">
-          <button type="button" onClick={() => setTradition((t) => (t === "vedic" ? "western" : "vedic"))} title="Switch tradition"
+          <button type="button"
+            onClick={() => setTradition((t) => MODES[(MODES.findIndex((m) => m.key === t) + 1) % MODES.length].key)}
+            title="Switch mode (Vedic, Western, Numerology)"
             className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs text-muted transition-colors hover:bg-white/5 hover:text-fg">
-            <span className={`h-1.5 w-1.5 rounded-full ${tradition === "vedic" ? "bg-accent" : "bg-[#6b74ff]"}`} />
-            {tradition === "vedic" ? "Vedic" : "Western"}
+            <span className={`h-1.5 w-1.5 rounded-full ${MODES.find((m) => m.key === tradition)!.dot}`} />
+            {MODES.find((m) => m.key === tradition)!.label}
           </button>
           <button type="button" onClick={() => setDeep((d) => !d)} title="Deep reading uses a more powerful model"
             className={`hidden rounded-full px-2.5 py-1.5 text-xs transition-colors sm:block ${deep ? "bg-accent/15 text-accent" : "text-muted hover:bg-white/5 hover:text-fg"}`}>

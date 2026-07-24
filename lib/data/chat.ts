@@ -1,10 +1,10 @@
 import { createServerSupabase } from "@/lib/supabase/server";
-import type { Tradition } from "@/lib/astrology/types";
+import type { ChatMode } from "@/lib/astrology/types";
 
 export async function getOrCreateConversation(args: {
   userId: string;
   conversationId?: string;
-  tradition: Tradition;
+  tradition: ChatMode;
   title: string;
 }): Promise<string> {
   const supabase = await createServerSupabase();

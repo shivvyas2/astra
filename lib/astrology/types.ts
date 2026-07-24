@@ -1,5 +1,8 @@
 export type Tradition = "vedic" | "western";
 
+// A chat can run in an astrology tradition or in numerology mode.
+export type ChatMode = "vedic" | "western" | "numerology";
+
 export type BirthInput = {
   birthDate: string; // YYYY-MM-DD
   birthTime: string; // HH:mm

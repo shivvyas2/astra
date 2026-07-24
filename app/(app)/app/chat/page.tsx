@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getBirthProfile } from "@/lib/data/birthProfile";
 import { listConversations, getMessages } from "@/lib/data/chat";
 import { Chat } from "@/components/Chat";
-import type { Tradition } from "@/lib/astrology/types";
+import type { ChatMode } from "@/lib/astrology/types";
 
 export default async function ChatPage({ searchParams }: { searchParams: Promise<{ c?: string }> }) {
   const profile = await getBirthProfile();
@@ -21,7 +21,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
         firstName={profile.first_name}
         initialConversationId={c}
         initialMessages={initialMessages}
-        initialTradition={((active as { tradition?: Tradition } | undefined)?.tradition) ?? "vedic"}
+        initialTradition={((active as { tradition?: ChatMode } | undefined)?.tradition) ?? "vedic"}
       />
     );
   }
