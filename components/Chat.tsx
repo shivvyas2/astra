@@ -19,26 +19,44 @@ export function Chat({ initialConversationId }: { initialConversationId?: string
     setBusy(true);
     setMessages((m) => [...m, { role: "user", content: text }, { role: "assistant", content: "" }]);
 
-    const res = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ conversationId: convId.current, tradition, message: text, deep }),
-    });
-    convId.current = res.headers.get("x-conversation-id") ?? convId.current;
-
-    const reader = res.body!.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      const chunk = decoder.decode(value);
+    const setLastAssistantContent = (content: string) => {
       setMessages((m) => {
         const copy = [...m];
-        copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + chunk };
+        copy[copy.length - 1] = { role: "assistant", content };
         return copy;
       });
+    };
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId: convId.current, tradition, message: text, deep }),
+      });
+      convId.current = res.headers.get("x-conversation-id") ?? convId.current;
+
+      if (!res.ok || !res.body) {
+        setLastAssistantContent("Something went wrong — please try again.");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        setMessages((m) => {
+          const copy = [...m];
+          copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + chunk };
+          return copy;
+        });
+      }
+    } catch {
+      setLastAssistantContent("Something went wrong — please try again.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   }
 
   return (
