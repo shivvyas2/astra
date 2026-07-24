@@ -280,12 +280,9 @@ export default function CosmicHero() {
 
   return (
     <div className="relative bg-bg">
-      {/* Real photo background */}
-      <div aria-hidden className="fixed inset-0 -z-30 bg-cover bg-center"
+      {/* Real photo background (no dark overlay) */}
+      <div aria-hidden className="fixed inset-0 -z-20 bg-cover bg-center"
         style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
-      {/* Light vignette so the planet/sun photo shows through, text stays readable */}
-      <div aria-hidden className="fixed inset-0 -z-20"
-        style={{ background: "radial-gradient(130% 90% at 62% 32%, rgba(5,5,10,0.12), rgba(5,5,10,0.66) 82%)" }} />
       {/* Fixed 3D starfield overlay (transparent; falls back to a glow for reduced motion) */}
       {reduced ? (
         <div aria-hidden className="fixed inset-0 -z-10"
