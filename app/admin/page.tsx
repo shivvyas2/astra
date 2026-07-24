@@ -30,37 +30,31 @@ export default async function AdminUsers() {
         </div>
 
         <div className="overflow-hidden rounded-xl border border-white/10">
-          <div className="hidden grid-cols-[1fr,auto,auto,2rem] gap-4 border-b border-white/10 bg-white/[0.02] px-4 py-2.5 text-xs uppercase tracking-wide text-muted/70 sm:grid">
-            <span>User</span><span>Joined</span><span>Chats</span><span></span>
-          </div>
           {users.length === 0 && <p className="px-4 py-6 text-sm text-muted">No users yet.</p>}
           {users.map((u) => (
             <Link
               key={u.id}
               href={`/admin/users/${u.id}`}
-              className="grid grid-cols-1 items-center gap-2 border-b border-white/5 px-4 py-3 transition-colors last:border-0 hover:bg-white/[0.03] sm:grid-cols-[1fr,auto,auto,2rem] sm:gap-4"
+              className="flex items-center gap-3 border-b border-white/5 px-4 py-3 transition-colors last:border-0 hover:bg-white/[0.03]"
             >
-              <div className="flex min-w-0 items-center gap-3">
-                {u.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-                ) : (
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
-                    {initials(u.firstName, u.lastName, u.email)}
-                  </span>
-                )}
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">
-                    {u.firstName || u.lastName ? `${u.firstName} ${u.lastName}`.trim() : "(no profile yet)"}
-                  </div>
-                  <div className="truncate text-xs text-muted">{u.email}</div>
+              {u.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={u.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
+                  {initials(u.firstName, u.lastName, u.email)}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">
+                  {u.firstName || u.lastName ? `${u.firstName} ${u.lastName}`.trim() : "(no profile yet)"}
                 </div>
+                <div className="truncate text-xs text-muted">{u.email}</div>
               </div>
-              <div className="text-xs text-muted sm:text-sm">{fmtDate(u.createdAt)}</div>
-              <div className="text-xs text-muted sm:text-sm">{u.conversationCount}</div>
-              <span className="hidden justify-self-end text-accent sm:inline">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              </span>
+              <div className="shrink-0 text-right">
+                <div className="text-xs text-muted sm:text-sm">{fmtDate(u.createdAt)}</div>
+                <div className="text-[11px] text-muted/70">{u.conversationCount} chat{u.conversationCount === 1 ? "" : "s"}</div>
+              </div>
             </Link>
           ))}
         </div>
