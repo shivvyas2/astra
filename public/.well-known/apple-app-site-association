@@ -3,12 +3,12 @@
     "apps": [],
     "details": [
       {
-        "appID": "TEAMID.com.shivvyas.astra",
+        "appID": "Z42YU5W6WY.com.shivvyas.astra",
         "paths": ["/auth/callback", "/auth/callback?*"]
       }
     ]
   },
   "webcredentials": {
-    "apps": ["TEAMID.com.shivvyas.astra"]
+    "apps": ["Z42YU5W6WY.com.shivvyas.astra"]
   }
 }

@@ -7,3 +7,8 @@ node_modules
 ephemeris-data/
 *.tsbuildinfo
 .superpowers/
+
+# iOS — the Xcode project is generated from ios/project.yml by XcodeGen.
+# Run `cd ios && xcodegen generate` after changing the spec.
+ios/Astra.xcodeproj/
+ios/build/
