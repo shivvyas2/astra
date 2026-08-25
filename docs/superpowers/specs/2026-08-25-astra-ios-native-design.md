@@ -180,7 +180,8 @@ would complete confirmation in Safari and the app would never see the session.
 ## Build configuration
 
 `ASTRA_API_BASE_URL` and the Supabase URL and anon key are supplied per Xcode
-scheme, so Debug can target a local `next dev` and Release targets production.
+scheme: Release targets `https://astra.shivvyas.com`, Debug targets a local
+`next dev`.
 The anon key is publishable by design and safe in the binary; RLS is the
 security boundary. The service-role key never leaves Vercel.
 
@@ -212,10 +213,13 @@ Steps 1 and 2 are independent and can proceed in parallel.
 
 ## Open items
 
-- **The production API base URL** must be filled in once `vercel login` as
-  `shivvyas0209@gmail.com` confirms the deployment hostname. Universal Links
-  also require a stable domain, so a custom domain is preferable to a
-  `*.vercel.app` URL.
+- ~~The production API base URL~~ **Resolved: `https://astra.shivvyas.com`.**
+  Verified live (landing and `/login` return 200, `/api/geocode` returns 200,
+  `/api/chat` returns 405 to GET as expected). It is already a custom domain,
+  which satisfies the stable-domain requirement for Universal Links, so the
+  `apple-app-site-association` file is served from
+  `https://astra.shivvyas.com/.well-known/apple-app-site-association` and the
+  Associated Domains entitlement is `applinks:astra.shivvyas.com`.
 - **The bundle identifier** and App Store display name.
 - **The APNs key** must be created in the Apple Developer account before push
   work begins.
