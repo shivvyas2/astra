@@ -12,3 +12,4 @@ ephemeris-data/
 # Run `cd ios && xcodegen generate` after changing the spec.
 ios/Astra.xcodeproj/
 ios/build/
+ios/Astra/Sources/Generated/

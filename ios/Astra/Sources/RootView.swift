@@ -1,25 +1,48 @@
 import SwiftUI
 
-/// Placeholder root. Replaced by the auth/intake flow in the next task; it
-/// exists so the project has something to build and run against.
 struct RootView: View {
+    @Environment(AuthStore.self) private var auth
+
     var body: some View {
-        ZStack {
-            Theme.bg.ignoresSafeArea()
-            VStack(spacing: 16) {
-                Text("Computed astrology, never guessed").eyebrow()
-                Text("ASTRA")
-                    .font(.system(size: 56, weight: .bold))
-                    .tracking(-1)
-                    .foregroundStyle(Theme.fg)
-                Text("Your real birth chart, read by the stars.")
-                    .font(.system(size: 16))
-                    .foregroundStyle(Theme.fg.opacity(0.85))
+        Group {
+            switch auth.state {
+            case .loading:
+                ZStack {
+                    Theme.bg.ignoresSafeArea()
+                    ProgressView().tint(Theme.muted)
+                }
+            case .signedOut:
+                AuthView()
+            case .awaitingConfirmation(let email):
+                AwaitingConfirmationView(email: email)
+            case .signedIn:
+                SignedInPlaceholderView()
             }
+        }
+        .task { await auth.start() }
+        .onOpenURL { url in
+            Task { await auth.handle(url: url) }
         }
     }
 }
 
-#Preview {
-    RootView()
+/// Stands in until intake and chat land in the next task.
+struct SignedInPlaceholderView: View {
+    @Environment(AuthStore.self) private var auth
+
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("Signed in").eyebrow()
+                Text("ASTRA")
+                    .font(.system(size: 48, weight: .bold))
+                    .foregroundStyle(Theme.fg)
+                Button("Sign out") { Task { await auth.signOut() } }
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 8)
+            }
+        }
+    }
 }

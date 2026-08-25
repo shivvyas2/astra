@@ -6,6 +6,11 @@ options:
   createIntermediateGroups: true
   groupSortPosition: top
 
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
 settings:
   base:
     DEVELOPMENT_TEAM: Z42YU5W6WY
@@ -34,6 +39,9 @@ targets:
         # The app is dark by design — the cosmic theme has no light variant.
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
+    dependencies:
+      - package: Supabase
+        product: Supabase
     entitlements:
       path: Astra/Astra.entitlements
       properties:
