@@ -1,12 +1,12 @@
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createRouteSupabase } from "@/lib/supabase/route";
 import { generateKundliPdf } from "@/lib/pdf/kundli";
 import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
 import type { Chart } from "@/lib/astrology/types";
 
 export const runtime = "nodejs";
 
-export async function GET() {
-  const supabase = await createServerSupabase();
+export async function GET(request: Request) {
+  const supabase = await createRouteSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 

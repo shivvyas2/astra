@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { computeChart } from "@/lib/astrology/chart";
 import type { BirthInput } from "@/lib/astrology/types";
+import type { Db } from "@/lib/supabase/route";
 
 export type BirthProfileRow = {
   id: string;
@@ -17,25 +18,28 @@ export type BirthProfileRow = {
   chart: { vedic: unknown; western: unknown } | null;
 };
 
-export async function getBirthProfile(): Promise<BirthProfileRow | null> {
-  const supabase = await createServerSupabase();
+export async function getBirthProfile(db?: Db): Promise<BirthProfileRow | null> {
+  const supabase = db ?? (await createServerSupabase());
   const { data } = await supabase.from("birth_profiles").select("*").maybeSingle();
   return (data as BirthProfileRow) ?? null;
 }
 
-export async function saveBirthProfile(input: {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  birthDate: string;
-  birthTime: string;
-  placeName: string;
-  lat: number;
-  lng: number;
-  timezone: string;
-  avatarUrl?: string | null;
-}) {
-  const supabase = await createServerSupabase();
+export async function saveBirthProfile(
+  input: {
+    userId: string;
+    firstName: string;
+    lastName: string;
+    birthDate: string;
+    birthTime: string;
+    placeName: string;
+    lat: number;
+    lng: number;
+    timezone: string;
+    avatarUrl?: string | null;
+  },
+  db?: Db,
+) {
+  const supabase = db ?? (await createServerSupabase());
   const birth: BirthInput = {
     birthDate: input.birthDate,
     birthTime: input.birthTime,

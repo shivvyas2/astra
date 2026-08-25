@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { DateTime } from "luxon";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createRouteSupabase } from "@/lib/supabase/route";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking } from "@/lib/anthropic";
 import { buildSystemPrompt, buildNumerologyPrompt } from "@/lib/astrology/prompt";
 import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
@@ -11,7 +11,7 @@ import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createRouteSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
 
@@ -87,21 +87,24 @@ export async function POST(request: Request) {
       });
     }
 
-    conversationId = await getOrCreateConversation({
-      userId: user.id,
-      conversationId: body.conversationId,
-      tradition: body.tradition,
-      title: body.message,
-    });
+    conversationId = await getOrCreateConversation(
+      {
+        userId: user.id,
+        conversationId: body.conversationId,
+        tradition: body.tradition,
+        title: body.message,
+      },
+      supabase,
+    );
 
     // Build history from persisted messages, then append the new user turn.
     // Cap history to the last 10 turns to bound input tokens (cost) on long chats.
-    const history = await getMessages(conversationId);
+    const history = await getMessages(conversationId, supabase);
     messages = history
       .slice(-10)
       .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
     messages.push({ role: "user", content: body.message });
-    await appendMessage(conversationId, "user", body.message);
+    await appendMessage(conversationId, "user", body.message, supabase);
   } catch (err) {
     console.error("chat pre-stream error", err);
     return new Response("Something went wrong preparing your reading. Please try again.", { status: 500 });
@@ -137,7 +140,7 @@ export async function POST(request: Request) {
         console.error("chat stream error", err);
         controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded. Please try again.]"));
       } finally {
-        if (full.trim()) await appendMessage(conversationId, "assistant", full);
+        if (full.trim()) await appendMessage(conversationId, "assistant", full, supabase);
         controller.close();
       }
     },
