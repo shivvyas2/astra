@@ -1,0 +1,14 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAMID.com.shivvyas.astra",
+        "paths": ["/auth/callback", "/auth/callback?*"]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["TEAMID.com.shivvyas.astra"]
+  }
+}
