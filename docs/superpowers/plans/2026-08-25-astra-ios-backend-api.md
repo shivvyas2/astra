@@ -197,7 +197,9 @@ Create `lib/data/injection.test.ts`. This asserts the contract that matters: whe
 ```ts
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const createServerSupabase = vi.fn();
+// vi.mock is hoisted above module-level consts, so the stub must be created
+// inside vi.hoisted() for the factory to be able to close over it.
+const { createServerSupabase } = vi.hoisted(() => ({ createServerSupabase: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createServerSupabase }));
 
 // computeChart hits the Swiss Ephemeris WASM binary; stub it for a unit test.
