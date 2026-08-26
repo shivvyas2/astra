@@ -15,7 +15,7 @@ struct AstraPhotoField: View {
     var isLoading: Bool = false
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 0) {
             PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
                 ZStack {
                     if let preview {
@@ -44,10 +44,6 @@ struct AstraPhotoField: View {
                 .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
             }
             .accessibilityLabel(preview == nil && existingURL == nil ? "Add a profile photo" : "Change profile photo")
-
-            Text(preview == nil && existingURL == nil ? "Optional photo" : "Tap to change")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.muted.opacity(0.7))
         }
         .frame(maxWidth: .infinity)
     }

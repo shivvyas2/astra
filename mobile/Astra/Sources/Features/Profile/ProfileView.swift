@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -12,6 +13,8 @@ struct ProfileView: View {
     @State private var kundli: SharePayload?
     @State private var isPreparingKundli = false
     @State private var confirmDelete = false
+    @State private var photoItem: PhotosPickerItem?
+    @State private var isUploadingPhoto = false
     @State private var isDeleting = false
     @State private var errorMessage: String?
 
@@ -99,6 +102,10 @@ struct ProfileView: View {
         .sheet(item: $kundli) { payload in
             ShareSheet(items: [payload.url])
         }
+        .onChange(of: photoItem) { _, item in
+            guard item != nil else { return }
+            Task { await uploadPickedPhoto() }
+        }
         .alert("Delete your account?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { Task { await deleteAccount() } }
@@ -109,17 +116,50 @@ struct ProfileView: View {
 
     private func header(_ details: BirthProfileDetails) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let url = details.avatarUrl.flatMap(URL.init(string:)) {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
-                } placeholder: {
-                    Color.white.opacity(0.04)
+            // Changing the photo is its own one-tap action here. Routing it
+            // through the birth-details form would mean re-submitting a chart
+            // to swap a picture.
+            PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+                ZStack {
+                    if let url = details.avatarUrl.flatMap(URL.init(string:)) {
+                        AsyncImage(url: url) { image in
+                            image.resizable().scaledToFill()
+                        } placeholder: {
+                            Color.white.opacity(0.04)
+                        }
+                    } else {
+                        ZStack {
+                            Theme.fieldFill
+                            Text("Add photo")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.muted)
+                        }
+                    }
+                    if isUploadingPhoto {
+                        Color.black.opacity(0.45)
+                        ProgressView().tint(Theme.fg)
+                    }
                 }
                 .frame(width: 64, height: 64)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
-                .padding(.bottom, 6)
+                .overlay(alignment: .bottomTrailing) {
+                    if !isUploadingPhoto {
+                        Image(systemName: "camera.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(Theme.bg)
+                            .padding(5)
+                            .background(Theme.fg)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Theme.bg, lineWidth: 1.5))
+                            .offset(x: 2, y: 2)
+                    }
+                }
             }
+            .disabled(isUploadingPhoto)
+            .accessibilityLabel(details.avatarUrl == nil ? "Add a profile photo" : "Change profile photo")
+            .padding(.bottom, 6)
+
             Text(details.fullName)
                 .font(.system(size: 28, weight: .light))
                 .tracking(-0.5)
@@ -174,6 +214,47 @@ struct ProfileView: View {
         pretty.dateStyle = .long
         pretty.timeStyle = .none
         return "\(pretty.string(from: date)) at \(details.birthTimeShort)"
+    }
+
+    /// Sends the new photo with the birth details already on file, because the
+    /// route takes the profile as a whole and only replaces the avatar when a
+    /// photo part is present.
+    private func uploadPickedPhoto() async {
+        guard let item = photoItem, let details = profile.details else { return }
+        isUploadingPhoto = true
+        errorMessage = nil
+        defer {
+            isUploadingPhoto = false
+            photoItem = nil
+        }
+
+        guard
+            let data = try? await item.loadTransferable(type: Data.self),
+            let image = UIImage(data: data),
+            let jpeg = image.avatarJPEG()
+        else {
+            errorMessage = "That image could not be read. Try another."
+            return
+        }
+
+        do {
+            try await AstraAPI.saveProfile(
+                BirthProfileInput(
+                    firstName: details.firstName,
+                    lastName: details.lastName,
+                    birthDate: details.birthDate,
+                    birthTime: details.birthTimeShort,
+                    placeName: details.placeName,
+                    lat: details.lat,
+                    lng: details.lng,
+                    timezone: details.timezone,
+                    photoJPEG: jpeg
+                )
+            )
+            await profile.load()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func prepareKundli() async {
