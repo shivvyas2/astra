@@ -108,9 +108,9 @@ struct AuthView: View {
                             submit()
                         }
 
-                        AstraSecondaryButton(title: magicLinkLabel) {
+                        AstraSecondaryButton(title: codeLabel) {
                             focus = nil
-                            Task { await auth.sendMagicLink(email: email) }
+                            Task { await auth.sendEmailCode(email: email) }
                         }
                     }
                     .padding(.top, 24)
@@ -139,8 +139,8 @@ struct AuthView: View {
         }
     }
 
-    private var magicLinkLabel: String {
-        mode == .signUp ? "Or continue with an email link" : "Forgot password? Email me a link"
+    private var codeLabel: String {
+        mode == .signUp ? "Or sign up with an email code" : "Forgot password? Email me a code"
     }
 
     private var modePicker: some View {
@@ -186,50 +186,100 @@ struct AuthView: View {
     }
 }
 
-/// Mirrors the web's `/check-email` screen, plus a way to send it again.
-struct AwaitingConfirmationView: View {
+/// Where a six-digit code is entered — for passwordless sign-in, and for
+/// confirming an address after a password sign-up.
+struct VerifyCodeView: View {
     let email: String
+    let purpose: AuthStore.CodePurpose
+
     @Environment(AuthStore.self) private var auth
+    @State private var code = ""
+    @FocusState private var focused: Bool
 
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            VStack(spacing: 12) {
-                Text("Check your email").eyebrow()
-                Text("Confirm your address")
-                    .font(.system(size: 28, weight: .light))
+            VStack(spacing: 0) {
+                Spacer()
+
+                Text(purpose == .signIn ? "Check your email" : "Confirm your email").eyebrow()
+
+                Text("Enter your code")
+                    .font(.system(size: 30, weight: .light))
+                    .tracking(-0.5)
                     .foregroundStyle(Theme.fg)
-                Text("We sent a link to \(email). Open it on this device and you'll come straight back here.")
+                    .padding(.top, 12)
+
+                Text("We sent a \(AuthStore.codeLength)-digit code to \(email).")
                     .font(.system(size: 14))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
-                    .padding(.top, 4)
+                    .padding(.top, 8)
 
+                TextField("", text: $code, prompt: Text("000000").foregroundStyle(Theme.muted.opacity(0.5)))
+                    .font(.system(size: 28, weight: .light, design: .monospaced))
+                    .tracking(8)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(Theme.fg)
+                    .keyboardType(.numberPad)
+                    // iOS offers the code straight from the email above the keyboard.
+                    .textContentType(.oneTimeCode)
+                    .focused($focused)
+                    .padding(.vertical, 14)
+                    .background(Theme.fieldFill)
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.cornerRadius)
+                            .stroke(Theme.hairline, lineWidth: 1)
+                    )
+                    .padding(.top, 24)
+                    .onChange(of: code) { _, entered in
+                        let digits = AuthStore.normalizedCode(entered)
+                        if digits != entered { code = digits }
+                        // Six digits is the whole code; making them press a
+                        // button as well would be ceremony.
+                        if digits.count == AuthStore.codeLength {
+                            focused = false
+                            Task { await auth.verifyCode(digits) }
+                        }
+                    }
+
+                if let error = auth.errorMessage {
+                    Text(error)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.accent)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 12)
+                }
                 if let notice = auth.notice {
                     Text(notice)
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.muted)
-                }
-                if let error = auth.errorMessage {
-                    Text(error)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.accent)
+                        .padding(.top, 12)
                 }
 
-                AstraSecondaryButton(title: "Send it again") {
-                    Task { await auth.resendConfirmation(email: email) }
+                AstraPrimaryButton(title: "Continue", isLoading: auth.isWorking) {
+                    focused = false
+                    Task { await auth.verifyCode(code) }
                 }
-                .padding(.top, 12)
-                .frame(maxWidth: 300)
+                .padding(.top, 16)
 
-                Button("Use a different email") {
-                    Task { await auth.signOut() }
-                }
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.muted)
-                .padding(.top, 8)
+                Button("Send a new code") { Task { await auth.resendCode() } }
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 16)
+
+                Button("Use a different email") { Task { await auth.signOut() } }
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.muted.opacity(0.8))
+                    .padding(.top, 10)
+
+                Spacer()
+                Spacer()
             }
-            .padding(.horizontal, 32)
+            .frame(maxWidth: 340)
+            .padding(.horizontal, 24)
         }
+        .onAppear { focused = true }
     }
 }

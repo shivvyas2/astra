@@ -14,12 +14,24 @@ final class AuthStore {
         case loading
         case signedOut
         case signedIn
-        /// Account created but the email is not confirmed yet.
-        case awaitingConfirmation(email: String)
+        /// A six-digit code has been emailed and is waiting to be entered.
+        case awaitingCode(email: String, purpose: CodePurpose)
+    }
+
+    /// Which code was sent, which decides how it is verified.
+    enum CodePurpose {
+        /// Passwordless sign-in or sign-up.
+        case signIn
+        /// Confirming the address on an account created with a password.
+        case confirmSignUp
+
+        var otpType: EmailOTPType { self == .signIn ? .email : .signup }
     }
 
     /// Supabase's default minimum. Stated up front rather than after a round trip.
     static let minimumPasswordLength = 6
+    /// Supabase emails a six-digit code.
+    static let codeLength = 6
 
     var state: State = .loading
     var errorMessage: String?
@@ -81,7 +93,7 @@ final class AuthStore {
         } catch {
             let message = error.localizedDescription.lowercased()
             if message.contains("not confirmed") {
-                state = .awaitingConfirmation(email: email)
+                state = .awaitingCode(email: email, purpose: .confirmSignUp)
             } else if message.contains("invalid login") || message.contains("credentials") {
                 errorMessage = "Incorrect email or password. Try again, or use a magic link."
             } else {
@@ -112,7 +124,7 @@ final class AuthStore {
             if response.session != nil {
                 state = .signedIn // email confirmation is switched off
             } else {
-                state = .awaitingConfirmation(email: email)
+                state = .awaitingCode(email: email, purpose: .confirmSignUp)
             }
         } catch {
             let message = error.localizedDescription.lowercased()
@@ -167,11 +179,12 @@ final class AuthStore {
         }
     }
 
-    // MARK: - Passwordless
+    // MARK: - Email codes
 
-    /// The easiest way in: no password to choose, and it both creates the
-    /// account and signs in, depending on whether the email is known.
-    func sendMagicLink(email rawEmail: String) async {
+    /// The easiest way in: no password to choose. Supabase sends a six-digit
+    /// code, which beats a link on a phone — the code can be typed into the app
+    /// that is already open, with no hop out to a mail client and back.
+    func sendEmailCode(email rawEmail: String) async {
         let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         clearMessages()
         guard Self.emailLooksValid(email) else {
@@ -181,28 +194,67 @@ final class AuthStore {
         isWorking = true
         defer { isWorking = false }
         do {
-            // Returns into the app via the Universal Link on astra.shivvyas.com.
+            // `redirectTo` keeps the link in the email working as a fallback for
+            // anyone who taps it instead of typing the code.
             try await Supa.client.auth.signInWithOTP(
                 email: email,
                 redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
             )
-            notice = "Check \(email) for a link that signs you straight in."
+            state = .awaitingCode(email: email, purpose: .signIn)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    /// Re-sends the confirmation email from the "check your email" screen.
-    func resendConfirmation(email: String) async {
+    /// Digits only: people paste codes with stray spaces, and an email client
+    /// will sometimes wrap one in punctuation.
+    nonisolated static func normalizedCode(_ input: String) -> String {
+        String(input.filter(\.isNumber).prefix(codeLength))
+    }
+
+    func verifyCode(_ input: String) async {
+        guard case .awaitingCode(let email, let purpose) = state else { return }
+        let code = Self.normalizedCode(input)
+        clearMessages()
+        guard code.count == Self.codeLength else {
+            errorMessage = "Enter the \(Self.codeLength) digits from the email."
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await Supa.client.auth.verifyOTP(email: email, token: code, type: purpose.otpType)
+            Self.rememberSignedInBefore()
+            state = .signedIn
+        } catch {
+            let message = error.localizedDescription.lowercased()
+            errorMessage =
+                message.contains("expired") || message.contains("invalid")
+                ? "That code didn't work. It may have expired — send a new one."
+                : error.localizedDescription
+        }
+    }
+
+    /// Sends another code for whichever flow is waiting.
+    func resendCode() async {
+        guard case .awaitingCode(let email, let purpose) = state else { return }
         clearMessages()
         isWorking = true
         defer { isWorking = false }
         do {
-            try await Supa.client.auth.resend(
-                email: email,
-                type: .signup,
-                emailRedirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
-            )
+            switch purpose {
+            case .signIn:
+                try await Supa.client.auth.signInWithOTP(
+                    email: email,
+                    redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
+                )
+            case .confirmSignUp:
+                try await Supa.client.auth.resend(
+                    email: email,
+                    type: .signup,
+                    emailRedirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
+                )
+            }
             notice = "Sent again. It can take a minute to arrive."
         } catch {
             errorMessage = error.localizedDescription

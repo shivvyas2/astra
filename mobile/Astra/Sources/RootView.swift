@@ -10,8 +10,8 @@ struct RootView: View {
                 LoadingScreen()
             case .signedOut:
                 AuthView()
-            case .awaitingConfirmation(let email):
-                AwaitingConfirmationView(email: email)
+            case .awaitingCode(let email, let purpose):
+                VerifyCodeView(email: email, purpose: purpose)
             case .signedIn:
                 SignedInView()
             }
@@ -70,3 +70,4 @@ struct LoadingScreen: View {
         }
     }
 }
+

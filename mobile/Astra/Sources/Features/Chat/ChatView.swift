@@ -36,7 +36,7 @@ struct ChatView: View {
                 }
             }
             .toolbar { toolbar }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
         }
         .tint(Theme.fg)
@@ -302,52 +302,66 @@ struct ChatView: View {
             Button {
                 showHistory = true
             } label: {
-                Image(systemName: "clock.arrow.circlepath")
+                Image(systemName: "clock")
+                    .font(.system(size: 16, weight: .light))
                     .foregroundStyle(Theme.muted)
             }
             .accessibilityLabel("Past readings")
         }
+
         ToolbarItem(placement: .principal) {
+            // Just the wordmark. The mode already reads from the composer's
+            // pill, and saying it twice made the bar busier, not clearer.
             Text("ASTRA")
-                .font(.system(size: 12))
+                .font(.system(size: 12, weight: .light))
                 .tracking(3.6)
-                .foregroundStyle(Theme.muted)
+                .foregroundStyle(Theme.fg.opacity(0.85))
         }
+
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 startNewReading()
             } label: {
                 Image(systemName: "square.and.pencil")
+                    .font(.system(size: 16, weight: .light))
                     .foregroundStyle(Theme.muted)
             }
             .accessibilityLabel("New reading")
         }
+
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 showAlerts = true
             } label: {
                 Image(systemName: "bell")
+                    .font(.system(size: 16, weight: .light))
                     .foregroundStyle(Theme.muted)
                     .overlay(alignment: .topTrailing) {
                         if unreadCount > 0 {
                             Circle()
                                 .fill(Theme.accent)
-                                .frame(width: 6, height: 6)
-                                .offset(x: 3, y: -2)
+                                .frame(width: 7, height: 7)
+                                // A ring in the bar's own colour separates the
+                                // dot from the bell's strokes.
+                                .overlay(Circle().stroke(Theme.bg, lineWidth: 1.5))
+                                .offset(x: 4, y: -3)
                         }
                     }
             }
             .accessibilityLabel(unreadCount > 0 ? "Inbox, \(unreadCount) unread" : "Inbox")
         }
+
+        // The avatar replaces an overflow menu: it is the account, and it looks
+        // like the account, rather than three dots that could mean anything.
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
-                Button("New reading") { startNewReading() }
                 Button("Profile & birth details") { showProfile = true }
+                Button("New reading") { startNewReading() }
                 Button("Sign out", role: .destructive) { Task { await auth.signOut() } }
             } label: {
-                Image(systemName: "ellipsis")
-                    .foregroundStyle(Theme.muted)
+                AvatarBadge(details: profile.details)
             }
+            .accessibilityLabel("Account")
         }
     }
 

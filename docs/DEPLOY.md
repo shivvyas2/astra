@@ -70,6 +70,10 @@ Sign in with Apple needs no environment variables, but the Apple provider has to
 be enabled on the Supabase project — see
 [APPLE_SIGN_IN.md](./APPLE_SIGN_IN.md).
 
+Email sign-in sends a six-digit code rather than a magic link, which needs
+`{{ .Token }}` in two Supabase email templates — see
+[EMAIL_OTP.md](./EMAIL_OTP.md).
+
 What a reading costs, and the caching and effort settings behind it, are in
 [MODEL_COSTS.md](./MODEL_COSTS.md).
 

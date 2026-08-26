@@ -19,6 +19,16 @@ final class AuthValidationTests: XCTestCase {
         XCTAssertFalse(AuthStore.emailLooksValid("shiv @example.com"))
     }
 
+    func testCodeNormalisationKeepsOnlyDigits() {
+        // People paste codes with spaces, and mail clients wrap them in
+        // punctuation; both should still sign in.
+        XCTAssertEqual(AuthStore.normalizedCode("123 456"), "123456")
+        XCTAssertEqual(AuthStore.normalizedCode("Code: 123-456."), "123456")
+        XCTAssertEqual(AuthStore.normalizedCode("1234567890"), "123456", "never sends more than six digits")
+        XCTAssertEqual(AuthStore.normalizedCode("abc"), "")
+        XCTAssertEqual(AuthStore.normalizedCode(""), "")
+    }
+
     func testAppleNonceIsRandomAndHashed() {
         let a = AppleSignIn.randomNonce()
         let b = AppleSignIn.randomNonce()
