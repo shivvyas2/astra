@@ -202,6 +202,10 @@ struct BirthProfileInput {
     var lat: Double = 0
     var lng: Double = 0
     var timezone = ""
+    /// Optional profile photo, already downscaled to JPEG. The route uploads it
+    /// to the `avatars` bucket and only overwrites the stored URL when one is
+    /// sent, so leaving this nil keeps the existing photo.
+    var photoJPEG: Data?
 
     func multipartBody(boundary: String) -> Data {
         var body = Data()
@@ -219,6 +223,16 @@ struct BirthProfileInput {
             body.append("--\(boundary)\r\n".data(using: .utf8)!)
             body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
             body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+        if let photoJPEG, !photoJPEG.isEmpty {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append(
+                "Content-Disposition: form-data; name=\"photo\"; filename=\"avatar.jpg\"\r\n"
+                    .data(using: .utf8)!
+            )
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(photoJPEG)
+            body.append("\r\n".data(using: .utf8)!)
         }
         body.append("--\(boundary)--\r\n".data(using: .utf8)!)
         return body

@@ -109,6 +109,17 @@ struct ProfileView: View {
 
     private func header(_ details: BirthProfileDetails) -> some View {
         VStack(alignment: .leading, spacing: 6) {
+            if let url = details.avatarUrl.flatMap(URL.init(string:)) {
+                AsyncImage(url: url) { image in
+                    image.resizable().scaledToFill()
+                } placeholder: {
+                    Color.white.opacity(0.04)
+                }
+                .frame(width: 64, height: 64)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+                .padding(.bottom, 6)
+            }
             Text(details.fullName)
                 .font(.system(size: 28, weight: .light))
                 .tracking(-0.5)

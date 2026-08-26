@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// Birth-detail intake — the native counterpart of `components/IntakeForm.tsx`,
@@ -37,6 +38,13 @@ struct IntakeView: View {
                         .font(.system(size: 14))
                         .foregroundStyle(Theme.muted)
                     }
+
+                    AstraPhotoField(
+                        selection: $form.photoItem,
+                        preview: form.photoPreview,
+                        existingURL: form.existingAvatarURL,
+                        isLoading: form.isLoadingPhoto
+                    )
 
                     HStack(spacing: 10) {
                         AstraField(placeholder: "First name", text: $form.firstName)
@@ -208,6 +216,19 @@ final class IntakeStore {
     var isSaving = false
     var errorMessage: String?
 
+    /// Photo picking. `photoJPEG` stays nil unless a new image is chosen, which
+    /// is what lets an edit keep the photo already on the profile.
+    var photoItem: PhotosPickerItem? {
+        didSet {
+            guard photoItem != nil, photoItem != oldValue else { return }
+            Task { await loadPickedPhoto() }
+        }
+    }
+    var photoPreview: UIImage?
+    var photoJPEG: Data?
+    var isLoadingPhoto = false
+    var existingAvatarURL: URL?
+
     private var searchTask: Task<Void, Never>?
 
     var isComplete: Bool {
@@ -233,6 +254,24 @@ final class IntakeStore {
             timezone: details.timezone,
             country: ""
         )
+        existingAvatarURL = details.avatarUrl.flatMap(URL.init(string:))
+    }
+
+    private func loadPickedPhoto() async {
+        guard let photoItem else { return }
+        isLoadingPhoto = true
+        defer { isLoadingPhoto = false }
+
+        guard
+            let data = try? await photoItem.loadTransferable(type: Data.self),
+            let image = UIImage(data: data),
+            let jpeg = image.avatarJPEG()
+        else {
+            errorMessage = "That image could not be read. Try another."
+            return
+        }
+        photoPreview = UIImage(data: jpeg) ?? image
+        photoJPEG = jpeg
     }
 
     func pick(_ result: GeoResult) {
@@ -281,7 +320,8 @@ final class IntakeStore {
             placeName: place.name,
             lat: place.lat,
             lng: place.lng,
-            timezone: place.timezone
+            timezone: place.timezone,
+            photoJPEG: photoJPEG
         )
         do {
             try await AstraAPI.saveProfile(input)
