@@ -60,12 +60,12 @@ Write the alert. Rules:
 - Be calm and practical. This is a heads-up, not a warning about doom. If something eased, say so plainly.
 - The remedy advice should be traditional and harmless (charity, discipline, patience, routine, a mantra), never expensive or fear-driven.
 
-Reply with ONLY a JSON object, no prose around it, in exactly this shape:
-{
-  "title": "under 38 characters, names what changed",
-  "body": "under 140 characters, one plain sentence a person reads on a lock screen",
-  "detail": "markdown, 120-200 words: short bold headings, what changed, what to watch over the coming weeks, one practical remedy, and a final section titled **In simple words** with one or two jargon-free sentences"
-}`;
+Reply in exactly this shape, with nothing before or after it:
+
+TITLE: under 38 characters, names what changed
+BODY: under 140 characters, one plain sentence a person reads on a lock screen
+DETAIL:
+markdown, 120-200 words: short bold headings, what changed, what to watch over the coming weeks, one practical remedy, and a final section titled **In simple words** with one or two jargon-free sentences`;
 
   try {
     const response = await anthropic().messages.create({
@@ -81,7 +81,7 @@ Reply with ONLY a JSON object, no prose around it, in exactly this shape:
       messages: [
         {
           role: "user",
-          content: "Write the alert JSON for the changes above.",
+          content: "Write the alert for the changes above.",
         },
       ],
     });
@@ -90,7 +90,7 @@ Reply with ONLY a JSON object, no prose around it, in exactly this shape:
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("");
-    const parsed = parseAlertJson(text);
+    const parsed = parseAlertCopy(text);
     if (parsed) return parsed;
     console.error("alert compose: unparseable model output");
   } catch (err) {
@@ -100,7 +100,31 @@ Reply with ONLY a JSON object, no prose around it, in exactly this shape:
   return fallbackCopy(args.started, args.ended);
 }
 
-/** Pulls the JSON object out of the response, tolerating stray prose or fences. */
+/**
+ * Reads the model's reply.
+ *
+ * The delimited shape is used rather than JSON because `detail` is markdown:
+ * asked for JSON, the model sometimes writes real newlines inside the string,
+ * which is not valid JSON, and the reply is lost. Measured on a batch of seven
+ * live readings, two came back that way. Line-delimited text has no escaping to
+ * get wrong. JSON is still accepted, for replies that arrive in the old shape.
+ */
+export function parseAlertCopy(text: string): AlertCopy | null {
+  const title = text.match(/^\s*TITLE:\s*(.+)$/m)?.[1]?.trim();
+  const body = text.match(/^\s*BODY:\s*(.+)$/m)?.[1]?.trim();
+  const detailIndex = text.search(/^\s*DETAIL:\s*$/m);
+  const detail =
+    detailIndex === -1
+      ? undefined
+      : text.slice(text.indexOf("\n", detailIndex) + 1).trim();
+
+  if (title && body && detail) {
+    return { title: title.slice(0, 60), body: body.slice(0, 200), detail };
+  }
+  return parseAlertJson(text);
+}
+
+/** The older JSON shape, kept so a reply in either form still lands. */
 export function parseAlertJson(text: string): AlertCopy | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");

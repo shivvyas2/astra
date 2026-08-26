@@ -11,7 +11,7 @@ import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
 import { ApnsClient, isPushConfigured, type PushEnvironment } from "@/lib/push/apns";
-import { parseAlertJson, type AlertCopy } from "./compose";
+import { parseAlertCopy, type AlertCopy } from "./compose";
 
 type ProfileRow = {
   user_id: string;
@@ -168,12 +168,12 @@ export async function composePrediction(args: {
   const task = `${SLOT_BRIEF[args.slot]}
 
 ${flagged ? `Active in their chart right now:\n${flagged}\n\nWork these in only where they bear on the day. Do not alarm.\n` : ""}
-Reply with ONLY a JSON object, no prose around it:
-{
-  "title": "under 38 characters, what today turns on",
-  "body": "under 140 characters, one plain sentence for a lock screen",
-  "detail": "the reading itself in markdown, following the format rules above, ending with **In simple words**"
-}`;
+Reply in exactly this shape, with nothing before or after it:
+
+TITLE: under 38 characters, what today turns on
+BODY: under 140 characters, one plain sentence for a lock screen
+DETAIL:
+the reading itself in markdown, following the format rules above, ending with **In simple words**`;
 
   try {
     const response = await anthropic().messages.create({
@@ -196,7 +196,7 @@ Reply with ONLY a JSON object, no prose around it:
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("");
-    const parsed = parseAlertJson(text);
+    const parsed = parseAlertCopy(text);
     if (parsed) return parsed;
     console.error("prediction compose: unparseable model output");
   } catch (err) {
