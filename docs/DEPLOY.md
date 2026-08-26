@@ -61,6 +61,18 @@ Pull the values from your Supabase project settings (API section) and your
 Anthropic Console API key. These are the same four variables documented in
 `.env.example`.
 
+Daily dosha alerts need five more (`CRON_SECRET` and the four `APNS_*`
+variables) plus the `0004_alerts_push.sql` migration — see
+[PUSH_ALERTS.md](./PUSH_ALERTS.md). Skip them and the rest of the app is
+unaffected.
+
+Sign in with Apple needs no environment variables, but the Apple provider has to
+be enabled on the Supabase project — see
+[APPLE_SIGN_IN.md](./APPLE_SIGN_IN.md).
+
+What a reading costs, and the caching and effort settings behind it, are in
+[MODEL_COSTS.md](./MODEL_COSTS.md).
+
 **Secrets discipline:** locally, secrets live only in `.env.local`, which is
 gitignored (`.gitignore` excludes `.env*` and re-allows only
 `.env.example`). In the cloud, secrets live only in Vercel's encrypted

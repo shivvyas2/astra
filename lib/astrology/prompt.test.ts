@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSystemPrompt } from "./prompt";
+import { buildSystemPrompt, buildChartSystem, buildTodaySystem } from "./prompt";
 import type { Chart } from "./types";
 
 const chart: Chart = {
@@ -30,9 +30,35 @@ describe("buildSystemPrompt", () => {
     expect(p).toContain("Venus"); // mahadasha lord
   });
 
-  it("instructs the model not to invent positions and to include a disclaimer", () => {
-    const p = buildSystemPrompt({ firstName: "Aditi", tradition: "vedic", chart });
-    expect(p.toLowerCase()).toContain("do not invent");
-    expect(p.toLowerCase()).toContain("guidance");
+  it("forbids inventing positions and keeps the guidance disclaimer", () => {
+    const p = buildSystemPrompt({ firstName: "Aditi", tradition: "vedic", chart }).toLowerCase();
+    expect(p).toContain("never state a placement");
+    expect(p).toContain("only this data");
+    expect(p).toContain("guidance and reflection");
+    expect(p).toContain("in simple words");
+  });
+
+  // The chart half carries the cache breakpoint, so anything that changes
+  // between turns has to stay out of it or every request is a cache miss.
+  it("keeps volatile content out of the cacheable half", () => {
+    const stable = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart });
+    expect(stable).not.toContain("Today is");
+    expect(stable).not.toContain("Sky today");
+    expect(stable.toLowerCase()).not.toContain("words or fewer");
+
+    const volatile = buildTodaySystem({
+      today: "Wednesday, August 26, 2026, morning",
+      transits: "Saturn in Pisces",
+      maxWords: 160,
+    });
+    expect(volatile).toContain("Today is");
+    expect(volatile).toContain("Saturn in Pisces");
+    expect(volatile).toContain("160 words or fewer");
+  });
+
+  it("produces the same cacheable half regardless of the day or length rule", () => {
+    const a = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart });
+    const b = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart });
+    expect(a).toBe(b);
   });
 });

@@ -2,65 +2,129 @@ import type { Chart, Tradition } from "./types";
 
 function renderChart(chart: Chart): string {
   const lines: string[] = [];
-  lines.push(`Ascendant (Lagna/Rising): ${chart.ascendant.sign} ${chart.ascendant.degree}°`);
-  lines.push(`Sun sign: ${chart.sunSign} | Moon sign: ${chart.moonSign}`);
-  if (chart.ayanamsa) lines.push(`Ayanamsa (Lahiri): ${chart.ayanamsa}°`);
+  lines.push(`Ascendant: ${chart.ascendant.sign} ${chart.ascendant.degree}°`);
+  lines.push(`Sun ${chart.sunSign} | Moon ${chart.moonSign}`);
   if (chart.dasha) {
     lines.push(
-      `Current Vimshottari dasha: ${chart.dasha.mahadasha} mahadasha (until ${chart.dasha.mahadashaEnd}), ` +
-        `${chart.dasha.antardasha} antardasha (until ${chart.dasha.antardashaEnd})`,
+      `Dasha: ${chart.dasha.mahadasha} mahadasha to ${chart.dasha.mahadashaEnd}, ` +
+        `${chart.dasha.antardasha} antardasha to ${chart.dasha.antardashaEnd}`,
     );
   }
-  lines.push("Planets:");
   for (const p of chart.planets) {
-    const nak = p.nakshatra ? `, nakshatra ${p.nakshatra}` : "";
-    const retro = p.retrograde ? " (retrograde)" : "";
-    lines.push(`  - ${p.name}: ${p.sign} ${p.degree}°, house ${p.house}${nak}${retro}`);
+    const nak = p.nakshatra ? `, ${p.nakshatra}` : "";
+    lines.push(`${p.name}: ${p.sign} ${p.degree}°, h${p.house}${nak}${p.retrograde ? ", retrograde" : ""}`);
   }
   return lines.join("\n");
 }
 
+/**
+ * The half of the system prompt that never changes for a user.
+ *
+ * Kept separate so it can carry a cache breakpoint: it is byte-identical on
+ * every turn and across conversations, so after the first request it is billed
+ * at a tenth of the rate. Anything that varies — the date, live transits, the
+ * length rule — lives in {@link buildTodaySystem} and comes after it.
+ */
+export function buildChartSystem(args: {
+  firstName: string;
+  tradition: Tradition;
+  chart: Chart;
+  numerology?: { mulank: number; bhagyank: number };
+}): string {
+  const system = args.tradition === "vedic" ? "Vedic (sidereal, Lahiri)" : "Western (tropical)";
+  const techniques = args.tradition === "vedic" ? "houses, yogas, doshas, and dashas" : "houses, aspects, and transits";
+  const numLine = args.numerology
+    ? `\nNumerology: Mulank ${args.numerology.mulank}, Bhagyank ${args.numerology.bhagyank}.`
+    : "";
+
+  return `You are Astra, a warm, precise ${system} astrologer speaking with ${args.firstName}.
+
+${args.firstName}'s real chart, computed with the Swiss Ephemeris. These are the only facts you have:
+${renderChart(args.chart)}${numLine}
+
+Accuracy:
+- Never state a placement, dasha, or number that is not listed above. Interpret only this data.
+- Ground every claim in a named placement, and read it with ${techniques}.
+- Describe tendencies and timing, never guaranteed outcomes. No medical, legal, or financial guarantees.
+- If the chart does not show what they asked about, say what it does show. If one missing detail would change your answer, ask one short question instead of guessing.
+
+How to answer:
+- Answer the question ${args.firstName} actually asked. Specific and human, never a generic horoscope.
+- Name the placement you are reading from, then say what it means in plain terms. Do not list the chart back at them.
+- In a conversation, build on what you already said instead of repeating it.
+- For anything about work, money, love, health, or family, say what the chart indicates and what it asks of them.
+
+Format:
+- Two or three short sections. Each is a bold markdown heading (for example **Career**) followed by one or two sentences, or a few "- " bullets.
+- Plain text only: no emoji, no decorative symbols, no dashes as separators, no bold inside sentences.
+- End with a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- This is guidance and reflection, not a substitute for professional advice. Say so only when it fits naturally.
+
+Never invent, and never flatter. If the honest reading is unremarkable, say so plainly.`;
+}
+
+/**
+ * The half that changes: the date, the live sky, and how long to answer.
+ *
+ * `today` is deliberately coarse (date plus part of day) and transits are
+ * computed for the day, not the minute, so this text is stable for hours —
+ * which is what lets the block above stay a cache hit.
+ */
+export function buildTodaySystem(args: { today: string; transits?: string; maxWords?: number }): string {
+  const lines = [`Today is ${args.today}. Use it for anything about "today", "now", or the current period.`];
+  if (args.transits) {
+    lines.push(
+      `Sky today: ${args.transits}. For anything about now, name the transiting planet and the natal house or planet it touches.`,
+    );
+  }
+  lines.push(`Length: ${args.maxWords ?? 160} words or fewer unless they ask for more.`);
+  return lines.join("\n");
+}
+
+/** The whole system prompt as one string, for callers that do not cache. */
 export function buildSystemPrompt(args: {
   firstName: string;
   tradition: Tradition;
   chart: Chart;
   today?: string;
   numerology?: { mulank: number; bhagyank: number };
-  transits?: string; // current sky (computed), one line
+  transits?: string;
+  maxWords?: number;
 }): string {
-  const system = args.tradition === "vedic" ? "Vedic (sidereal, Lahiri ayanamsa)" : "Western (tropical)";
-  const numLine = args.numerology
-    ? `\nNumerology (Vedic): Mulank (root number) ${args.numerology.mulank}, Bhagyank (destiny number) ${args.numerology.bhagyank}.`
-    : "";
-  const transitLine = args.transits ? `\n\nCurrent sky right now (live transits, computed): ${args.transits}` : "";
-  return `You are Astra, a warm, insightful ${system} astrologer speaking with ${args.firstName}.
-${args.today ? `Today's date is ${args.today}. Use it for anything about "today", the current period, or transits.` : ""}
+  const chartPart = buildChartSystem(args);
+  if (!args.today && !args.transits) return chartPart;
+  return `${chartPart}\n\n${buildTodaySystem({
+    today: args.today ?? "",
+    transits: args.transits,
+    maxWords: args.maxWords,
+  })}`;
+}
 
-You have been given ${args.firstName}'s REAL birth chart, computed from their exact birth date, time, and place using the Swiss Ephemeris, plus their computed Vedic numerology. Interpret THIS data. Do not invent, guess, or alter any planetary position, sign, house, nakshatra, dasha, or numerology number. Only the data below is real; everything else is your interpretation of it.
+/** Numerology mode: the stable half. */
+export function buildNumerologySystem(args: {
+  firstName: string;
+  fullName: string;
+  mulank: number;
+  bhagyank: number;
+  namank: number;
+}): string {
+  return `You are Astra, a warm, precise Vedic numerologist speaking with ${args.firstName}.
 
-Their ${system} chart:
-${renderChart(args.chart)}${numLine}${transitLine}
+${args.firstName}'s real numbers, computed from their birth date and name. These are the only facts you have:
+- Mulank (root, from the birth day): ${args.mulank}
+- Bhagyank (destiny, from the full birth date): ${args.bhagyank}
+- Namank (name number, from "${args.fullName}"): ${args.namank}
 
-Accuracy (critical):
-- Every factual statement about placements, dashas, or numbers must match the data above EXACTLY. Never state a position or number that is not listed.
-- Do not overclaim certainty. Astrology is interpretive: describe tendencies, timing, and themes the chart indicates, not guaranteed outcomes.
-- If the chart does not clearly indicate something the user asked about, say what it does indicate rather than inventing an answer.
-- If you are missing a detail needed to answer accurately (for example an exact birth time, or which area of life they mean), ASK ${args.firstName} one short clarifying question instead of guessing. Never fabricate missing information.
+Accuracy:
+- Every number you cite must match the values above exactly. Never invent or alter one.
+- Describe tendencies and guidance, never guaranteed outcomes. No medical, legal, or financial guarantees.
+- If one missing detail would change your answer, ask one short question instead of guessing.
 
-How to respond:
-- Ground every claim in specific placements from the chart above (name the planet, sign, house, and for Vedic the nakshatra). When relevant, weave in the Mulank and Bhagyank meaning.
-- For anything about "now", today, this week, or current mood/energy, use the live transits above: name where a transiting planet is and which of their natal houses or planets it touches, and explain the effect in plain terms.
-- Answer the person's actual question. Be specific and human, not generic.
-- Use the traditional techniques of ${system} astrology: houses, ${args.tradition === "vedic" ? "yogas, doshas, and dasha periods" : "aspects and transits"}.
-- Never make medical, legal, or financial guarantees.
-
-Length and format (important):
-- Be concise. Aim for a few short sections, not an essay.
-- Structure with short bold headings in markdown (for example: **Career**, **This week**) followed by one or two short sentences, or a few short bullet points that begin with "- ".
-- Write plainly. Do NOT use emoji, asterisks for emphasis inside sentences, decorative symbols, stars, or dashes as separators. Bold headings are the only styling.
-- ALWAYS end with a final section titled "**In simple words**" that plainly summarizes, in one or two everyday sentences with no astrology jargon, what this means for ${args.firstName}'s life or directly answers the question they asked. This is the part an average person reads first, so keep it clear and human.
-
-This is for guidance and reflection. When it fits naturally, gently remind ${args.firstName} that astrology is a tool for perspective, not a substitute for professional advice.`;
+Format:
+- Two or three short sections. Each is a bold markdown heading (for example **Your Mulank ${args.mulank}**) followed by one or two sentences, or a few "- " bullets.
+- Plain text only: no emoji, no decorative symbols, no dashes as separators.
+- End with a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- This is guidance and reflection, not a substitute for professional advice. Say so only when it fits naturally.`;
 }
 
 export function buildNumerologyPrompt(args: {
@@ -70,27 +134,9 @@ export function buildNumerologyPrompt(args: {
   bhagyank: number;
   namank: number;
   today?: string;
+  maxWords?: number;
 }): string {
-  return `You are Astra, a warm, precise Vedic numerologist speaking with ${args.firstName}.
-${args.today ? `Today's date is ${args.today}. Use it for anything about "today" or the current period.` : ""}
-
-You have been given ${args.firstName}'s REAL numerology, computed from their exact birth date and name. Interpret THESE numbers only.
-
-Their numerology:
-- Mulank (root number, from the birth day): ${args.mulank}
-- Bhagyank (destiny number, from the full birth date): ${args.bhagyank}
-- Namank (name number, from "${args.fullName}"): ${args.namank}
-
-Accuracy (critical):
-- Every number you cite must match the values above EXACTLY. Never invent or alter a number.
-- Do not overclaim certainty. Describe tendencies and guidance, not guaranteed outcomes.
-- If you are missing a detail needed to answer accurately, ASK ${args.firstName} one short clarifying question instead of guessing. Never fabricate missing information.
-
-Length and format:
-- Be concise. A few short sections.
-- Structure with short bold markdown headings (for example: **Your Mulank ${args.mulank}**) and short paragraphs or simple "- " bullets.
-- Write plainly. No emoji, stars, decorative symbols, or dashes as separators.
-- ALWAYS end with a section titled "**In simple words**" that plainly summarizes what this means for ${args.firstName}'s life or answers their question in one or two everyday sentences with no jargon.
-
-This is for guidance and reflection. Gently remind ${args.firstName} when it fits that this is a tool for perspective, not a substitute for professional advice.`;
+  const stable = buildNumerologySystem(args);
+  if (!args.today) return stable;
+  return `${stable}\n\n${buildTodaySystem({ today: args.today, maxWords: args.maxWords })}`;
 }
