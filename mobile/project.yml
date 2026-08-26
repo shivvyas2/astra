@@ -48,6 +48,14 @@ targets:
         com.apple.developer.associated-domains:
           - applinks:astra.shivvyas.com
           - webcredentials:astra.shivvyas.com
+        # Dosha alerts. Change to `production` for TestFlight and App Store
+        # builds — a token minted under one environment is invalid in the other.
+        aps-environment: development
+        # Sign in with Apple. Also enable the capability on the App ID in the
+        # Apple Developer portal, and add the bundle id to Supabase's Apple
+        # provider — see docs/APPLE_SIGN_IN.md.
+        com.apple.developer.applesignin:
+          - Default
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra

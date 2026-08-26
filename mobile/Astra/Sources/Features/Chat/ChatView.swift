@@ -1,0 +1,426 @@
+import SwiftUI
+
+/// The reading screen — the native counterpart of `components/Chat.tsx`.
+struct ChatView: View {
+    let profile: ProfileStore
+
+    @Environment(AuthStore.self) private var auth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var chat = ChatStore()
+    @State private var alerts = AlertsStore()
+    @State private var daily = DailyStore()
+    @State private var inboxTab: InboxView.Tab = .daily
+    @State private var suggestions = SuggestionEngine()
+    @State private var showHistory = false
+    @State private var showAlerts = false
+    @State private var showProfile = false
+    @FocusState private var inputFocused: Bool
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.bg.ignoresSafeArea()
+                GlowBackdrop(active: !reduceMotion)
+
+                if chat.messages.isEmpty {
+                    openingScreen
+                } else {
+                    VStack(spacing: 0) {
+                        transcript
+                        suggestionChips
+                        composer
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 8)
+                    }
+                }
+            }
+            .toolbar { toolbar }
+            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .tint(Theme.fg)
+        .sheet(isPresented: $showHistory) {
+            HistoryView(chat: chat)
+        }
+        .sheet(isPresented: $showProfile) {
+            ProfileView(profile: profile)
+        }
+        .sheet(isPresented: $showAlerts) {
+            InboxView(daily: daily, alerts: alerts, tab: $inboxTab) { question in
+                startNewReading()
+                chat.send(question)
+            }
+        }
+        .task {
+            suggestions.showStarters(for: chat.mode)
+            await chat.start()
+        }
+        .task {
+            await daily.load()
+            await alerts.load()
+            // Asked here rather than at launch: by this point the user has a
+            // chart, so "we'll tell you when a dosha starts" means something.
+            await PushStore.shared.requestAuthorization()
+            await PushStore.shared.register()
+        }
+        .onChange(of: chat.isStreaming) { _, streaming in
+            guard !streaming else { return }
+            if let last = chat.messages.last, last.role == .assistant, !last.content.isEmpty {
+                suggestions.refresh(after: last.content, mode: chat.mode)
+            }
+        }
+        .onChange(of: chat.mode) { _, mode in
+            if chat.messages.isEmpty { suggestions.showStarters(for: mode) }
+        }
+        .onChange(of: PushStore.shared.pending) { _, tapped in
+            guard let tapped else { return }
+            PushStore.shared.pending = nil
+            Task {
+                switch tapped.kind {
+                case .daily:
+                    inboxTab = .daily
+                    await daily.open(id: tapped.id)
+                case .alert:
+                    inboxTab = .alerts
+                    await alerts.open(id: tapped.id)
+                }
+                showAlerts = true
+            }
+        }
+    }
+
+    // MARK: - Screens
+
+    private var openingScreen: some View {
+        VStack(spacing: 32) {
+            Spacer()
+            Text(greeting)
+                .font(.system(size: 28, weight: .light))
+                .tracking(-0.5)
+                .multilineTextAlignment(.center)
+                .foregroundStyle(Theme.fg.opacity(0.9))
+            composer
+            suggestionChips
+            Spacer()
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var unreadCount: Int { daily.unreadCount + alerts.unreadCount }
+
+    /// Clears the transcript for a fresh reading. The previous one stays
+    /// saved and is one tap away under Readings.
+    private func startNewReading() {
+        chat.newReading()
+        suggestions.showStarters(for: chat.mode)
+    }
+
+    private var greeting: String {
+        if let firstName = profile.details?.firstName, !firstName.isEmpty {
+            return "Let's read your stars, \(firstName)"
+        }
+        return "Let's read your stars"
+    }
+
+    private var transcript: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(Array(chat.messages.enumerated()), id: \.element.id) { index, message in
+                        row(for: message, isLast: index == chat.messages.count - 1)
+                            .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+                            .id(message.id)
+                    }
+                    Color.clear.frame(height: 1).id(Self.bottomAnchor)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 24)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .onChange(of: chat.messages.last?.content) { _, _ in
+                proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+            }
+            .onChange(of: chat.messages.count) { _, _ in
+                proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func row(for message: ChatMessage, isLast: Bool) -> some View {
+        switch message.role {
+        case .user:
+            Text(message.content)
+                .font(.system(size: 15))
+                .foregroundStyle(Theme.fg)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(Color.white.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .frame(maxWidth: 300, alignment: .trailing)
+        case .assistant:
+            if message.content.isEmpty {
+                ShimmerText("Reading your chart…", active: !reduceMotion)
+            } else {
+                HStack(alignment: .bottom, spacing: 0) {
+                    MarkdownText(markdown: message.content)
+                    if isLast && chat.isStreaming {
+                        StreamingCaret(active: !reduceMotion)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Suggested next questions. Generated on-device by Apple Intelligence
+    /// after each reading, with written starters where that is unavailable.
+    @ViewBuilder
+    private var suggestionChips: some View {
+        if suggestions.isThinking {
+            HStack {
+                ShimmerText("Thinking of what to ask next…", active: !reduceMotion)
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 6)
+        } else if !suggestions.suggestions.isEmpty, !chat.isStreaming {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(suggestions.suggestions, id: \.self) { question in
+                        Button {
+                            suggestions.clear()
+                            chat.send(question)
+                        } label: {
+                            Text(question)
+                                .font(.system(size: 13))
+                                .foregroundStyle(Theme.fg.opacity(0.9))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(Color.white.opacity(0.05))
+                                .clipShape(Capsule())
+                                .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            .padding(.bottom, 8)
+        }
+    }
+
+    // MARK: - Composer
+
+    private var composer: some View {
+        @Bindable var chat = chat
+
+        return VStack(spacing: 8) {
+            if let error = chat.errorMessage {
+                Text(error)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.accent)
+                    .multilineTextAlignment(.center)
+            }
+
+            HStack(spacing: 6) {
+                TextField("", text: $chat.input, prompt: Text("Ask Astra…").foregroundStyle(Theme.muted), axis: .vertical)
+                    .lineLimit(1...4)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Theme.fg)
+                    .textInputAutocapitalization(.sentences)
+                    .focused($inputFocused)
+                    .submitLabel(.send)
+                    .onSubmit { chat.sendCurrentInput() }
+                    .padding(.vertical, 6)
+
+                Button {
+                    chat.mode = chat.mode.next
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle().fill(chat.mode.dot).frame(width: 6, height: 6)
+                        Text(chat.mode.label)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Reading mode: \(chat.mode.label). Tap to switch.")
+
+                Button {
+                    chat.deep.toggle()
+                } label: {
+                    Text("Deep")
+                        .font(.system(size: 12))
+                        .foregroundStyle(chat.deep ? Theme.accent : Theme.muted)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(chat.deep ? Theme.accent.opacity(0.15) : .clear)
+                        .clipShape(Capsule())
+                }
+                .accessibilityLabel(chat.deep ? "Deep reading on" : "Deep reading off")
+
+                Button {
+                    inputFocused = false
+                    chat.sendCurrentInput()
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.bg)
+                        .frame(width: 34, height: 34)
+                        .background(Theme.fg)
+                        .clipShape(Circle())
+                }
+                .disabled(chat.isStreaming || chat.input.trimmingCharacters(in: .whitespaces).isEmpty)
+                .opacity(chat.isStreaming || chat.input.trimmingCharacters(in: .whitespaces).isEmpty ? 0.3 : 1)
+                .accessibilityLabel("Send")
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 6)
+            .padding(.vertical, 4)
+            .background(Theme.fieldFill)
+            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24)
+                    .stroke(Theme.hairline, lineWidth: 1)
+            )
+
+            Text("For guidance and reflection. Not a substitute for professional advice.")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.muted.opacity(0.7))
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    // MARK: - Toolbar
+
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                showHistory = true
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .foregroundStyle(Theme.muted)
+            }
+            .accessibilityLabel("Past readings")
+        }
+        ToolbarItem(placement: .principal) {
+            Text("ASTRA")
+                .font(.system(size: 12))
+                .tracking(3.6)
+                .foregroundStyle(Theme.muted)
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                startNewReading()
+            } label: {
+                Image(systemName: "square.and.pencil")
+                    .foregroundStyle(Theme.muted)
+            }
+            .accessibilityLabel("New reading")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Button {
+                showAlerts = true
+            } label: {
+                Image(systemName: "bell")
+                    .foregroundStyle(Theme.muted)
+                    .overlay(alignment: .topTrailing) {
+                        if unreadCount > 0 {
+                            Circle()
+                                .fill(Theme.accent)
+                                .frame(width: 6, height: 6)
+                                .offset(x: 3, y: -2)
+                        }
+                    }
+            }
+            .accessibilityLabel(unreadCount > 0 ? "Inbox, \(unreadCount) unread" : "Inbox")
+        }
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                Button("New reading") { startNewReading() }
+                Button("Profile & birth details") { showProfile = true }
+                Button("Sign out", role: .destructive) { Task { await auth.signOut() } }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .foregroundStyle(Theme.muted)
+            }
+        }
+    }
+
+    private static let bottomAnchor = "astra-transcript-bottom"
+}
+
+// MARK: - Motion
+
+/// The radial glow behind the transcript (`animate-glow` on the web).
+struct GlowBackdrop: View {
+    var active: Bool
+    @State private var pulse = false
+
+    var body: some View {
+        RadialGradient(
+            colors: [
+                Color(hex: 0x635BFF).opacity(0.28),
+                Color(hex: 0xE8663D).opacity(0.07),
+                .clear,
+            ],
+            center: .center,
+            startRadius: 0,
+            endRadius: 260
+        )
+        .frame(height: 420)
+        .blur(radius: 40)
+        .opacity(pulse ? 0.9 : 0.55)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .padding(.top, 120)
+        .allowsHitTesting(false)
+        .onAppear {
+            guard active else { return }
+            withAnimation(.easeInOut(duration: 6).repeatForever(autoreverses: true)) { pulse = true }
+        }
+    }
+}
+
+/// `animate-shimmer` — the "Reading your chart…" placeholder.
+struct ShimmerText: View {
+    let text: String
+    var active: Bool
+    @State private var dim = false
+
+    init(_ text: String, active: Bool) {
+        self.text = text
+        self.active = active
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(Theme.muted)
+            .opacity(dim ? 0.4 : 1)
+            .onAppear {
+                guard active else { return }
+                withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { dim = true }
+            }
+    }
+}
+
+/// The blinking `.caret` shown while text is still arriving.
+struct StreamingCaret: View {
+    var active: Bool
+    @State private var visible = true
+
+    var body: some View {
+        Text("▍")
+            .font(.system(size: 15))
+            .foregroundStyle(Theme.fg.opacity(0.9))
+            .opacity(visible ? 1 : 0)
+            .onAppear {
+                guard active else { return }
+                withAnimation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true)) { visible = false }
+            }
+    }
+}

@@ -50,6 +50,124 @@ enum AstraAPI {
         try check(response, data)
     }
 
+    /// Birthplace search. Mirrors `GET /api/geocode`, which pairs the geocoder
+    /// with `tz-lookup` so the timezone the ephemeris needs comes back with the
+    /// coordinates. The route is public, so this call carries no token.
+    static func geocode(_ query: String) async throws -> [GeoResult] {
+        var components = URLComponents(
+            url: AppConfig.apiBaseURL.appendingPathComponent("api/geocode"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        let (data, response) = try await URLSession.shared.data(from: components.url!)
+        try check(response, data)
+        return try JSONDecoder().decode([GeoResult].self, from: data)
+    }
+
+    /// Registers this device for dosha alerts. Mirrors `POST /api/devices`.
+    static func registerDevice(token: String, environment: String) async throws {
+        var req = try await request("api/devices", method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["token": token, "environment": environment])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    /// Stops alerts to this device — used on sign-out.
+    static func unregisterDevice(token: String) async throws {
+        var req = try await request("api/devices", method: "DELETE")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["token": token])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    // MARK: - Chat
+
+    /// One piece of a streaming reading.
+    enum ChatEvent {
+        /// The conversation this turn belongs to, from the `x-conversation-id`
+        /// header. Arrives before any text, and is the id to send back on the
+        /// next turn so the server keeps appending to the same conversation.
+        case conversationId(String)
+        case text(String)
+    }
+
+    /// Streams a reading from `POST /api/chat`.
+    ///
+    /// The route answers with plain UTF-8 text chunks rather than SSE, so this
+    /// reads raw bytes: a chunk boundary can split a multi-byte character, so
+    /// bytes are held back until they decode. Text is coalesced into small
+    /// batches — byte-at-a-time updates would redraw the transcript thousands
+    /// of times for a single reading.
+    static func chatStream(
+        conversationId: String?,
+        mode: ChatMode,
+        message: String,
+        deep: Bool
+    ) -> AsyncThrowingStream<ChatEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let work = Task {
+                do {
+                    var req = try await request("api/chat", method: "POST")
+                    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    req.httpBody = try JSONEncoder().encode(
+                        ChatRequest(
+                            conversationId: conversationId,
+                            tradition: mode.rawValue,
+                            message: message,
+                            deep: deep
+                        )
+                    )
+                    // Readings can think for a while before the first byte.
+                    req.timeoutInterval = 120
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: req)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw APIError.server("The stars are unreachable right now.")
+                    }
+                    guard (200..<300).contains(http.statusCode) else {
+                        if http.statusCode == 401 { throw APIError.unauthorized }
+                        var body = Data()
+                        for try await byte in bytes { body.append(byte) }
+                        throw APIError.server(
+                            String(data: body, encoding: .utf8) ?? "Something went wrong."
+                        )
+                    }
+
+                    if let id = http.value(forHTTPHeaderField: "x-conversation-id") {
+                        continuation.yield(.conversationId(id))
+                    }
+
+                    var undecoded = Data()
+                    var batch = ""
+                    for try await byte in bytes {
+                        undecoded.append(byte)
+                        guard let piece = String(data: undecoded, encoding: .utf8) else { continue }
+                        undecoded.removeAll(keepingCapacity: true)
+                        batch += piece
+                        if batch.count >= 24 {
+                            continuation.yield(.text(batch))
+                            batch = ""
+                        }
+                    }
+                    if !batch.isEmpty { continuation.yield(.text(batch)) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in work.cancel() }
+        }
+    }
+
+    private struct ChatRequest: Encodable {
+        let conversationId: String?
+        let tradition: String
+        let message: String
+        let deep: Bool
+    }
+
     private static func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { return }
         switch http.statusCode {
@@ -60,6 +178,17 @@ enum AstraAPI {
             throw APIError.server(message)
         }
     }
+}
+
+/// A birthplace from `/api/geocode`, already carrying the resolved timezone.
+struct GeoResult: Decodable, Identifiable, Hashable {
+    let name: String
+    let lat: Double
+    let lng: Double
+    let timezone: String
+    let country: String
+
+    var id: String { "\(name)|\(lat)|\(lng)" }
 }
 
 struct BirthProfileInput {
