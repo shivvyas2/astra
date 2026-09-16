@@ -1,0 +1,129 @@
+name: iOS TestFlight
+
+# Archives the app and uploads it to App Store Connect. Runs on every version
+# tag, or by hand from the Actions tab.
+#
+# Required repository secrets:
+#   SUPABASE_URL, SUPABASE_ANON_KEY       baked into AppConfig.swift (publishable values)
+#   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 App Store Connect API key with the
+#                                        App Manager role, and the .p8 contents
+#
+# Signing is automatic: with the API key, Xcode creates or refreshes the
+# distribution certificate and profile itself. No certificates are stored here.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          missing=0
+          for v in SUPABASE_URL SUPABASE_ANON_KEY ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            if [ -z "${!v}" ]; then echo "::error::Secret $v is not set"; missing=1; fi
+          done
+          exit $missing
+
+      - name: Select Xcode 26
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate AppConfig.swift
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          printf 'NEXT_PUBLIC_SUPABASE_URL=%s\nNEXT_PUBLIC_SUPABASE_ANON_KEY=%s\n' "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > ../.env.local
+          ./scripts/make-config.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      # Marketing version comes from the tag (v0.1.0 -> 0.1.0). On a manual run
+      # the version in project.yml is kept. The build number is the workflow
+      # run number, which App Store Connect requires to be unique per version.
+      - name: Set version and build number
+        run: |
+          BUILD="${GITHUB_RUN_NUMBER}"
+          for plist in Sanchara/Info.plist SancharaWidgets/Info.plist; do
+            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+              /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${GITHUB_REF_NAME#v}" "$plist"
+            fi
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD}" "$plist"
+          done
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Sanchara/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" Sanchara/Info.plist
+
+      # Push tokens minted under the development environment are rejected by
+      # production APNs, so store builds must carry the production entitlement.
+      - name: Use production push environment
+        run: /usr/libexec/PlistBuddy -c "Set :aps-environment production" Sanchara/Sanchara.entitlements
+
+      - name: Install App Store Connect API key
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p ~/private_keys
+          printf '%s\n' "$ASC_KEY_P8" > ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+          chmod 600 ~/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Archive
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project Sanchara.xcodeproj \
+            -scheme Sanchara \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Sanchara.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "${ASC_KEY_ID}" \
+            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+            | tee archive.log | grep -E 'error:|\*\* ARCHIVE'
+
+      - name: Upload to App Store Connect
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive \
+            -archivePath build/Sanchara.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "${ASC_KEY_ID}" \
+            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+            | tee export.log | grep -E 'error:|Upload|EXPORT'
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: |
+            mobile/archive.log
+            mobile/export.log

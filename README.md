@@ -201,21 +201,44 @@ After deploying a version that adds a migration, apply it to the production Supa
 
 iOS builds go through Xcode to TestFlight. Before archiving, switch `aps-environment` in `mobile/project.yml` to `production` and regenerate the project. A push token minted under one environment is invalid in the other.
 
+## CI/CD
+
+Three GitHub Actions workflows live in `.github/workflows/`.
+
+| Workflow | Runs on | What it does |
+| --- | --- | --- |
+| `ci.yml` | Every push to `main` and every pull request | Web: typecheck, Vitest, `next build`. iOS: XcodeGen, then an unsigned simulator build and the XCTest suite on a macOS 26 runner. |
+| `release.yml` | Tag `v*` | Creates the GitHub release with that version's section of `CHANGELOG.md`. |
+| `ios-testflight.yml` | Tag `v*`, or by hand | Archives the app with the version from the tag and the run number as the build number, switches push to the production environment, and uploads to App Store Connect. |
+
+Web deployment is handled by Vercel's Git integration, so there is no deploy step in Actions. Every push to `main` becomes a production deployment once CI passes.
+
+The TestFlight workflow needs five repository secrets. Signing is automatic through the App Store Connect API, so no certificates are stored in GitHub.
+
+| Secret | Value |
+| --- | --- |
+| `SUPABASE_URL` | Same as `NEXT_PUBLIC_SUPABASE_URL` |
+| `SUPABASE_ANON_KEY` | Same as `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| `ASC_KEY_ID` | App Store Connect API key ID |
+| `ASC_ISSUER_ID` | App Store Connect issuer ID |
+| `ASC_KEY_P8` | Full contents of the downloaded `.p8` file |
+
+Create the key at App Store Connect under Users and Access, Integrations, with the App Manager role. The app record for `com.shivvyas.astra` must already exist there.
+
 ## Releasing
 
-Releases are tagged from `main` and published on GitHub.
+Releases are tagged from `main`.
 
-1. Make sure `npm test` and the iOS tests pass.
-2. Update `CHANGELOG.md` and the `version` field in `package.json`.
+1. Make sure CI is green.
+2. Add a section to `CHANGELOG.md` and bump `version` in `package.json`.
 3. Commit, tag, and push:
 
    ```bash
    git tag -a vX.Y.Z -m "vX.Y.Z"
    git push origin main --tags
-   gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <notes>
    ```
 
-Vercel deploys the pushed commit. The iOS build is archived and uploaded separately.
+The tag triggers the GitHub release and the TestFlight upload. Vercel deploys the commit.
 
 ## Costs
 

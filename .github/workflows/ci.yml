@@ -1,0 +1,89 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (typecheck, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Test
+        run: npm test
+
+      # The build needs no secrets: env vars are read at request time, not at
+      # build time, so a missing key fails the route rather than the build.
+      - name: Build
+        run: npm run build
+
+  ios:
+    name: iOS (build and test)
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # AppConfig.swift is generated from .env.local and never committed. The
+      # simulator build only needs the values to be present, not real.
+      - name: Generate AppConfig.swift
+        run: |
+          printf 'NEXT_PUBLIC_SUPABASE_URL=https://ci-placeholder.supabase.co\nNEXT_PUBLIC_SUPABASE_ANON_KEY=ci-placeholder\n' > ../.env.local
+          ./scripts/make-config.sh
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Cache Swift packages
+        uses: actions/cache@v4
+        with:
+          path: mobile/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('mobile/project.yml') }}
+          restore-keys: spm-${{ runner.os }}-
+
+      - name: Build and test on the simulator
+        run: |
+          set -o pipefail
+          SIM="$(xcrun simctl list devices available | grep -m1 -o 'iPhone [^(]*' | sed 's/ *$//')"
+          echo "Using simulator: $SIM"
+          xcodebuild test \
+            -project Sanchara.xcodeproj \
+            -scheme Sanchara \
+            -destination "platform=iOS Simulator,name=$SIM" \
+            -clonedSourcePackagesDirPath SourcePackages \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee xcodebuild.log | grep -E 'error:|warning: .*Sanchara/|Test Suite|Test Case.*(passed|failed)|Executed|\*\* (TEST|BUILD)'
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: mobile/xcodebuild.log
