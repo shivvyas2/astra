@@ -17,4 +17,12 @@ enum WidgetRefresh {
         WidgetCenter.shared.reloadTimelines(ofKind: "SancharaReading")
         #endif
     }
+
+    /// The current-period widget. Its content changes once a year or so on its
+    /// own; this is for the moment a meaning arrives from the server.
+    static func reloadPeriod() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: "SancharaPeriod")
+        #endif
+    }
 }

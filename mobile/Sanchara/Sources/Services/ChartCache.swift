@@ -82,6 +82,27 @@ final class ChartCache: @unchecked Sendable {
     func save(reading: CachedReading) { write(reading, to: "reading") }
     func loadReading() -> CachedReading? { read(CachedReading.self, from: "reading") }
 
+    // MARK: - The current dasha period
+
+    /// The mahadasha–antardasha pair running today, with the server's one-line
+    /// theme, for the period widget. The dates alone are already in the cached
+    /// chart; what this adds is the meaning, which only the timeline API
+    /// writes. All dates are ISO calendar days.
+    struct CachedPeriod: Codable, Sendable, Equatable {
+        let lord: String
+        let antardasha: String
+        let start: String
+        let end: String
+        let antardashaStart: String
+        let antardashaEnd: String
+        let theme: String?
+        let nowMeaning: String?
+        let savedAt: Date
+    }
+
+    func save(period: CachedPeriod) { write(period, to: "period") }
+    func loadPeriod() -> CachedPeriod? { read(CachedPeriod.self, from: "period") }
+
     // MARK: - Where to land
 
     /// Set by an intent or a control in another process, drained by the app.
@@ -107,7 +128,7 @@ final class ChartCache: @unchecked Sendable {
 
     func clear() {
         queue.async {
-            for name in ["chart", "details", "reading"] {
+            for name in ["chart", "details", "reading", "period"] {
                 try? FileManager.default.removeItem(at: self.url(name))
             }
             self.defaults?.removeObject(forKey: "pendingDestination")

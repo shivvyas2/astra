@@ -79,6 +79,17 @@ struct ChatView: View {
             await PushStore.shared.requestAuthorization()
             await PushStore.shared.register()
         }
+        .task {
+            // For the period widget: it draws from the cache, and the cache is
+            // only written when a timeline arrives. Fetching once here means
+            // the widget fills in without the timeline ever being opened.
+            await TimelineStore.warmCache()
+        }
+        .onAppear {
+            // A widget tap on a cold launch sets the destination before this
+            // view exists, so `onChange` below never fires for it.
+            handle(DeepLink.shared.pending)
+        }
         .onChange(of: chat.isStreaming) { _, streaming in
             guard !streaming else { return }
             if let last = chat.messages.last, last.role == .assistant, !last.content.isEmpty {
@@ -92,16 +103,7 @@ struct ChatView: View {
             if phase == .active { DeepLink.shared.drain() }
         }
         .onChange(of: DeepLink.shared.pending) { _, destination in
-            guard let destination else { return }
-            DeepLink.shared.pending = nil
-            switch destination {
-            case .kundli:
-                showKundli = true
-            case .ask(let question):
-                // The question Siri declined to answer, asked here for real.
-                startNewReading()
-                chat.send(question, forceServer: true)
-            }
+            handle(destination)
         }
         .onChange(of: PushStore.shared.pending) { _, tapped in
             guard let tapped else { return }
@@ -117,6 +119,21 @@ struct ChatView: View {
                 }
                 showAlerts = true
             }
+        }
+    }
+
+    private func handle(_ destination: DeepLink.Destination?) {
+        guard let destination else { return }
+        DeepLink.shared.pending = nil
+        switch destination {
+        case .kundli:
+            showKundli = true
+        case .timeline:
+            showTimeline = true
+        case .ask(let question):
+            // The question Siri declined to answer, asked here for real.
+            startNewReading()
+            chat.send(question, forceServer: true)
         }
     }
 

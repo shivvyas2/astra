@@ -26,6 +26,7 @@ struct ReadingControl: ControlWidget {
 struct SancharaWidgets: WidgetBundle {
     var body: some Widget {
         ReadingWidget()
+        PeriodWidget()
         if #available(iOS 18.0, *) {
             ReadingControl()
         }

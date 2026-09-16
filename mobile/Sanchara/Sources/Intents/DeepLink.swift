@@ -19,7 +19,12 @@ final class DeepLink {
         case kundli
         /// Open the chat with this question already asked, properly this time.
         case ask(String)
+        /// Show the life timeline — a tap on the period widget.
+        case timeline
     }
+
+    /// The custom scheme the widget links into, declared in `project.yml`.
+    nonisolated static let scheme = "sanchara"
 
     /// Read and cleared by the view that handles it. Nil when nothing is waiting.
     var pending: Destination?
@@ -31,6 +36,8 @@ final class DeepLink {
         guard let raw = ChartCache.shared.takePendingDestination() else { return }
         if raw == "kundli" {
             pending = .kundli
+        } else if raw == "timeline" {
+            pending = .timeline
         } else if raw.hasPrefix("ask:") {
             let question = String(raw.dropFirst("ask:".count))
             if !question.isEmpty { pending = .ask(question) }
@@ -44,5 +51,22 @@ final class DeepLink {
 
     nonisolated func queueKundli() {
         ChartCache.shared.setPendingDestination("kundli")
+    }
+
+    /// Whether this URL is ours to route, as opposed to an auth callback.
+    nonisolated static func isDeepLink(_ url: URL) -> Bool {
+        url.scheme?.lowercased() == scheme
+    }
+
+    /// `sanchara://timeline` and friends. A widget tap opens the app through
+    /// the URL directly, so there is no app-group hop here — the destination
+    /// is set straight away. Unknown paths are ignored rather than guessed.
+    func handle(url: URL) {
+        guard Self.isDeepLink(url) else { return }
+        switch url.host?.lowercased() {
+        case "timeline": pending = .timeline
+        case "kundli": pending = .kundli
+        default: break
+        }
     }
 }

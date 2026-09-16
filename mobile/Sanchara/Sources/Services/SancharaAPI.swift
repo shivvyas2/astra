@@ -72,6 +72,19 @@ enum SancharaAPI {
         return try JSONDecoder().decode(TimelinePayload.self, from: data)
     }
 
+    /// Asks the server to write the plain-language meaning of every period.
+    /// Mirrors `POST /api/timeline/explain`, which answers with the same shape
+    /// as the GET once the meanings are in place.
+    static func explainTimeline() async throws -> TimelinePayload {
+        var req = try await request("api/timeline/explain", method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // One model call covers all twelve periods; give it room.
+        req.timeoutInterval = 120
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        return try JSONDecoder().decode(TimelinePayload.self, from: data)
+    }
+
     /// Proposes moments from the user's own chat history. Mirrors
     /// `POST /api/timeline/scan`. Nothing is saved until the user confirms.
     static func scanLifeEvents() async throws -> [CandidateEvent] {

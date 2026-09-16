@@ -92,6 +92,42 @@ struct DashaInfo: Codable, Equatable, Sendable {
     let antardashaEnd: String
 }
 
+// MARK: - Period progress
+
+/// How far through a dasha period a given day is.
+///
+/// Lives here rather than in the timeline feature because the period widget
+/// needs it too, and this file is one of the few compiled into both targets.
+/// Dates are ISO calendar days parsed in UTC — the API's convention — so the
+/// answer is the same on every device regardless of its zone.
+enum PeriodProgress {
+    private static let iso: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+
+    static func parse(_ value: String) -> Date? { iso.date(from: value) }
+
+    /// 0 before the period, 1 after it, and 0 for a period with no length.
+    static func fraction(start: String, end: String, today: String) -> Double {
+        guard let s = parse(start), let e = parse(end), let t = parse(today) else { return 0 }
+        let span = e.timeIntervalSince(s)
+        guard span > 0 else { return 0 }
+        return min(max(t.timeIntervalSince(s) / span, 0), 1)
+    }
+
+    /// Whole years left, rounded down, never negative. "3 years left" is the
+    /// number a person wants; "2.7" is not.
+    static func yearsRemaining(end: String, today: String) -> Int {
+        guard let e = parse(end), let t = parse(today) else { return 0 }
+        return max(Int(e.timeIntervalSince(t) / (365.25 * 86_400)), 0)
+    }
+}
+
 // MARK: - Rashis
 
 /// The twelve rashis in zodiacal order, with the Sanskrit names a kundli is

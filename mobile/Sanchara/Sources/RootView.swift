@@ -18,7 +18,14 @@ struct RootView: View {
         }
         .task { await auth.start() }
         .onOpenURL { url in
-            Task { await auth.handle(url: url) }
+            // Two kinds of URL arrive here: Supabase's auth callback, and our
+            // own scheme from a widget tap. Only the first is for the auth
+            // store; handing it a sanchara:// URL would show "link expired".
+            if DeepLink.isDeepLink(url) {
+                DeepLink.shared.handle(url: url)
+            } else {
+                Task { await auth.handle(url: url) }
+            }
         }
     }
 }

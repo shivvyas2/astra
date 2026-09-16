@@ -6,11 +6,29 @@ import SwiftUI
 /// inferred claims about someone's own life — a wrong one is not a wrong
 /// prediction, it is the app telling a person something untrue about their
 /// father's death — so every candidate is opt-in rather than opt-out.
+///
+/// Each row shows the words it was read from, so the check is against the
+/// user's own sentence rather than against memory. A moment the scan could not
+/// date asks for a year in place of a date, and cannot be added without one.
 struct CandidatesView: View {
     let store: TimelineStore
 
     @State private var chosen: Set<String> = []
+    /// Years picked for undated candidates, by candidate id.
+    @State private var years: [String: Int] = [:]
     @Environment(\.dismiss) private var dismiss
+
+    private var chosenCandidates: [CandidateEvent] {
+        store.candidates.filter { chosen.contains($0.id) }
+    }
+
+    private var canAdd: Bool {
+        CandidateResolver.canAdd(chosen: chosenCandidates, years: years)
+    }
+
+    private var yearRange: ClosedRange<Int> {
+        CandidateResolver.yearRange(birthDate: store.birthDate, today: store.today)
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,7 +53,9 @@ struct CandidatesView: View {
         .onAppear {
             // Pre-selected: the common case is that they are right, and the
             // work of confirming a good list should be one tap, not twelve.
-            chosen = Set(store.candidates.map(\.id))
+            // Undated ones are not — they need a year first, and pre-ticking
+            // them would only hold the button hostage.
+            chosen = Set(store.candidates.filter { !$0.isUndated }.map(\.id))
         }
     }
 
@@ -78,29 +98,78 @@ struct CandidatesView: View {
     }
 
     private func row(_ candidate: CandidateEvent) -> some View {
-        Button {
-            if chosen.contains(candidate.id) { chosen.remove(candidate.id) } else { chosen.insert(candidate.id) }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: chosen.contains(candidate.id) ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20))
-                    .foregroundStyle(chosen.contains(candidate.id) ? Theme.accent : Theme.muted.opacity(0.5))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(candidate.title)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Theme.fg)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(candidate.dateLabel)
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.muted)
+        let isChosen = chosen.contains(candidate.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            Button {
+                if isChosen { chosen.remove(candidate.id) } else { chosen.insert(candidate.id) }
+            } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: isChosen ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20))
+                        .foregroundStyle(isChosen ? Theme.accent : Theme.muted.opacity(0.5))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(candidate.title)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(Theme.fg)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if let date = candidate.dateLabel {
+                            Text(date)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.muted)
+                        } else {
+                            Text("When was this?")
+                                .font(.system(size: 11))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        if !candidate.evidence.isEmpty {
+                            Text("“\(candidate.evidence)”")
+                                .font(.system(size: 12).italic())
+                                .foregroundStyle(Theme.muted.opacity(0.8))
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.top, 2)
+                        }
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .contentShape(Rectangle())
             }
-            .padding(.vertical, 12)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+
+            if candidate.isUndated {
+                yearPicker(for: candidate)
+                    .padding(.leading, 32)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.vertical, 12)
+    }
+
+    /// A year, not a date: the scan only knew that it happened, and asking for
+    /// a day would invite a guess the timeline would then present as fact.
+    private func yearPicker(for candidate: CandidateEvent) -> some View {
+        Picker(
+            "Year",
+            selection: Binding(
+                get: { years[candidate.id] ?? 0 },
+                set: { value in
+                    if value == 0 {
+                        years.removeValue(forKey: candidate.id)
+                    } else {
+                        years[candidate.id] = value
+                        chosen.insert(candidate.id)
+                    }
+                }
+            )
+        ) {
+            Text("Choose a year").tag(0)
+            ForEach(Array(yearRange.reversed()), id: \.self) { year in
+                Text(String(year)).tag(year)
+            }
+        }
+        .pickerStyle(.menu)
+        .font(.system(size: 13))
+        .tint(years[candidate.id] == nil ? Theme.accent : Theme.fg)
     }
 
     private var actions: some View {
@@ -112,12 +181,15 @@ struct CandidatesView: View {
                     title: chosen.isEmpty ? "Add none" : "Add \(chosen.count) to timeline",
                     isLoading: store.isSaving
                 ) {
-                    let picked = store.candidates.filter { chosen.contains($0.id) }
+                    let picked = chosenCandidates
+                    let pickedYears = years
                     Task {
-                        await store.confirm(picked)
+                        await store.confirm(picked, years: pickedYears)
                         dismiss()
                     }
                 }
+                .disabled(!chosen.isEmpty && !canAdd)
+                .opacity(!chosen.isEmpty && !canAdd ? 0.5 : 1)
             }
         }
         .padding(.horizontal, 20)

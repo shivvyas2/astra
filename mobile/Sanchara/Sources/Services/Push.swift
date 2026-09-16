@@ -25,14 +25,14 @@ final class PushStore {
     private(set) var deviceToken: String?
     private(set) var isAuthorized = false
 
-    /// A token minted by a debug build only works against APNs' sandbox.
-    static var environment: String {
-        #if DEBUG
-        "sandbox"
-        #else
-        "production"
-        #endif
-    }
+    /// Which APNs host the server must use for this device's token.
+    ///
+    /// Decided by the signing entitlement, not the build configuration: a
+    /// Release build run from Xcode still carries `aps-environment:
+    /// development` and mints a sandbox token. Reporting "production" for it
+    /// made every push to that device fail silently. So the answer is read
+    /// from the profile Xcode embedded, which is the same thing APNs reads.
+    static var environment: String { ApsEnvironment.current }
 
     /// Asks once; iOS remembers the answer, so a later call is a no-op prompt.
     func requestAuthorization() async {
@@ -118,5 +118,42 @@ final class SancharaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         guard let id = info["alert_id"] as? String else { return }
         let kind = TappedNotification.Kind(rawValue: info["kind"] as? String ?? "alert") ?? .alert
         await MainActor.run { PushStore.shared.pending = TappedNotification(id: id, kind: kind) }
+    }
+}
+
+/// The `aps-environment` entitlement, read from the provisioning profile
+/// embedded in the app bundle.
+///
+/// `embedded.mobileprovision` is a CMS-signed blob with a plist inside it. The
+/// plist is plain text between `<plist` and `</plist>`, so the profile is
+/// searched for that span rather than parsed as CMS, which Foundation cannot do
+/// without Security framework work that is not worth it for one key.
+enum ApsEnvironment {
+    static let sandbox = "sandbox"
+    static let production = "production"
+
+    /// The environment for the running app. A simulator build has no profile
+    /// and cannot receive pushes at all, so sandbox is the harmless answer.
+    static var current: String {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url) else { return sandbox }
+        // Latin-1 maps every byte to a character, so the binary envelope
+        // around the plist cannot make the decode fail.
+        return parse(profileText: String(data: data, encoding: .isoLatin1) ?? "")
+    }
+
+    /// `production` only when the profile says so; anything else, including
+    /// no plist and no entitlement, is `sandbox`.
+    static func parse(profileText: String) -> String {
+        guard let open = profileText.range(of: "<plist"),
+              let close = profileText.range(of: "</plist>", range: open.upperBound..<profileText.endIndex)
+        else { return sandbox }
+        let plist = String(profileText[open.lowerBound..<close.upperBound])
+        guard let data = plist.data(using: .utf8),
+              let root = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+              let entitlements = root["Entitlements"] as? [String: Any],
+              let value = entitlements["aps-environment"] as? String
+        else { return sandbox }
+        return value == production ? production : sandbox
     }
 }

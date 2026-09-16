@@ -39,6 +39,12 @@ targets:
         # The app is dark by design — the cosmic theme has no light variant.
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
+        # sanchara://timeline — how a tap on the period widget lands in the
+        # app. Universal Links cover the web; this covers the Home Screen.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.shivvyas.astra
+            CFBundleURLSchemes:
+              - sanchara
     dependencies:
       - package: Supabase
         product: Supabase

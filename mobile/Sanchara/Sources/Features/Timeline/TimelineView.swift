@@ -12,6 +12,7 @@ struct TimelineView: View {
     @State private var expanded: Set<String> = []
     @State private var showAdd = false
     @State private var pendingDelete: LifeEvent?
+    @State private var showExplainer = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -35,6 +36,9 @@ struct TimelineView: View {
         }
         .tint(Theme.fg)
         .task { await store.load() }
+        .sheet(isPresented: $showExplainer) {
+            PeriodExplainerView()
+        }
         .sheet(isPresented: $showAdd) {
             AddMomentView(birthDate: store.birthDate, today: store.today) { event in
                 Task { await store.add(event) }
@@ -71,6 +75,10 @@ struct TimelineView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if store.canOfferScan { scanOffer }
+                    if let now = store.now, let band = store.currentBand {
+                        NowCard(now: now, band: band, today: store.today, isWriting: store.isExplaining)
+                            .padding(.bottom, 24)
+                    }
                     ForEach(store.periods) { band in
                         BandRow(
                             band: band,
@@ -90,7 +98,9 @@ struct TimelineView: View {
             .onAppear {
                 // Open on the present, not on birth — "where am I now" is the
                 // question people arrive with. The past is one scroll up.
-                guard let current = store.currentBand else { return }
+                // With the card on top the present is already at the top of
+                // the scroll; jump only when the offer pushes it down.
+                guard store.now == nil, let current = store.currentBand else { return }
                 proxy.scrollTo(current.id, anchor: .center)
             }
         }
@@ -113,17 +123,20 @@ struct TimelineView: View {
         }
     }
 
-    /// The first-open offer: the timeline seeds itself from what the user has
-    /// already told us, so it is never an empty grid asking for homework.
+    /// The offer to seed the timeline from what the user has already told us,
+    /// so it is never an empty grid asking for homework. It comes back once
+    /// they have said enough new things for another look to be worth it.
     private var scanOffer: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Fill this in from our conversations")
+            Text(store.isRescan ? "You've told me more since last time" : "Fill this in from our conversations")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.fg)
-            Text("You've mentioned things that happened to you. I can find them and place them against your chart — you decide what stays.")
+            Text(store.isRescan
+                 ? "I can look through the new conversations for moments to add — you decide what stays."
+                 : "You've mentioned things that happened to you. I can find them and place them against your chart — you decide what stays.")
                 .font(.system(size: 13))
                 .foregroundStyle(Theme.muted)
-            SancharaPrimaryButton(title: "Find my moments", isLoading: store.isScanning) {
+            SancharaPrimaryButton(title: store.isRescan ? "Find new moments" : "Find my moments", isLoading: store.isScanning) {
                 Task { await store.scan() }
             }
         }
@@ -135,11 +148,16 @@ struct TimelineView: View {
     }
 
     private var footer: some View {
-        Text("Periods are Vimshottari dasha, computed from your Moon's exact position at birth.")
-            .font(.system(size: 11))
-            .foregroundStyle(Theme.muted.opacity(0.7))
-            .padding(.top, 20)
-            .padding(.leading, 28)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Periods are Vimshottari dasha, computed from your Moon's exact position at birth.")
+                .font(.system(size: 11))
+                .foregroundStyle(Theme.muted.opacity(0.7))
+            Button("What are these periods?") { showExplainer = true }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.accent)
+        }
+        .padding(.top, 20)
+        .padding(.leading, 28)
     }
 
     private func message(_ text: String) -> some View {
@@ -149,6 +167,65 @@ struct TimelineView: View {
             .multilineTextAlignment(.center)
             .frame(maxWidth: 300)
             .padding(.horizontal, 24)
+    }
+}
+
+// MARK: - Where you are now
+
+/// The present, answered before anything else: the pair running today, how far
+/// through it is, and what it means for this person. The band below repeats
+/// the dates; this card is the one place the meaning of *now* is spelled out.
+private struct NowCard: View {
+    let now: NowPeriod
+    let band: DashaBand
+    let today: String
+    /// True while the server is writing meanings, so an empty card can say
+    /// "writing" rather than looking broken.
+    let isWriting: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("WHERE YOU ARE NOW")
+                .font(.system(size: 9, weight: .semibold))
+                .tracking(1.4)
+                .foregroundStyle(Theme.muted.opacity(0.8))
+
+            HStack(alignment: .firstTextBaseline) {
+                Text(now.pairLabel)
+                    .font(.system(size: 20, weight: .semibold, design: .serif))
+                    .foregroundStyle(Theme.fg)
+                Spacer(minLength: 8)
+                Text("\(band.startYear) – \(band.endYear)")
+                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Theme.muted)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.hairline)
+                    Capsule()
+                        .fill(Theme.accent)
+                        .frame(width: max(geo.size.width * band.progress(today: today), 2))
+                }
+            }
+            .frame(height: 3)
+            .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
+
+            if let meaning = now.meaning, !meaning.isEmpty {
+                Text(meaning)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.fg.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(isWriting ? "Writing what this means for you…" : "A meaning for this period will appear here.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.muted)
+            }
+        }
+        .padding(16)
+        .background(Theme.fieldFill)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
     }
 }
 
@@ -173,7 +250,19 @@ private struct BandRow: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
                 if band.isCurrent { progressBar.padding(.top, 10) }
-                if isExpanded { antardashaList.padding(.top, 12) }
+                if isExpanded {
+                    if let meaning = band.meaning, !meaning.isEmpty {
+                        Text(meaning)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Theme.fg.opacity(0.85))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 10)
+                            // A meaning written before the moments changed is
+                            // still shown — dimmed, and about to be replaced.
+                            .opacity(band.stale ? 0.6 : 1)
+                    }
+                    antardashaList.padding(.top, 12)
+                }
                 if !events.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         ForEach(events) { event in
@@ -227,6 +316,12 @@ private struct BandRow: View {
                 Text("\(band.startYear) – \(band.endYear)")
                     .font(.system(size: 13, weight: .medium).monospacedDigit())
                     .foregroundStyle(Theme.muted)
+            }
+            if let theme = band.theme, !theme.isEmpty {
+                Text(theme)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.fg.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 6) {
                 Text("\(band.years) years")
