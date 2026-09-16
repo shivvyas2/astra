@@ -4,6 +4,20 @@ All notable changes to Sanchara are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Every timeline period explained.** Each dasha period now carries a one-line theme and a short plain-language meaning written from the user's chart and the moments pinned in it, plus a "where you are now" summary for the current period. A "What are these periods?" explainer is one tap away.
+- **Chat knows the timeline.** Readings see the user's current period and pinned moments, so questions about a particular year are answered against what actually happened.
+- **Better moment extraction.** The scan resolves relative dates and ages from the message date and birth date, quotes the words each moment came from, keeps events it cannot date and asks for the year, and offers to look again after ten new messages.
+- **Current-period widget.** A Home Screen and Lock Screen widget showing the mahadasha and sub-period the user is in, progress through it, and its theme. Tapping opens the timeline.
+- **Go-live checklist** in `docs/GO_LIVE_CHECKLIST.md` for the Vercel secrets and Supabase migrations the morning readings and pushes depend on.
+
+### Fixed
+
+- The iOS app reported its push environment from the build configuration rather than the signing entitlement, so a Release build from Xcode registered a sandbox token as production and never received a push.
+
 ## [0.1.0] - 2026-09-16
 
 The first tagged release. Everything below has shipped to production on Vercel; the iOS app is in development builds.

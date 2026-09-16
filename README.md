@@ -8,7 +8,7 @@ Nothing about the chart is guessed. The Swiss Ephemeris computes planetary posit
 
 - **Chart-grounded readings.** Streaming chat with an astrologer that reads the user's computed chart. Vedic (sidereal, Lahiri), Western (tropical), and numerology modes, chosen per conversation.
 - **Kundli.** The full Vedic chart as an on-screen diagram and a downloadable PDF with grahas, nakshatras, dasha periods, and numerology.
-- **Life timeline.** The user's Vimshottari dasha periods laid out as a life map. Users pin real moments onto it by hand, or accept moments Claude finds in their own chat history.
+- **Life timeline.** The user's Vimshottari dasha periods laid out as a life map, each with a plain-language theme and meaning written from their chart and the moments in it. Users pin real moments by hand, or accept moments Claude finds in their own chat history, with the quote it came from. The chat sees the timeline too. A widget shows the current period.
 - **Daily readings and dosha alerts.** A morning and night reading per user on their local clock, plus a push notification only when a dosha or hard transit starts or ends.
 - **On-device answers, Siri, and widgets.** The chart is cached on the phone, so lookups like "which dasha am I in" are answered by Apple's on-device model, and a Home Screen widget shows today's reading with no network call.
 - **Auth.** Email plus six-digit code, and Sign in with Apple. Universal Links bring email links back into the app.
