@@ -8,6 +8,8 @@ import { transitChart, describeTransits, describeToday } from "@/lib/astrology/t
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 import { selectHistory } from "@/lib/data/history";
+import { loadTimeline } from "@/lib/timeline/load";
+import { describeTimelineForPrompt } from "@/lib/timeline/describe";
 
 export const runtime = "nodejs";
 
@@ -95,6 +97,19 @@ export async function POST(request: Request) {
         chart,
         numerology: num,
       });
+
+      // What has actually happened in their life, so "why was 2021 so hard"
+      // is answered against their 2021 and not a generic one. Part of the
+      // cached block: it only changes when they pin or remove a moment.
+      try {
+        const timeline = await loadTimeline(supabase);
+        if (timeline) {
+          stableSystem += describeTimelineForPrompt(timeline, { tradition: body.tradition as Tradition });
+        }
+      } catch (err) {
+        console.error("chat timeline context skipped", err);
+      }
+
       todaySystem = buildTodaySystem({ today, transits, maxWords });
     }
 

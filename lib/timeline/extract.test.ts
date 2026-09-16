@@ -10,8 +10,8 @@ describe("parseExtractedEvents", () => {
       bounds,
     );
     expect(events).toEqual([
-      { occurredOn: "2019-11-01", precision: "month", title: "Left the job at the agency" },
-      { occurredOn: "2022-01-01", precision: "year", title: "Started the business" },
+      { occurredOn: "2019-11-01", precision: "month", title: "Left the job at the agency", evidence: "" },
+      { occurredOn: "2022-01-01", precision: "year", title: "Started the business", evidence: "" },
     ]);
   });
 
@@ -21,7 +21,7 @@ describe("parseExtractedEvents", () => {
 
   it("keeps day precision when a full date is given", () => {
     const [e] = parseExtractedEvents("2021-03-14 | day | Moved to Austin", bounds);
-    expect(e).toEqual({ occurredOn: "2021-03-14", precision: "day", title: "Moved to Austin" });
+    expect(e).toEqual({ occurredOn: "2021-03-14", precision: "day", title: "Moved to Austin", evidence: "" });
   });
 
   it("trusts the date shape over a wrong PRECISION field", () => {
@@ -72,9 +72,10 @@ describe("parseExtractedEvents", () => {
     expect(events.map((e) => e.title)).toEqual(["Earlier", "Later"]);
   });
 
-  it("keeps a pipe-free title when the model adds extra fields", () => {
+  it("reads a fourth field as evidence, so a pipe in a title becomes the quote", () => {
     const [e] = parseExtractedEvents("2019-11 | month | Left | the job", bounds);
-    expect(e.title).toBe("Left | the job");
+    expect(e.title).toBe("Left");
+    expect(e.evidence).toBe("the job");
   });
 });
 
@@ -107,5 +108,48 @@ describe("buildExtractionSystem", () => {
     const system = buildExtractionSystem({ birthDate: "1990-01-01", today: "2026-08-26" });
     expect(system).toContain("1990-01-01");
     expect(system).toContain("2026-08-26");
+  });
+});
+
+describe("four-field lines", () => {
+  it("reads the evidence after the third pipe", () => {
+    const [e] = parseExtractedEvents(
+      "2019-11 | month | Left the job at the agency | I quit the agency job in November 2019",
+      bounds,
+    );
+    expect(e.evidence).toBe("I quit the agency job in November 2019");
+    expect(e.title).toBe("Left the job at the agency");
+  });
+
+  it("keeps an undated event, after the dated ones, with unknown precision", () => {
+    const events = parseExtractedEvents(
+      ["? | unknown | Father passed away | since my father passed", "2019-11 | month | Kept | said so"].join("\n"),
+      bounds,
+    );
+    expect(events.map((e) => e.title)).toEqual(["Kept", "Father passed away"]);
+    expect(events[1]).toEqual({ occurredOn: null, precision: "unknown", title: "Father passed away", evidence: "since my father passed" });
+  });
+
+  it("deduplicates undated events by title", () => {
+    const events = parseExtractedEvents(
+      ["? | unknown | Father passed away | a", "? | unknown | father passed away | b"].join("\n"),
+      bounds,
+    );
+    expect(events).toHaveLength(1);
+  });
+
+  it("trims a long evidence quote", () => {
+    const [e] = parseExtractedEvents(`2019 | year | Thing | ${"w".repeat(300)}`, bounds);
+    expect(e.evidence).toHaveLength(160);
+  });
+});
+
+describe("extraction prompt", () => {
+  it("tells the model how to resolve relative dates and ages, and to keep undated events", () => {
+    const system = buildExtractionSystem(bounds);
+    expect(system).toContain("message date");
+    expect(system).toContain("birth year plus 25");
+    expect(system).toContain("write ? for the date");
+    expect(system).toContain("EVIDENCE");
   });
 });

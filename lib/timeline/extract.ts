@@ -4,15 +4,19 @@ import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "
 
 /** A moment proposed from the user's own words, awaiting their confirmation. */
 export type CandidateEvent = {
-  occurredOn: string; // ISO date, always a real day
-  precision: "day" | "month" | "year";
+  /** ISO date, always a real day; null when the event could not be dated. */
+  occurredOn: string | null;
+  precision: "day" | "month" | "year" | "unknown";
   title: string;
+  /** The user's own words this came from, so they can check it. */
+  evidence: string;
 };
 
 /** What the user has said to us, oldest first. */
 export type Utterance = { content: string; createdAt: string };
 
 const MAX_TITLE = 120;
+const MAX_EVIDENCE = 160;
 
 export function buildExtractionSystem(args: { birthDate: string; today: string }): string {
   return `You read a person's messages to their astrologer and pull out the real, dated events of their life.
@@ -21,25 +25,35 @@ Their birth date is ${args.birthDate}. Today is ${args.today}.
 
 You are looking for things that HAPPENED to this person and can be placed in time: a job started or lost, a move, a marriage or separation, a birth, a death, an illness or recovery, a graduation, a business begun or closed, a relationship that began or ended.
 
+Each message is prefixed with the date it was written, in square brackets. Use it.
+
 Rules:
 - Only include an event the person states about their own life. Never infer one from a question they asked, from a hypothetical, or from something you read in an astrological reading.
-- Only include an event you can date to at least a year, from what they wrote. If they said "a few years ago" with no anchor, skip it.
-- Every date must fall between ${args.birthDate} and ${args.today}. Skip anything outside that.
+- Date each event from what they wrote, as precisely as they gave it and no more:
+  - An explicit date or month is used as given.
+  - A relative phrase is resolved from the message date. "Last March" in a message written 2025-06-10 is 2024-03, month precision. "Two years ago" in a 2025 message is 2023, year precision. "Last week" is the message month, month precision.
+  - An age is resolved from the birth date. "When I was 25" is the birth year plus 25, year precision.
+  - "Recently" or "just" with no other anchor is the message month, month precision.
+- If the event is clear but cannot be dated even to a year, keep it and write ? for the date. Do not guess a year.
+- Every resolved date must fall between ${args.birthDate} and ${args.today}. Skip anything outside that.
 - Write the title in the person's own framing, under 12 words, no astrology in it. "Left the job in Chicago", not "Career upheaval under Saturn".
+- Quote the words that told you, verbatim, under 20 words, as EVIDENCE.
 - Do not repeat the same event twice, even if they mentioned it more than once.
 - If you find nothing that qualifies, reply with the single word NONE.
 
-Reply with one event per line and nothing else. Each line is three fields separated by a pipe:
+Reply with one event per line and nothing else. Each line is four fields separated by a pipe:
 
-DATE | PRECISION | TITLE
+DATE | PRECISION | TITLE | EVIDENCE
 
-DATE is YYYY-MM-DD, YYYY-MM, or YYYY — whichever precision they actually gave you.
-PRECISION is day, month, or year, matching DATE.
+DATE is YYYY-MM-DD, YYYY-MM, YYYY, or ? — whichever precision they actually gave you.
+PRECISION is day, month, year, or unknown, matching DATE.
 TITLE is the short description. It must not contain a pipe.
+EVIDENCE is the quote. It must not contain a pipe.
 
 Example of the shape:
-2019-11 | month | Left the job at the agency
-2022 | year | Started the business with my brother`;
+2019-11 | month | Left the job at the agency | I quit the agency job in November 2019
+2022 | year | Started the business with my brother | my brother and I started our company two years ago
+? | unknown | Father passed away | since my father passed I have felt lost`;
 }
 
 /**
@@ -57,21 +71,37 @@ export function parseExtractedEvents(
   text: string,
   bounds: { birthDate: string; today: string },
 ): CandidateEvent[] {
-  const out: CandidateEvent[] = [];
+  const dated: CandidateEvent[] = [];
+  const undated: CandidateEvent[] = [];
   const seen = new Set<string>();
 
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line || line.toUpperCase() === "NONE") continue;
 
-    // Split on the first two pipes only. Everything after the second is the
-    // title, kept verbatim — splitting on every pipe and rejoining would eat
-    // the spacing of a title that happens to contain one.
-    const firstPipe = line.indexOf("|");
-    const secondPipe = line.indexOf("|", firstPipe + 1);
-    if (firstPipe === -1 || secondPipe === -1) continue;
-    const dateField = line.slice(0, firstPipe).trim();
-    const precisionField = line.slice(firstPipe + 1, secondPipe).trim();
+    // Split on the first three pipes only. The title sits between the second
+    // and third, and everything after the third is the evidence, kept
+    // verbatim. A reply in the older three-field shape still parses: the
+    // title runs to the end and the evidence is empty.
+    const p1 = line.indexOf("|");
+    const p2 = p1 === -1 ? -1 : line.indexOf("|", p1 + 1);
+    if (p1 === -1 || p2 === -1) continue;
+    const p3 = line.indexOf("|", p2 + 1);
+    const dateField = line.slice(0, p1).trim();
+    const precisionField = line.slice(p1 + 1, p2).trim();
+    const title = (p3 === -1 ? line.slice(p2 + 1) : line.slice(p2 + 1, p3)).trim().slice(0, MAX_TITLE);
+    const evidence = (p3 === -1 ? "" : line.slice(p3 + 1)).trim().slice(0, MAX_EVIDENCE);
+    if (!title) continue;
+
+    if (dateField === "?") {
+      // Kept rather than dropped: the user knows the year even when their
+      // messages never said it, and the confirmation screen asks them.
+      const key = `?:${title.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      undated.push({ occurredOn: null, precision: "unknown", title, evidence });
+      continue;
+    }
 
     const resolved = resolveDate(dateField);
     if (!resolved) continue;
@@ -81,19 +111,16 @@ export function parseExtractedEvents(
     // real evidence. A model that writes "2019 | day | ..." does not know the
     // day, whatever it claims in the second field.
     void precisionField;
-    const precision = resolved.precision;
-
-    const title = line.slice(secondPipe + 1).trim().slice(0, MAX_TITLE);
-    if (!title) continue;
 
     const key = `${resolved.occurredOn}:${title.toLowerCase()}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
-    out.push({ occurredOn: resolved.occurredOn, precision, title });
+    dated.push({ occurredOn: resolved.occurredOn, precision: resolved.precision, title, evidence });
   }
 
-  return out.sort((a, b) => a.occurredOn.localeCompare(b.occurredOn));
+  dated.sort((a, b) => a.occurredOn!.localeCompare(b.occurredOn!));
+  return [...dated, ...undated];
 }
 
 /**
@@ -103,7 +130,7 @@ export function parseExtractedEvents(
  * The precision travels with it, so the UI can draw the marker softly rather
  * than implying we know the day.
  */
-function resolveDate(field: string): { occurredOn: string; precision: CandidateEvent["precision"] } | null {
+function resolveDate(field: string): { occurredOn: string; precision: "day" | "month" | "year" } | null {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(field);
   if (day) return isRealDate(field) ? { occurredOn: field, precision: "day" } : null;
 

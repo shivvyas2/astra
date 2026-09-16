@@ -21,6 +21,22 @@ export type TimelinePeriod = DashaPeriod & {
   isPast: boolean;
   /** Events pinned inside this period, so a band can show weight at a glance. */
   eventCount: number;
+  /** Plain-language reading of the period, once written. */
+  theme: string | null;
+  meaning: string | null;
+  /** No reading yet, or the moments inside changed since it was written. */
+  stale: boolean;
+};
+
+/** Where the user is right now: the current mahadasha–antardasha pair. */
+export type TimelineNow = {
+  lord: string;
+  antardasha: string;
+  /** The antardasha's span; the mahadasha's is on the current period. */
+  start: string;
+  end: string;
+  theme: string | null;
+  meaning: string | null;
 };
 
 export type Timeline = {
@@ -28,6 +44,18 @@ export type Timeline = {
   today: string;
   periods: TimelinePeriod[];
   events: TimelineEvent[];
+  now: TimelineNow | null;
+  /** Any period, or the now summary, needs (re)writing. */
+  needsExplaining: boolean;
+};
+
+/** A stored explanation, as it comes out of `period_readings`. */
+export type StoredReading = {
+  lord: string;
+  period_start: string;
+  theme: string;
+  meaning: string;
+  events_hash: string;
 };
 
 /** Stored life event, as it comes out of the database. */
@@ -74,8 +102,12 @@ export function buildTimeline(args: {
   birthUt: DateTime;
   events: StoredEvent[];
   today: string;
+  readings?: StoredReading[];
 }): Timeline {
   const raw = vimshottariTimeline(args.moonSiderealLongitude, args.birthUt);
+  const readings = args.readings ?? [];
+  const readingFor = (lord: string, start: string) =>
+    readings.find((r) => r.lord === lord && r.period_start === start);
 
   const events: TimelineEvent[] = args.events
     .map((e) => {
@@ -96,14 +128,68 @@ export function buildTimeline(args: {
     })
     .sort((a, b) => a.occurredOn.localeCompare(b.occurredOn));
 
-  const periods: TimelinePeriod[] = raw.map((p) => ({
-    ...p,
-    isCurrent: within(args.today, p.start, p.end),
-    isPast: p.end <= args.today,
-    eventCount: events.filter((e) => within(e.occurredOn, p.start, p.end)).length,
-  }));
+  const periods: TimelinePeriod[] = raw.map((p) => {
+    const row = readingFor(p.lord, p.start);
+    const fresh = !!row && row.events_hash === eventsHashFor(p, events);
+    return {
+      ...p,
+      isCurrent: within(args.today, p.start, p.end),
+      isPast: p.end <= args.today,
+      eventCount: events.filter((e) => within(e.occurredOn, p.start, p.end)).length,
+      theme: row?.theme ?? null,
+      meaning: row?.meaning ?? null,
+      stale: !fresh,
+    };
+  });
 
-  return { birthDate: args.birthDate, today: args.today, periods, events };
+  const current = periods.find((p) => p.isCurrent);
+  const antar = current?.antardashas.find((a) => within(args.today, a.start, a.end));
+  let now: TimelineNow | null = null;
+  if (current && antar) {
+    // The now row is keyed on the antardasha start, so it expires by itself
+    // when the sub-period turns over.
+    const row = readingFor(NOW_LORD, antar.start);
+    now = {
+      lord: current.lord,
+      antardasha: antar.lord,
+      start: antar.start,
+      end: antar.end,
+      theme: row?.theme ?? null,
+      meaning: row?.meaning ?? null,
+    };
+  }
+
+  const needsExplaining = periods.some((p) => p.stale) || (now !== null && now.meaning === null);
+
+  return { birthDate: args.birthDate, today: args.today, periods, events, now, needsExplaining };
+}
+
+/** The literal lord used for the "where you are now" row in `period_readings`. */
+export const NOW_LORD = "now";
+
+/**
+ * Which pinned moments a period's explanation was written against.
+ *
+ * Sorted before hashing so the order events come back from the database can
+ * never make a fresh explanation look stale. An empty period hashes to "0" so
+ * the common case reads clearly in the table.
+ */
+export function eventsHashFor(period: { start: string; end: string }, events: TimelineEvent[]): string {
+  const keys = events
+    .filter((e) => within(e.occurredOn, period.start, period.end))
+    .map((e) => `${e.occurredOn}:${e.title.toLowerCase()}`)
+    .sort();
+  if (keys.length === 0) return "0";
+  // A small non-cryptographic hash is enough: this detects change, it does
+  // not protect anything. Keeping it pure also keeps this module free of
+  // Node-only imports, which is what lets it stay unit-testable and shared.
+  let h = 2166136261;
+  const text = keys.join("\n");
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
 }
 
 function normalisePrecision(value: string): TimelineEvent["precision"] {

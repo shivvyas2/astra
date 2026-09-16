@@ -60,7 +60,14 @@ export async function POST(request: Request) {
   const seen = new Set(
     (existing ?? []).map((e) => `${e.occurred_on}:${String(e.title).toLowerCase()}`),
   );
-  const fresh = candidates.filter((c) => !seen.has(`${c.occurredOn}:${c.title.toLowerCase()}`));
+  const titles = new Set((existing ?? []).map((e) => String(e.title).toLowerCase()));
+  // An undated candidate has no date to match on, so a pinned moment with the
+  // same name is taken to be the same moment.
+  const fresh = candidates.filter((c) =>
+    c.occurredOn === null
+      ? !titles.has(c.title.toLowerCase())
+      : !seen.has(`${c.occurredOn}:${c.title.toLowerCase()}`),
+  );
 
   await recordScan(supabase, user.id, fresh.length);
   return Response.json({ candidates: fresh });
