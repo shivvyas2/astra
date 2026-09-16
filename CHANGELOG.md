@@ -4,7 +4,7 @@ All notable changes to Sanchara are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-09-16
 
 ### Added
 
@@ -39,4 +39,5 @@ The first tagged release. Everything below has shipped to production on Vercel; 
 - The app is now called Sanchara. The iOS target, copy, and prompts were renamed from Astra. The bundle identifier and production hostname are unchanged.
 - Vimshottari antardashas are laid out from each mahadasha's virtual start, so sub-periods line up with the real period rather than the birth moment.
 
+[0.2.0]: https://github.com/shivvyas2/astra/releases/tag/v0.2.0
 [0.1.0]: https://github.com/shivvyas2/astra/releases/tag/v0.1.0
