@@ -88,7 +88,7 @@ export class ApnsClient {
       aps: {
         alert: { title: args.title, body: args.body },
         sound: "default",
-        "thread-id": args.threadId ?? "astra-alerts",
+        "thread-id": args.threadId ?? "sanchara-alerts",
         "interruption-level": "active",
       },
       alert_id: args.alertId,

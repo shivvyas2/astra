@@ -81,3 +81,36 @@ chat usage conv=<id> model=claude-sonnet-5 in=13 cache_write=0 cache_read=2867 o
 `cache_read` staying at 0 across a conversation means something reintroduced a
 per-request change into the prompt prefix — check the date line and the transit
 text first.
+
+## The cheapest turn is the one that never reaches the API
+
+Everything above makes a paid turn cheaper. The iOS app goes one step further
+and stops some turns being paid at all.
+
+A large share of what people ask is not interpretation — "where's my Saturn",
+"what's in my seventh", "which dasha am I in". Each of those was a full Claude
+call answering from a chart the phone could have read itself. `OnDeviceReasoner`
+(`mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift`) routes them to
+Apple's on-device model instead:
+
+1. A string check. A question naming no graha, house, or period cannot be a
+   lookup, and never costs a model call at all.
+2. A `@Generable Bool` classification on-device: is this retrieval, or a request
+   for meaning?
+3. If retrieval, the on-device model answers through a tool that reads the local
+   chart. **$0.** If not, the turn goes to Claude exactly as before.
+
+Two things keep it honest. The tool records whether it was called, and an answer
+composed without a single lookup is discarded rather than shown — that is the
+guard against a confident invented placement. And every locally-answered turn is
+labelled in the transcript with a one-tap "Ask for a full reading", so a
+misrouted question costs a tap, not a wrong answer.
+
+The saving is not in the per-turn price, which was already $0.008 — it is in the
+turn count. Whether that is a third of turns or a tenth depends entirely on how
+people use it, so it is worth reading `chat usage` line counts before and after
+rather than trusting an estimate here.
+
+This needs iOS 26 and Apple Intelligence. Everywhere else, every turn is a paid
+turn, exactly as documented above. See `docs/SIRI_AND_WIDGETS.md`, in particular
+the note on why nothing shown to the on-device model may name astrology.

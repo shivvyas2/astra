@@ -9,7 +9,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
   const nav = (
     <div className="flex h-full flex-col p-3">
       <div className="mb-5 px-2">
-        <div className="text-lg font-bold tracking-tight">Astra</div>
+        <div className="text-lg font-bold tracking-tight">Sanchara</div>
         <div className="text-[11px] uppercase tracking-widest text-accent">Admin</div>
       </div>
       <div className="px-2 pb-1 text-[11px] uppercase tracking-wide text-muted/60">Menu</div>
@@ -44,7 +44,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <button aria-label="Open menu" onClick={() => setOpen(true)} className="text-muted">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
-          <span className="text-base font-bold">Astra <span className="text-accent">Admin</span></span>
+          <span className="text-base font-bold">Sanchara <span className="text-accent">Admin</span></span>
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
       </div>

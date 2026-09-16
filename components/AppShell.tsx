@@ -15,7 +15,7 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
   const nav = (
     <div className="flex h-full flex-col p-3">
       <Link href="/app" onClick={() => setOpen(false)} className="mb-3 px-2 text-lg font-bold tracking-tight">
-        Astra
+        Sanchara
       </Link>
       <Link
         href="/app/chat"
@@ -76,7 +76,7 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
           <button aria-label="Open menu" onClick={() => setOpen(true)} className="text-muted">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
           </button>
-          <Link href="/app" className="text-base font-bold">Astra</Link>
+          <Link href="/app" className="text-base font-bold">Sanchara</Link>
           <span className="w-[22px]" />
         </header>
         <main className="min-h-0 flex-1">{children}</main>

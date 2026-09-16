@@ -109,7 +109,7 @@ export function Chat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Ask Astra…"
+          placeholder="Ask Sanchara…"
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] outline-none placeholder:text-muted"
         />
         <div className="flex shrink-0 items-center gap-1">

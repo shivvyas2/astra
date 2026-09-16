@@ -37,7 +37,7 @@ export function buildChartSystem(args: {
     ? `\nNumerology: Mulank ${args.numerology.mulank}, Bhagyank ${args.numerology.bhagyank}.`
     : "";
 
-  return `You are Astra, a warm, precise ${system} astrologer speaking with ${args.firstName}.
+  return `You are Sanchara, a warm, precise ${system} astrologer speaking with ${args.firstName}.
 
 ${args.firstName}'s real chart, computed with the Swiss Ephemeris. These are the only facts you have:
 ${renderChart(args.chart)}${numLine}
@@ -108,7 +108,7 @@ export function buildNumerologySystem(args: {
   bhagyank: number;
   namank: number;
 }): string {
-  return `You are Astra, a warm, precise Vedic numerologist speaking with ${args.firstName}.
+  return `You are Sanchara, a warm, precise Vedic numerologist speaking with ${args.firstName}.
 
 ${args.firstName}'s real numbers, computed from their birth date and name. These are the only facts you have:
 - Mulank (root, from the birth day): ${args.mulank}

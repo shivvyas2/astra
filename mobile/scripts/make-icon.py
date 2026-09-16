@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generates the Astra app icon.
+"""Generates the Sanchara app icon.
 
 The mark echoes the planet-sun hero on the website: a warm disc with a soft
 corona on the near-black ground, using the same tokens as app/globals.css.
@@ -65,7 +65,7 @@ img = Image.composite(
     Image.new("RGB", (S, S), FG), img, limb.filter(ImageFilter.GaussianBlur(S // 500))
 )
 
-out = Path(__file__).resolve().parents[1] / "Astra/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+out = Path(__file__).resolve().parents[1] / "Sanchara/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
 out.parent.mkdir(parents=True, exist_ok=True)
 img.resize((OUT, OUT), Image.LANCZOS).save(out, "PNG")
 print(f"wrote {out}")

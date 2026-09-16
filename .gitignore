@@ -10,6 +10,9 @@ ephemeris-data/
 
 # iOS — the Xcode project is generated from mobile/project.yml by XcodeGen.
 # Run `cd mobile && xcodegen generate` after changing the spec.
-mobile/Astra.xcodeproj/
+mobile/Sanchara.xcodeproj/
 mobile/build/
-mobile/Astra/Sources/Generated/
+mobile/Sanchara/Sources/Generated/
+
+# Local release-rule cache written by the release skill.
+.omc/

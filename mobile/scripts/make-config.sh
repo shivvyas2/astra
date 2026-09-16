@@ -9,7 +9,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 ENV_FILE="$ROOT/.env.local"
-OUT="$ROOT/mobile/Astra/Sources/Generated/AppConfig.swift"
+OUT="$ROOT/mobile/Sanchara/Sources/Generated/AppConfig.swift"
 
 [ -f "$ENV_FILE" ] || { echo "error: $ENV_FILE not found" >&2; exit 1; }
 
@@ -17,7 +17,7 @@ read_var() { grep -E "^$1=" "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' | t
 
 SUPABASE_URL="$(read_var NEXT_PUBLIC_SUPABASE_URL)"
 SUPABASE_ANON_KEY="$(read_var NEXT_PUBLIC_SUPABASE_ANON_KEY)"
-API_BASE_URL="${ASTRA_API_BASE_URL:-https://astra.shivvyas.com}"
+API_BASE_URL="${SANCHARA_API_BASE_URL:-https://astra.shivvyas.com}"
 
 [ -n "$SUPABASE_URL" ] || { echo "error: NEXT_PUBLIC_SUPABASE_URL missing" >&2; exit 1; }
 [ -n "$SUPABASE_ANON_KEY" ] || { echo "error: NEXT_PUBLIC_SUPABASE_ANON_KEY missing" >&2; exit 1; }

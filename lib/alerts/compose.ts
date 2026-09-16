@@ -46,7 +46,7 @@ export async function composeAlert(args: {
   ended: Condition[];
   severity: Severity;
 }): Promise<AlertCopy> {
-  const system = `You are Astra, a warm, precise Vedic astrologer writing a short alert for ${args.firstName}.
+  const system = `You are Sanchara, a warm, precise Vedic astrologer writing a short alert for ${args.firstName}.
 
 Something in their chart reading has CHANGED as of ${args.today}. The changes below were computed from their real birth chart and today's real sky using the Swiss Ephemeris. Treat every line as fact.
 
@@ -150,12 +150,12 @@ export function fallbackCopy(started: Condition[], ended: Condition[]): AlertCop
   const title = started.length > 0 ? `${primary.label} is active` : `${primary.label} has eased`;
   const body =
     started.length > 0
-      ? `${startedNames} now shows in your chart. Open Astra for the reading.`
-      : `${endedNames} has passed. Open Astra for the reading.`;
+      ? `${startedNames} now shows in your chart. Open Sanchara for the reading.`
+      : `${endedNames} has passed. Open Sanchara for the reading.`;
   const detail = [
     started.length > 0 ? `**Now active**\n${started.map((c) => `- ${c.label}: ${c.detail}`).join("\n")}` : "",
     ended.length > 0 ? `**Eased**\n${ended.map((c) => `- ${c.label}: ${c.detail}`).join("\n")}` : "",
-    "**In simple words**\nSomething in your chart shifted today. Ask Astra about it for the full reading.",
+    "**In simple words**\nSomething in your chart shifted today. Ask Sanchara about it for the full reading.",
   ]
     .filter(Boolean)
     .join("\n\n");

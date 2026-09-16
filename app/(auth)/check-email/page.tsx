@@ -19,7 +19,7 @@ export default async function CheckEmailPage({
       </p>
 
       <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-left text-xs text-muted">
-        Didn&apos;t get it? Check spam, or resend below. The link opens Astra and logs you in.
+        Didn&apos;t get it? Check spam, or resend below. The link opens Sanchara and logs you in.
       </div>
 
       {sp.resent && <p className="mt-3 text-sm text-accent">Confirmation email resent.</p>}

@@ -1,0 +1,280 @@
+import Foundation
+
+/// Calls the Sanchara API on Vercel, which holds everything that cannot ship in a
+/// client binary: the Anthropic key, the Swiss Ephemeris, and PDF generation.
+enum SancharaAPI {
+
+    enum APIError: LocalizedError {
+        case unauthorized
+        case server(String)
+
+        var errorDescription: String? {
+            switch self {
+            case .unauthorized: "Your session expired. Please sign in again."
+            case .server(let message): message
+            }
+        }
+    }
+
+    private static func request(_ path: String, method: String) async throws -> URLRequest {
+        var req = URLRequest(url: AppConfig.apiBaseURL.appendingPathComponent(path))
+        req.httpMethod = method
+        guard let token = await Supa.accessToken() else { throw APIError.unauthorized }
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return req
+    }
+
+    /// Saves birth details and computes the chart. Mirrors `POST /api/profile`.
+    static func saveProfile(_ profile: BirthProfileInput) async throws {
+        var req = try await request("api/profile", method: "POST")
+        let boundary = "sanchara-\(UUID().uuidString)"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        req.httpBody = profile.multipartBody(boundary: boundary)
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    /// Downloads the kundli PDF. Mirrors `GET /api/kundli`.
+    static func kundliPDF() async throws -> Data {
+        let req = try await request("api/kundli", method: "GET")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        return data
+    }
+
+    /// Permanently deletes the account. Required by App Store guideline 5.1.1(v).
+    static func deleteAccount() async throws {
+        let req = try await request("api/account", method: "DELETE")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    /// Birthplace search. Mirrors `GET /api/geocode`, which pairs the geocoder
+    /// with `tz-lookup` so the timezone the ephemeris needs comes back with the
+    /// coordinates. The route is public, so this call carries no token.
+    static func geocode(_ query: String) async throws -> [GeoResult] {
+        var components = URLComponents(
+            url: AppConfig.apiBaseURL.appendingPathComponent("api/geocode"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        let (data, response) = try await URLSession.shared.data(from: components.url!)
+        try check(response, data)
+        return try JSONDecoder().decode([GeoResult].self, from: data)
+    }
+
+    /// The dasha life map with the user's pinned moments. Mirrors `GET /api/timeline`.
+    static func timeline() async throws -> TimelinePayload {
+        let req = try await request("api/timeline", method: "GET")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        return try JSONDecoder().decode(TimelinePayload.self, from: data)
+    }
+
+    /// Proposes moments from the user's own chat history. Mirrors
+    /// `POST /api/timeline/scan`. Nothing is saved until the user confirms.
+    static func scanLifeEvents() async throws -> [CandidateEvent] {
+        var req = try await request("api/timeline/scan", method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        // Reading a whole transcript takes longer than a chat turn.
+        req.timeoutInterval = 120
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        struct Payload: Decodable { let candidates: [CandidateEvent] }
+        return try JSONDecoder().decode(Payload.self, from: data).candidates
+    }
+
+    /// Pins moments onto the timeline. Mirrors `POST /api/life-events`, which
+    /// takes a batch so confirming a page of candidates is one call.
+    static func addLifeEvents(_ events: [NewLifeEvent]) async throws {
+        var req = try await request("api/life-events", method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["events": events])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    /// Unpins a moment. Mirrors `DELETE /api/life-events`.
+    static func deleteLifeEvent(id: String) async throws {
+        var req = try await request("api/life-events", method: "DELETE")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["id": id])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    /// Registers this device for dosha alerts. Mirrors `POST /api/devices`.
+    static func registerDevice(token: String, environment: String) async throws {
+        var req = try await request("api/devices", method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["token": token, "environment": environment])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    /// Stops alerts to this device — used on sign-out.
+    static func unregisterDevice(token: String) async throws {
+        var req = try await request("api/devices", method: "DELETE")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONEncoder().encode(["token": token])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
+    // MARK: - Chat
+
+    /// One piece of a streaming reading.
+    enum ChatEvent {
+        /// The conversation this turn belongs to, from the `x-conversation-id`
+        /// header. Arrives before any text, and is the id to send back on the
+        /// next turn so the server keeps appending to the same conversation.
+        case conversationId(String)
+        case text(String)
+    }
+
+    /// Streams a reading from `POST /api/chat`.
+    ///
+    /// The route answers with plain UTF-8 text chunks rather than SSE, so this
+    /// reads raw bytes: a chunk boundary can split a multi-byte character, so
+    /// bytes are held back until they decode. Text is coalesced into small
+    /// batches — byte-at-a-time updates would redraw the transcript thousands
+    /// of times for a single reading.
+    static func chatStream(
+        conversationId: String?,
+        mode: ChatMode,
+        message: String,
+        deep: Bool
+    ) -> AsyncThrowingStream<ChatEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let work = Task {
+                do {
+                    var req = try await request("api/chat", method: "POST")
+                    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                    req.httpBody = try JSONEncoder().encode(
+                        ChatRequest(
+                            conversationId: conversationId,
+                            tradition: mode.rawValue,
+                            message: message,
+                            deep: deep
+                        )
+                    )
+                    // Readings can think for a while before the first byte.
+                    req.timeoutInterval = 120
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: req)
+                    guard let http = response as? HTTPURLResponse else {
+                        throw APIError.server("The stars are unreachable right now.")
+                    }
+                    guard (200..<300).contains(http.statusCode) else {
+                        if http.statusCode == 401 { throw APIError.unauthorized }
+                        var body = Data()
+                        for try await byte in bytes { body.append(byte) }
+                        throw APIError.server(
+                            String(data: body, encoding: .utf8) ?? "Something went wrong."
+                        )
+                    }
+
+                    if let id = http.value(forHTTPHeaderField: "x-conversation-id") {
+                        continuation.yield(.conversationId(id))
+                    }
+
+                    var undecoded = Data()
+                    var batch = ""
+                    for try await byte in bytes {
+                        undecoded.append(byte)
+                        guard let piece = String(data: undecoded, encoding: .utf8) else { continue }
+                        undecoded.removeAll(keepingCapacity: true)
+                        batch += piece
+                        if batch.count >= 24 {
+                            continuation.yield(.text(batch))
+                            batch = ""
+                        }
+                    }
+                    if !batch.isEmpty { continuation.yield(.text(batch)) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in work.cancel() }
+        }
+    }
+
+    private struct ChatRequest: Encodable {
+        let conversationId: String?
+        let tradition: String
+        let message: String
+        let deep: Bool
+    }
+
+    private static func check(_ response: URLResponse, _ data: Data) throws {
+        guard let http = response as? HTTPURLResponse else { return }
+        switch http.statusCode {
+        case 200..<300: return
+        case 401: throw APIError.unauthorized
+        default:
+            let message = String(data: data, encoding: .utf8) ?? "Something went wrong."
+            throw APIError.server(message)
+        }
+    }
+}
+
+/// A birthplace from `/api/geocode`, already carrying the resolved timezone.
+struct GeoResult: Decodable, Identifiable, Hashable {
+    let name: String
+    let lat: Double
+    let lng: Double
+    let timezone: String
+    let country: String
+
+    var id: String { "\(name)|\(lat)|\(lng)" }
+}
+
+struct BirthProfileInput {
+    var firstName = ""
+    var lastName = ""
+    /// `yyyy-MM-dd`, matching the `birth_date` column.
+    var birthDate = ""
+    /// `HH:mm`, matching the `birth_time` column.
+    var birthTime = ""
+    var placeName = ""
+    var lat: Double = 0
+    var lng: Double = 0
+    var timezone = ""
+    /// Optional profile photo, already downscaled to JPEG. The route uploads it
+    /// to the `avatars` bucket and only overwrites the stored URL when one is
+    /// sent, so leaving this nil keeps the existing photo.
+    var photoJPEG: Data?
+
+    func multipartBody(boundary: String) -> Data {
+        var body = Data()
+        let fields: [(String, String)] = [
+            ("first_name", firstName),
+            ("last_name", lastName),
+            ("birth_date", birthDate),
+            ("birth_time", birthTime),
+            ("place_name", placeName),
+            ("lat", String(lat)),
+            ("lng", String(lng)),
+            ("timezone", timezone),
+        ]
+        for (name, value) in fields {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
+            body.append("\(value)\r\n".data(using: .utf8)!)
+        }
+        if let photoJPEG, !photoJPEG.isEmpty {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append(
+                "Content-Disposition: form-data; name=\"photo\"; filename=\"avatar.jpg\"\r\n"
+                    .data(using: .utf8)!
+            )
+            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            body.append(photoJPEG)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        return body
+    }
+}

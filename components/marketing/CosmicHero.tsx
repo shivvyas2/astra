@@ -13,7 +13,7 @@ type Section = {
 
 const HERO: Section = {
   eyebrow: "Computed astrology, never guessed",
-  title: "ASTRA",
+  title: "SANCHARA",
   lines: ["Your real birth chart, read by the stars."],
   cta: {
     primary: { label: "Get your reading", href: "/signup" },
@@ -94,7 +94,7 @@ export default function CosmicHero() {
           {HERO.eyebrow}
         </p>
         <h1 ref={titleRef} style={{ visibility: "hidden" }}
-          className="max-w-full break-words text-5xl font-bold leading-none tracking-tight drop-shadow-[0_2px_24px_rgba(0,0,0,0.75)] sm:text-8xl md:text-9xl">
+          className="max-w-full break-words text-5xl font-bold leading-none tracking-tight drop-shadow-[0_2px_24px_rgba(0,0,0,0.75)] sm:text-7xl md:text-8xl lg:text-9xl">
           {split(HERO.title)}
         </h1>
         <div className="mt-6 max-w-2xl text-base text-fg/85 drop-shadow-[0_1px_12px_rgba(0,0,0,0.9)] sm:text-lg">

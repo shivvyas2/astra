@@ -7,7 +7,7 @@ export default async function AdminLogin({
   return (
     <main className="grid min-h-dvh place-items-center px-5 py-8 sm:px-6">
       <form action={adminSignIn} className="w-full max-w-sm space-y-3">
-        <h1 className="text-2xl font-bold sm:text-3xl">Astra Admin</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">Sanchara Admin</h1>
         {sp.error && <p className="text-sm text-accent">{sp.error}</p>}
         <input name="email" type="email" required placeholder="admin email"
           className="w-full rounded-md border border-white/15 bg-white/5 px-3 py-2.5" />

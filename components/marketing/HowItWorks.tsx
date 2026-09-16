@@ -11,7 +11,7 @@ export function HowItWorks() {
       </div>
       <div className="mt-10 max-w-2xl text-muted sm:mt-12">
         <p>
-          Astra computes your chart with the Swiss Ephemeris, the same astronomical engine professional
+          Sanchara computes your chart with the Swiss Ephemeris, the same astronomical engine professional
           astrologers rely on. Your birth time is converted to the exact moment in the sky over your birthplace,
           then interpreted, placement by placement, so every reading is grounded in a real chart rather than a guess.
         </p>

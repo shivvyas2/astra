@@ -9,7 +9,7 @@ export default async function LoginPage({
   const sp = await searchParams;
   return (
     <AuthForm
-      title="Welcome to Astra"
+      title="Welcome to Sanchara"
       subtitle="Enter your email and password. New here? We'll create your account automatically."
       primaryLabel="Continue"
       primaryAction={authenticate}

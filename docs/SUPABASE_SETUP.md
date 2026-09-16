@@ -1,4 +1,4 @@
-# Supabase setup for Astra
+# Supabase setup for Sanchara
 
 1. Create a project at https://supabase.com/dashboard (free tier is fine).
 2. Project Settings → API. Copy into `.env.local`:

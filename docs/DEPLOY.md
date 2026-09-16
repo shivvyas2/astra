@@ -1,6 +1,6 @@
-# Deploying Astra to Vercel
+# Deploying Sanchara to Vercel
 
-Astra is a Next.js 15 app backed by Supabase (auth + Postgres) and the
+Sanchara is a Next.js 15 app backed by Supabase (auth + Postgres) and the
 Anthropic API. Deployment target: Vercel, under the
 **shivvyas0209@gmail.com** account (not any lunacommunity account).
 Source: **github.com/shivvyas2/astra** (private repo, already created).

@@ -1,4 +1,4 @@
-name: Astra
+name: Sanchara
 options:
   bundleIdPrefix: com.shivvyas
   deploymentTarget:
@@ -19,17 +19,17 @@ settings:
     CODE_SIGN_STYLE: Automatic
 
 targets:
-  Astra:
+  Sanchara:
     type: application
     platform: iOS
     sources:
-      - path: Astra/Sources
-      - path: Astra/Resources
+      - path: Sanchara/Sources
+      - path: Sanchara/Resources
         buildPhase: resources
     info:
-      path: Astra/Info.plist
+      path: Sanchara/Info.plist
       properties:
-        CFBundleDisplayName: Astra
+        CFBundleDisplayName: Sanchara
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
         UILaunchScreen:
@@ -42,8 +42,9 @@ targets:
     dependencies:
       - package: Supabase
         product: Supabase
+      - target: SancharaWidgets
     entitlements:
-      path: Astra/Astra.entitlements
+      path: Sanchara/Sanchara.entitlements
       properties:
         com.apple.developer.associated-domains:
           - applinks:astra.shivvyas.com
@@ -56,19 +57,64 @@ targets:
         # provider — see docs/APPLE_SIGN_IN.md.
         com.apple.developer.applesignin:
           - Default
+        # Shared with the widget extension. The chart, the birth details, and
+        # the latest reading are cached here so Siri and the widget can answer
+        # without a session or a network call — see `ChartCache`. Enable the App
+        # Groups capability on both App IDs in the Developer portal.
+        com.apple.security.application-groups:
+          - group.com.shivvyas.astra
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra
         GENERATE_INFOPLIST_FILE: NO
         TARGETED_DEVICE_FAMILY: "1"
 
-  AstraTests:
+  SancharaWidgets:
+    type: app-extension
+    platform: iOS
+    # Widgets and controls arrived on this schedule; the app itself still runs
+    # on iOS 17.
+    deploymentTarget:
+      iOS: "17.0"
+    sources:
+      - path: SancharaWidgets
+      # Compiled into the extension as well as the app. Each of these is
+      # dependency-free on purpose — pulling in anything that imports Supabase
+      # would drag the whole client into a process that has no session to use
+      # it with.
+      - path: Sanchara/Sources/Design/Theme.swift
+      - path: Sanchara/Sources/Design/ReadingCard.swift
+      - path: Sanchara/Sources/Services/ChartCache.swift
+      - path: Sanchara/Sources/Features/Kundli/ChartData.swift
+      - path: Sanchara/Sources/Features/Intake/BirthProfileDetails.swift
+      - path: Sanchara/Sources/Intents/OpenKundliIntent.swift
+    info:
+      path: SancharaWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Sanchara
+        CFBundleShortVersionString: "1.0"
+        CFBundleVersion: "1"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: SancharaWidgets/SancharaWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.shivvyas.astra
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra.widgets
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
+
+  SancharaTests:
     type: bundle.unit-test
     platform: iOS
     sources:
-      - path: Astra/Tests
+      - path: Sanchara/Tests
     dependencies:
-      - target: Astra
+      - target: Sanchara
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra.tests

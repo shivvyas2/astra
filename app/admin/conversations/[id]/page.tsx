@@ -26,7 +26,7 @@ export default async function AdminTranscript({ params }: { params: Promise<{ id
           {messages.map((m, i) => (
             <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
               <div className={`max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-4 py-2.5 text-sm ${m.role === "user" ? "bg-accent/15 text-fg" : "bg-white/[0.05] text-fg/90"}`}>
-                <div className="mb-1 text-[10px] uppercase tracking-wide text-muted/60">{m.role === "user" ? "User" : "Astra"}</div>
+                <div className="mb-1 text-[10px] uppercase tracking-wide text-muted/60">{m.role === "user" ? "User" : "Sanchara"}</div>
                 {m.content}
               </div>
             </div>

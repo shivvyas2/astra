@@ -211,13 +211,13 @@ export function fallbackPrediction(slot: Slot, firstName: string): AlertCopy {
   return slot === "morning"
     ? {
         title: "Your reading for today",
-        body: `Good morning, ${firstName}. Today's chart reading is ready in Astra.`,
-        detail: "**Today**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astra to see what today holds.",
+        body: `Good morning, ${firstName}. Today's chart reading is ready in Sanchara.`,
+        detail: "**Today**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Sanchara to see what today holds.",
       }
     : {
         title: "Tonight's reading",
-        body: `Good evening, ${firstName}. Tonight's reading is ready in Astra.`,
-        detail: "**Tonight**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astra to see how today closed and what tomorrow opens with.",
+        body: `Good evening, ${firstName}. Tonight's reading is ready in Sanchara.`,
+        detail: "**Tonight**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Sanchara to see how today closed and what tomorrow opens with.",
       };
 }
 
@@ -243,7 +243,7 @@ async function pushToDevices(
       body: copy.body,
       alertId: readingId,
       kind: "daily",
-      threadId: `astra-daily-${slot}`,
+      threadId: `sanchara-daily-${slot}`,
     });
     if (result.ok) sent += 1;
     else if (result.unregistered) dead.push(device.token);
