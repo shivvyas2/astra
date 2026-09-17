@@ -101,3 +101,60 @@ the keychain.
 All three are deleted on sign-out. A birth chart outliving the account that owns
 it would mean the next person to sign in on a shared device sees a stranger's
 reading on the Lock Screen.
+
+## 6. On-device lookups, verified against the model
+
+**Status: NOT YET RUN.** This gate must pass before the enriched on-device
+table ships. It cannot be automated and it cannot be run on a Mac.
+
+The on-device model refuses anything it reads as fortune telling. The neutral
+vocabulary in `ChartFacts.swift` — "section" for house, "controlled by" for
+lord, "strength rating" for dignity — was arrived at by testing against the
+real model, not by reasoning. The table has since grown a dozen new row types,
+and that is exactly the kind of change that can trip the guardrail back into
+"May contain sensitive content".
+
+`SuggestionEngine.isOnDeviceAvailable` is false on CI and on any Mac, and the
+model's answers are not deterministic, so no test can stand in for this.
+
+### Running it
+
+1. Build to a physical device with Apple Intelligence enabled. Confirm on the
+   profile screen that the status reads "On, generating suggestions on this
+   device". Any other status means the gate cannot be run there.
+
+2. In Vedic mode, ask each of these and record the answer verbatim:
+
+   1. who is the lord of my 7th house
+   2. which planet rules my 10th
+   3. is my Venus exalted
+   4. is my Mercury combust
+   5. what does my Saturn aspect
+   6. which dasha am I in and where is its lord
+
+3. Check each answer against three conditions:
+
+   - It was answered **on device** — the transcript labels it, and
+     `ChatStore.canExpandLastAnswer` is true.
+   - It was **not refused**. A refusal reads as "May contain sensitive
+     content" or a flat decline.
+   - It **restates the table** rather than interpreting it.
+
+### Deciding
+
+All six pass: the on-device work ships.
+
+Any refusal: the vocabulary has not gone far enough. Find the word that
+triggered it, replace it with a plainer one, and repeat from step 2. Do **not**
+loosen the guardrails — `permissiveContentTransformations` is already in use
+and there is nothing above it.
+
+Any answer that interprets rather than restates: sharpen the restatement rule
+in `OnDeviceReasoner.answer`. That is a prompt change in that file, not a
+change to the table.
+
+### Record the result here
+
+Replace this section's status line and paste the six questions with their
+verbatim answers. That record is how the next person learns what the model
+actually accepts, which is the thing these comments say was expensive to find.
