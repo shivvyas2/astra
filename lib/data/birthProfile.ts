@@ -21,7 +21,8 @@ export type BirthProfileRow = {
 
 export async function getBirthProfile(db?: Db): Promise<BirthProfileRow | null> {
   const supabase = db ?? (await createServerSupabase());
-  const { data } = await supabase.from("birth_profiles").select("*").maybeSingle();
+  const { data, error } = await supabase.from("birth_profiles").select("*").maybeSingle();
+  if (error) throw new Error(error.message);
   if (!data) return null;
   return ensureCurrentChart(data as BirthProfileRow, supabase);
 }
