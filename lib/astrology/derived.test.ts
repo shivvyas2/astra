@@ -185,8 +185,26 @@ describe("deriveFacts", () => {
     expect(maha.placement?.rules.sort((a, b) => a - b)).toEqual([2, 5]);
   });
 
-  it("folds in the natal conditions", () => {
-    expect(Array.isArray(d.conditions)).toBe(true);
+  it("folds in natal conditions computed from the sign, not the chart's stale stored house", () => {
+    // C2: detectNatalDoshas must derive each planet's house from its sign
+    // (via houseFrom), not read planet.house off the chart it was handed —
+    // otherwise one Derived object carries whole-sign `planets` alongside
+    // conditions read off Placidus `chart.planets[].house`, two
+    // contradictory claims about the same fixed birth fact. This fixture
+    // reuses the module's stale-house pattern (every stored house is 99) and
+    // additionally moves Mars into Taurus, the 7th sign from the Scorpio
+    // ascendant, to trigger Mangal Dosha. If detectNatalDoshas ever reads
+    // mars.house (99) again instead of deriving from the sign, this dosha
+    // disappears and the assertion fails.
+    const afflicted: Chart = {
+      ...chart,
+      planets: chart.planets.map((p) => (p.name === "Mars" ? { ...p, sign: "Taurus", house: 99 } : p)),
+    };
+    const afflictedDerived = deriveFacts(afflicted);
+    const mangal = afflictedDerived.conditions.find((c) => c.kind === "mangal_dosha");
+    expect(mangal).toBeDefined();
+    expect(mangal?.detail).toContain("7th house");
+    expect(mangal?.signature).toBe("mangal_dosha:7");
   });
 
   it("returns no dasha facts for a western chart", () => {
