@@ -25,6 +25,16 @@ describe("dignityOf", () => {
     expect(dignityOf("Mercury", "Virgo", 14).dignity).toBe("exalted");
     expect(dignityOf("Mercury", "Virgo", 18).dignity).toBe("moolatrikona");
     expect(dignityOf("Mercury", "Virgo", 25).dignity).toBe("own");
+    // 15.5 falls below the moolatrikona table's `from: 16`, so it is exalted.
+    expect(dignityOf("Mercury", "Virgo", 15.5).dignity).toBe("exalted");
+  });
+
+  it("resolves the Moon in Taurus, whose exaltation and moolatrikona signs coincide", () => {
+    expect(dignityOf("Moon", "Taurus", 2).dignity).toBe("exalted");
+    expect(dignityOf("Moon", "Taurus", 2).fromDeepPoint).toBe(1);
+    expect(dignityOf("Moon", "Taurus", 10).dignity).toBe("moolatrikona");
+    expect(dignityOf("Moon", "Taurus", 29).dignity).toBe("moolatrikona");
+    expect(dignityOf("Moon", "Scorpio", 10).dignity).toBe("debilitated");
   });
 
   it("prefers moolatrikona to own sign", () => {

@@ -142,19 +142,22 @@ export function dignityOf(
   const deb = ex ? oppositeSign(ex.sign) : undefined;
   const fromDeepPoint =
     ex && (sign === ex.sign || sign === deb) ? Math.abs(degree - ex.degree) : undefined;
+  const mt = MOOLATRIKONA[name];
 
-  // Mercury in Virgo is exalted, moolatrikona and own all at once. The
-  // tradition splits it by degree, so it is written out rather than left to
-  // fall through the precedence order below.
-  if (name === "Mercury" && sign === "Virgo") {
-    if (degree <= 15) return { dignity: "exalted", fromDeepPoint };
-    if (degree <= 20) return { dignity: "moolatrikona" };
-    return { dignity: "own" };
+  // Mercury (Virgo) and the Moon (Taurus) have the same sign for exaltation
+  // and moolatrikona. There the moolatrikona range takes precedence within
+  // its own bounds; exaltation applies only below the range's `from` degree,
+  // and own sign resumes above its `to` degree when the sign is also owned
+  // by the planet. Every other planet has distinct exaltation and
+  // moolatrikona signs, so this block is inert for them.
+  if (ex && mt && sign === ex.sign && sign === mt.sign) {
+    if (degree < mt.from) return { dignity: "exalted", fromDeepPoint };
+    if (degree < mt.to) return { dignity: "moolatrikona" };
+    if (signsRuledBy(name).includes(sign)) return { dignity: "own" };
   }
 
   if (ex && sign === ex.sign) return { dignity: "exalted", fromDeepPoint };
 
-  const mt = MOOLATRIKONA[name];
   if (mt && sign === mt.sign && degree >= mt.from && degree < mt.to) {
     return { dignity: "moolatrikona" };
   }
