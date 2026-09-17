@@ -37,3 +37,94 @@ export function computeNameNumber(name: string): number {
     .reduce((s, ch) => s + ((ch.charCodeAt(0) - 65) % 9) + 1, 0);
   return reduceToDigit(sum);
 }
+
+/**
+ * The cycle a person is in this year, by the common Vedic reckoning: birth
+ * month plus birth day plus the current calendar year, reduced.
+ *
+ * It changes once a year, which is why the prompt carries it in the half that
+ * varies rather than the cached half.
+ */
+export function personalYear(birthDate: string, today: string): number {
+  const [, bm, bd] = birthDate.split("-").map(Number);
+  const year = Number(today.slice(0, 4));
+  return reduceToDigit(bm + bd + year);
+}
+
+export function personalMonth(birthDate: string, today: string): number {
+  const month = Number(today.slice(5, 7));
+  return reduceToDigit(personalYear(birthDate, today) + month);
+}
+
+export type LoShu = {
+  /** How many times each digit 1-9 appears in the birth date. */
+  counts: Record<number, number>;
+  missing: number[];
+  repeated: number[];
+};
+
+/**
+ * Which digits the birth date repeats and which it lacks.
+ *
+ * This is the most concrete thing numerology has: "three 1s and no 4" is
+ * specific in a way "your mulank is 5" can never be. Zeros are not placed on
+ * the grid, by the classical arrangement.
+ */
+export function loShu(birthDate: string): LoShu {
+  const counts: Record<number, number> = {};
+  for (let d = 1; d <= 9; d++) counts[d] = 0;
+  for (const ch of birthDate.replace(/-/g, "")) {
+    const d = Number(ch);
+    if (d >= 1 && d <= 9) counts[d] += 1;
+  }
+  const digits = Object.keys(counts).map(Number);
+  return {
+    counts,
+    missing: digits.filter((d) => counts[d] === 0),
+    repeated: digits.filter((d) => counts[d] > 1),
+  };
+}
+
+/**
+ * Numbers 1-9 are ruled by planets, and their relationship is those planets'
+ * natural friendship.
+ *
+ * Rahu (4) and Ketu (7) have no friendships the tradition agrees on. They are
+ * given Saturn's and Mercury's rows respectively, which is the most common
+ * numerological practice — a convention, not a rule, kept here in one place so
+ * it can be corrected in one place.
+ */
+const NUMBER_RULER: Record<number, string> = {
+  1: "Sun", 2: "Moon", 3: "Jupiter", 4: "Saturn", 5: "Mercury",
+  6: "Venus", 7: "Mercury", 8: "Saturn", 9: "Mars",
+};
+
+const FRIENDS: Record<string, string[]> = {
+  Sun: ["Moon", "Mars", "Jupiter"],
+  Moon: ["Sun", "Mercury"],
+  Mars: ["Sun", "Moon", "Jupiter"],
+  Mercury: ["Sun", "Venus"],
+  Jupiter: ["Sun", "Moon", "Mars"],
+  Venus: ["Mercury", "Saturn"],
+  Saturn: ["Mercury", "Venus"],
+};
+
+const ENEMIES: Record<string, string[]> = {
+  Sun: ["Venus", "Saturn"],
+  Moon: [],
+  Mars: ["Mercury"],
+  Mercury: ["Moon"],
+  Jupiter: ["Mercury", "Venus"],
+  Venus: ["Sun", "Moon"],
+  Saturn: ["Sun", "Moon", "Mars"],
+};
+
+export function numberRelationship(a: number, b: number): "friend" | "neutral" | "enemy" {
+  const pa = NUMBER_RULER[a];
+  const pb = NUMBER_RULER[b];
+  if (!pa || !pb) return "neutral";
+  if (pa === pb) return "friend";
+  if (FRIENDS[pa]?.includes(pb)) return "friend";
+  if (ENEMIES[pa]?.includes(pb)) return "enemy";
+  return "neutral";
+}
