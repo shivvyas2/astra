@@ -34,6 +34,7 @@ describe("ensureCurrentChart", () => {
     const profile = { ...baseProfile, chart: null };
     const result = await ensureCurrentChart(profile, db);
     expect(result).toBe(profile);
+    expect((db as unknown as { from: ReturnType<typeof vi.fn> }).from).not.toHaveBeenCalled();
   });
 
   it("returns the profile unchanged when the stored chart is already current", async () => {
@@ -42,6 +43,7 @@ describe("ensureCurrentChart", () => {
     const db = fakeDb(async () => ({ error: null }));
     const result = await ensureCurrentChart(profile, db);
     expect(result).toBe(profile);
+    expect((db as unknown as { from: ReturnType<typeof vi.fn> }).from).not.toHaveBeenCalled();
   });
 
   it("recomputes and writes both traditions together for a stale chart", async () => {
@@ -62,7 +64,7 @@ describe("ensureCurrentChart", () => {
     expect((result.chart?.vedic as { schemaVersion?: number }).schemaVersion).toBe(CHART_SCHEMA_VERSION);
   });
 
-  it("swallows a write failure and returns the original profile", async () => {
+  it("swallows a thrown compute/write exception and returns the original profile", async () => {
     const stale = { schemaVersion: 1 };
     const profile = { ...baseProfile, chart: { vedic: stale, western: stale } };
     const db = fakeDb(async () => {
@@ -72,6 +74,24 @@ describe("ensureCurrentChart", () => {
     const result = await ensureCurrentChart(profile, db);
     expect(result).toBe(profile);
     expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  // This is the failure mode Supabase actually uses for a rejected write (RLS,
+  // a constraint): the call resolves with { error }, it never throws. A naive
+  // `await supabase....update(...)` that ignores the returned error would
+  // fall through to `return { ...profile, chart: {...} }`, claiming the
+  // upgrade succeeded when the row was never written.
+  it("swallows a resolved write error (RLS/constraint) and returns the original profile unchanged", async () => {
+    const stale = { schemaVersion: 1 };
+    const profile = { ...baseProfile, chart: { vedic: stale, western: stale } };
+    const db = fakeDb(async () => ({ error: { message: "rls" } }));
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await ensureCurrentChart(profile, db);
+
+    expect(result).toBe(profile);
+    expect(result.chart).toEqual({ vedic: stale, western: stale });
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining("write failed"), expect.anything());
     spy.mockRestore();
   });
 });
