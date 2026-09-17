@@ -78,6 +78,13 @@ describe("derived facts on a computed chart", () => {
     expect(factsFor(chart)).toBe(chart.derived);
     const legacy = { ...chart, derived: undefined, schemaVersion: undefined };
     expect(isChartStale(legacy)).toBe(true);
-    expect(factsFor(legacy).houses).toHaveLength(12);
+    // Known-vedic fixture, so factsFor cannot return undefined here.
+    expect(factsFor(legacy)!.houses).toHaveLength(12);
+  });
+
+  it("attaches no derived facts to a Western chart — Vedic technique does not apply", async () => {
+    const chart = await computeChart(input, "western");
+    expect(chart.derived).toBeUndefined();
+    expect(factsFor(chart)).toBeUndefined();
   });
 });

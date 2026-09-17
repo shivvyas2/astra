@@ -96,6 +96,9 @@ export async function POST(request: Request) {
       });
     } else {
       const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
+      // factsFor gates on chart.tradition, so this is undefined for western —
+      // Western readings get no derived facts (no Vedic lordship, aspect,
+      // dignity, or dosha technique). See lib/astrology/derived.ts.
       const derived = factsFor(chart);
 
       // Live transits, computed once per day per neighbourhood and shared.

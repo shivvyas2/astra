@@ -116,5 +116,9 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
     dasha: tradition === "vedic" ? computeVimshottari(moonAbsLon, ut) : undefined,
     schemaVersion: CHART_SCHEMA_VERSION,
   };
-  return { ...result, derived: deriveFacts(result) };
+  // Every technique in derived.ts — lordship, graha drishti, moolatrikona,
+  // combustion orbs, the natal doshas — is Vedic. Western continues to use
+  // Placidus houses (set above) and gets no derived block at all; see
+  // docs/superpowers/specs/2026-09-17-specific-readings-design.md §0.
+  return { ...result, derived: tradition === "vedic" ? deriveFacts(result) : undefined };
 }

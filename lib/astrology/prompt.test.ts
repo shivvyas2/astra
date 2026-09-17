@@ -100,8 +100,31 @@ describe("derived facts in the prompt", () => {
     expect(p).toMatch(/Moon:[^\n]*exalted/); // Moon at 3.1° Taurus, inside the exaltation band
   });
 
-  it("names the houses each planet aspects", () => {
-    expect(p).toMatch(/Venus:[^\n]*aspects houses 9/); // Venus in house 3 aspects only house 9 (the 7th from it)
+  it("names the houses each planet aspects, singular for exactly one house", () => {
+    // Venus in house 3 aspects only house 9 (the 7th from it) — one house, so
+    // "aspects house 9", not the ungrammatical "aspects houses 9".
+    expect(p).toMatch(/Venus:[^\n]*aspects house 9/);
+    expect(p).not.toMatch(/Venus:[^\n]*aspects houses 9/);
+  });
+
+  it("pluralizes only when a planet aspects more than one house", () => {
+    // Aries ascendant, Mars in Aries (house 1): Mars aspects the 7th from
+    // itself plus its special 4th and 8th — three houses, so "aspects houses".
+    const marsChart: Chart = {
+      tradition: "vedic",
+      ascendant: { sign: "Aries", degree: 1 },
+      houses: Array.from({ length: 12 }, (_, i) => i * 30),
+      planets: [{ name: "Mars", sign: "Aries", degree: 5, house: 1, retrograde: false }],
+      moonSign: "Aries",
+      sunSign: "Aries",
+    };
+    const marsPrompt = buildChartSystem({
+      firstName: "Aditi",
+      tradition: "vedic",
+      chart: marsChart,
+      derived: deriveFacts(marsChart),
+    });
+    expect(marsPrompt).toMatch(/Mars:[^\n]*aspects houses 4, 7, 8/);
   });
 
   it("gives every house its lord and where that lord sits", () => {
@@ -137,6 +160,54 @@ describe("derived facts in the prompt", () => {
     const gapPrompt = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart: gap, derived: gapDerived });
     expect(gapPrompt).toMatch(/lord Sun \(not a body in this chart\)/);
     expect(gapPrompt).not.toMatch(/lord Sun in house 0/);
+  });
+});
+
+// C1: Western readings must not get Vedic technique or Vedic doshas. This is
+// the test that would have caught it — it fails against the pre-fix
+// buildChartSystem, which required `derived` and rendered it (moolatrikona,
+// graha drishti, doshas, whole-sign houses) for every tradition.
+describe("a Western chart gets no derived facts, no Vedic technique, and Placidus houses", () => {
+  // Leo ascendant; Mars stored in Placidus house 5 (mid-chart house), while
+  // whole-sign counting from Leo would put Capricorn — Mars's sign — in
+  // house 6. If the prompt ever fell back to whole-sign counting for
+  // Western, this planet's rendered house would silently become 6.
+  const westernChart: Chart = {
+    tradition: "western",
+    ascendant: { sign: "Leo", degree: 12.3 },
+    houses: Array.from({ length: 12 }, (_, i) => i * 30),
+    planets: [
+      { name: "Sun", sign: "Sagittarius", degree: 16.5, house: 4, retrograde: false },
+      { name: "Mars", sign: "Capricorn", degree: 2, house: 5, retrograde: false },
+    ],
+    moonSign: "Taurus",
+    sunSign: "Sagittarius",
+  };
+
+  it("has no derived block attached, the way computeChart produces it", () => {
+    expect(westernChart.derived).toBeUndefined();
+  });
+
+  it("buildChartSystem, called with no derived, renders plain Placidus houses and no Vedic technique", () => {
+    const p = buildChartSystem({ firstName: "Aditi", tradition: "western", chart: westernChart });
+
+    // No Vedic dignity, aspect, or dosha technique anywhere in the prompt.
+    expect(p.toLowerCase()).not.toContain("moolatrikona");
+    expect(p).not.toMatch(/aspects house/);
+    expect(p).not.toContain("STANDING CONDITIONS");
+
+    // Planet houses come from chart.planets[].house (Placidus), not
+    // whole-sign counting from the ascendant.
+    expect(p).toContain("Mars: Capricorn 2°, h5");
+    expect(p).not.toContain("Mars: Capricorn 2°, h6");
+  });
+
+  it("buildSystemPrompt's default (no derived passed) does the same, end to end", () => {
+    const p = buildSystemPrompt({ firstName: "Aditi", tradition: "western", chart: westernChart });
+    expect(p.toLowerCase()).not.toContain("moolatrikona");
+    expect(p).not.toMatch(/aspects house/);
+    expect(p).not.toContain("STANDING CONDITIONS");
+    expect(p).toContain("Mars: Capricorn 2°, h5");
   });
 });
 

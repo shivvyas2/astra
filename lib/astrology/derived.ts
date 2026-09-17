@@ -226,7 +226,10 @@ export function deriveFacts(chart: Chart): Derived {
   });
 
   const byName = new Map(planets.map((f) => [f.name, f]));
-  const ascIndex = signIndex(asc);
+  // JS `%` can return negative (`(-1) % 12 === -1`), which would index
+  // Object.keys(...) with a negative number and yield undefined below. asc
+  // is always a valid sign in practice, but the guard costs nothing.
+  const ascIndex = ((signIndex(asc) % 12) + 12) % 12;
 
   const houses: HouseFact[] = Array.from({ length: 12 }, (_, i) => {
     const number = i + 1;
@@ -276,7 +279,14 @@ export function isChartStale(chart: Chart): boolean {
   return (chart.schemaVersion ?? 1) < CHART_SCHEMA_VERSION || !chart.derived;
 }
 
-/** The stored facts, or freshly computed ones for a chart written before this shipped. */
-export function factsFor(chart: Chart): Derived {
+/**
+ * The stored facts, or freshly computed ones for a chart written before this
+ * shipped — but only for Vedic. Every technique here (lordship, graha
+ * drishti, moolatrikona, combustion orbs, the natal doshas) is Vedic; a
+ * Western chart gets no derived facts at all, so callers must fall back to
+ * plain chart data instead of resurrecting Vedic technique for it.
+ */
+export function factsFor(chart: Chart): Derived | undefined {
+  if (chart.tradition !== "vedic") return undefined;
   return chart.derived ?? deriveFacts(chart);
 }

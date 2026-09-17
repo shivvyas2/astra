@@ -29,10 +29,41 @@ function planetLine(f: PlanetFact): string {
   if (f.fromDeepPoint !== undefined && f.fromDeepPoint < 1) bits.push("within a degree of exact");
   if (f.combust) bits.push(`combust, ${f.fromSun}° from the Sun`);
   if (f.retrograde) bits.push("retrograde");
-  if (f.aspects.length > 0) bits.push(`aspects houses ${[...f.aspects].sort((a, b) => a - b).join(", ")}`);
+  if (f.aspects.length > 0) {
+    bits.push(`aspects house${houseSuffix(f.aspects.length)} ${[...f.aspects].sort((a, b) => a - b).join(", ")}`);
+  }
   if (f.conjunct.length > 0) bits.push(`with ${f.conjunct.join(" and ")}`);
   const nak = f.nakshatra ? `, ${f.nakshatra}` : "";
   return `${f.name}: ${f.sign} ${f.degree}°, house ${f.house}${nak} — ${bits.join(" · ")}`;
+}
+
+/**
+ * The chart, with no derived facts: a plain list of planets, the ascendant,
+ * and the dasha line, exactly as every reading rendered before this branch.
+ *
+ * This is what a Western chart gets. Every technique `renderChartFacts` below
+ * adds — lordship, graha drishti, moolatrikona, combustion orbs, the natal
+ * doshas — is Vedic; giving it to a Western reading would cite Indian
+ * technique and Vedic doshas as though they were tropical, and would show
+ * whole-sign house numbers that disagree with `chart.planets[].house`
+ * (Placidus), which is what the PDF and the iOS view actually render. See
+ * spec §0: "Western continues to use houseOf(lon, cusps) unchanged."
+ */
+function renderChart(chart: Chart): string {
+  const lines: string[] = [];
+  lines.push(`Ascendant: ${chart.ascendant.sign} ${chart.ascendant.degree}°`);
+  lines.push(`Sun ${chart.sunSign} | Moon ${chart.moonSign}`);
+  if (chart.dasha) {
+    lines.push(
+      `Dasha: ${chart.dasha.mahadasha} mahadasha to ${chart.dasha.mahadashaEnd}, ` +
+        `${chart.dasha.antardasha} antardasha to ${chart.dasha.antardashaEnd}`,
+    );
+  }
+  for (const p of chart.planets) {
+    const nak = p.nakshatra ? `, ${p.nakshatra}` : "";
+    lines.push(`${p.name}: ${p.sign} ${p.degree}°, h${p.house}${nak}${p.retrograde ? ", retrograde" : ""}`);
+  }
+  return lines.join("\n");
 }
 
 function renderChartFacts(chart: Chart, d: Derived): string {
@@ -93,7 +124,8 @@ export function buildChartSystem(args: {
   firstName: string;
   tradition: Tradition;
   chart: Chart;
-  derived: Derived;
+  /** Absent for Western — see {@link renderChart}'s doc comment. */
+  derived?: Derived;
   numerology?: { mulank: number; bhagyank: number };
 }): string {
   const system = args.tradition === "vedic" ? "Vedic (sidereal, Lahiri)" : "Western (tropical)";
@@ -106,10 +138,12 @@ export function buildChartSystem(args: {
     ? `\n\nNumerology: Mulank ${args.numerology.mulank}, Bhagyank ${args.numerology.bhagyank}.`
     : "";
 
+  const chartFacts = args.derived ? renderChartFacts(args.chart, args.derived) : renderChart(args.chart);
+
   return `You are Sanchara, a warm, precise ${system} astrologer speaking with ${args.firstName}.
 
 ${args.firstName}'s real chart, computed with the Swiss Ephemeris. These are the only facts you have:
-${renderChartFacts(args.chart, args.derived)}${numLine}
+${chartFacts}${numLine}
 
 Accuracy:
 - Never state a placement, lordship, aspect, dasha, condition or number that is not listed above. Interpret only this data.
