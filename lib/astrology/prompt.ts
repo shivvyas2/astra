@@ -1,7 +1,7 @@
 import type { Chart, Tradition } from "./types";
-import { factsFor, type Derived, type PlanetFact } from "./derived";
+import { factsFor, type Derived, type Dignity, type PlanetFact } from "./derived";
 
-const DIGNITY_WORD: Record<string, string> = {
+const DIGNITY_WORD: Record<Dignity, string> = {
   exalted: "exalted",
   debilitated: "debilitated",
   moolatrikona: "in moolatrikona",
@@ -9,14 +9,19 @@ const DIGNITY_WORD: Record<string, string> = {
   neutral: "neutral",
 };
 
+/** "s" for a plural list of houses, "" for a single one — shared so every "rules"/"ruling" phrase agrees. */
+function houseSuffix(count: number): string {
+  return count > 1 ? "s" : "";
+}
+
 function planetLine(f: PlanetFact): string {
   const bits: string[] = [];
-  if (f.rules.length > 0) bits.push(`rules house${f.rules.length > 1 ? "s" : ""} ${f.rules.join(", ")}`);
+  if (f.rules.length > 0) bits.push(`rules house${houseSuffix(f.rules.length)} ${f.rules.join(", ")}`);
   bits.push(DIGNITY_WORD[f.dignity]);
   if (f.fromDeepPoint !== undefined && f.fromDeepPoint < 1) bits.push("within a degree of exact");
   if (f.combust) bits.push(`combust, ${f.fromSun}° from the Sun`);
   if (f.retrograde) bits.push("retrograde");
-  if (f.aspects.length > 0) bits.push(`aspects houses ${f.aspects.join(", ")}`);
+  if (f.aspects.length > 0) bits.push(`aspects houses ${[...f.aspects].sort((a, b) => a - b).join(", ")}`);
   if (f.conjunct.length > 0) bits.push(`with ${f.conjunct.join(" and ")}`);
   const nak = f.nakshatra ? `, ${f.nakshatra}` : "";
   return `${f.name}: ${f.sign} ${f.degree}°, house ${f.house}${nak} — ${bits.join(" · ")}`;
@@ -35,9 +40,15 @@ function renderChartFacts(chart: Chart, d: Derived): string {
   for (const h of d.houses) {
     const who = h.occupants.length > 0 ? `holds ${h.occupants.join(", ")}` : "empty";
     const seen = h.aspectedBy.length > 0 ? `, aspected by ${h.aspectedBy.join(", ")}` : "";
-    out.push(
-      `House ${h.number}: ${h.sign}, lord ${h.lord} in house ${h.lordHouse} (${h.lordSign}, ${DIGNITY_WORD[h.lordDignity]}) — ${who}${seen}`,
-    );
+    // lordHouse === 0 means the lord isn't one of this chart's bodies (only
+    // reachable in a hand-built fixture; every real chart has all nine). Say
+    // so plainly rather than stating a placement — house 0 or an empty sign
+    // — that doesn't exist.
+    const lordWhere =
+      h.lordHouse === 0
+        ? `lord ${h.lord} (not a body in this chart)`
+        : `lord ${h.lord} in house ${h.lordHouse} (${h.lordSign}, ${DIGNITY_WORD[h.lordDignity]})`;
+    out.push(`House ${h.number}: ${h.sign}, ${lordWhere} — ${who}${seen}`);
   }
 
   if (d.dasha.length > 0) {
@@ -46,7 +57,9 @@ function renderChartFacts(chart: Chart, d: Derived): string {
       const where = p.placement
         ? `natally in ${p.placement.sign} ${p.placement.degree}°, house ${p.placement.house}, ` +
           `${DIGNITY_WORD[p.placement.dignity]}` +
-          (p.placement.rules.length > 0 ? `, ruling houses ${p.placement.rules.join(", ")}` : ", ruling no house")
+          (p.placement.rules.length > 0
+            ? `, ruling house${houseSuffix(p.placement.rules.length)} ${p.placement.rules.join(", ")}`
+            : ", ruling no house")
         : "not a body in this chart";
       out.push(`${p.level}: ${p.lord}, ${p.start} to ${p.end} — ${where}.`);
     }
@@ -76,8 +89,13 @@ export function buildChartSystem(args: {
   numerology?: { mulank: number; bhagyank: number };
 }): string {
   const system = args.tradition === "vedic" ? "Vedic (sidereal, Lahiri)" : "Western (tropical)";
+  // A blank line first: renderChartFacts's last block has no trailing blank
+  // line of its own, so without this the numerology sentence would land
+  // inside whichever labelled block (HOUSES, CURRENT PERIOD, STANDING
+  // CONDITIONS) happens to be last — reading as one more of that block's
+  // items rather than as its own fact.
   const numLine = args.numerology
-    ? `\nNumerology: Mulank ${args.numerology.mulank}, Bhagyank ${args.numerology.bhagyank}.`
+    ? `\n\nNumerology: Mulank ${args.numerology.mulank}, Bhagyank ${args.numerology.bhagyank}.`
     : "";
 
   return `You are Sanchara, a warm, precise ${system} astrologer speaking with ${args.firstName}.

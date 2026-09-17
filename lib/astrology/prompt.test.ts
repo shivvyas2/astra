@@ -32,7 +32,7 @@ describe("buildSystemPrompt", () => {
     expect(p).toContain("Leo"); // ascendant
     expect(p).toContain("Sagittarius"); // sun sign
     expect(p).toContain("Purva Ashadha"); // nakshatra
-    expect(p).toContain("Venus"); // mahadasha lord
+    expect(p).toContain("Venus"); // chart planet and mahadasha lord
   });
 
   it("forbids inventing positions and keeps the guidance disclaimer", () => {
@@ -48,7 +48,7 @@ describe("buildSystemPrompt", () => {
   it("keeps volatile content out of the cacheable half", () => {
     const stable = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived });
     expect(stable).not.toContain("Today is");
-    expect(stable).not.toContain("Sky today");
+    expect(stable).not.toContain("SKY TODAY");
     expect(stable.toLowerCase()).not.toContain("words or fewer");
 
     const volatile = buildTodaySystem({
@@ -89,23 +89,27 @@ describe("buildTodaySystem transit framing", () => {
 describe("derived facts in the prompt", () => {
   const p = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived });
 
+  // Pinned to the fixture's actual computed values, not just the shape of a
+  // sentence: an assertion that only checks "some placement, some house
+  // number" passes against a corrupted Derived just as happily as a correct
+  // one. See the fix report for the broken-output cases these were checked
+  // against.
   it("names what each planet rules and how strong it is", () => {
     expect(p).toMatch(/Sun:[^\n]*rules house/);
-    expect(p).toMatch(/Moon:[^\n]*(exalted|debilitated|own|moolatrikona|neutral)/);
+    expect(p).toMatch(/Moon:[^\n]*exalted/); // Moon at 3.1° Taurus, inside the exaltation band
   });
 
   it("names the houses each planet aspects", () => {
-    expect(p).toMatch(/aspects houses/);
+    expect(p).toMatch(/Venus:[^\n]*aspects houses 9/); // Venus in house 3 aspects only house 9 (the 7th from it)
   });
 
   it("gives every house its lord and where that lord sits", () => {
     expect(p).toContain("HOUSES");
-    expect(p).toMatch(/House 7[^\n]*lord [A-Z][a-z]+ in house \d+/);
+    expect(p).toMatch(/House 10: Taurus, lord Venus in house 3 \(Libra/);
   });
 
   it("says where the dasha lord actually sits", () => {
-    expect(p).toContain("Venus");
-    expect(p).toMatch(/mahadasha[^]*Venus[^]*house \d+/i);
+    expect(p).toMatch(/mahadasha: Venus[^\n]*house 3/);
   });
 
   it("bans the generic register outright", () => {
@@ -115,5 +119,51 @@ describe("derived facts in the prompt", () => {
 
   it("still forbids inventing placements", () => {
     expect(p.toLowerCase()).toContain("never state a placement");
+  });
+
+  // A house lord who isn't one of the chart's own bodies gets a sentinel
+  // (house 0, empty sign) from deriveFacts. The renderer must say plainly
+  // that the lord isn't a body here rather than printing "house 0" as if it
+  // were a real placement.
+  it("never states a placement for a lord that is not a body in the chart", () => {
+    const gap: Chart = {
+      ...chart,
+      ascendant: { sign: "Aries", degree: 1 },
+      planets: [{ name: "Moon", sign: "Cancer", degree: 5, house: 4, retrograde: false }],
+      dasha: undefined,
+    };
+    const gapDerived = deriveFacts(gap);
+    const gapPrompt = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart: gap, derived: gapDerived });
+    expect(gapPrompt).toMatch(/lord Sun \(not a body in this chart\)/);
+    expect(gapPrompt).not.toMatch(/lord Sun in house 0/);
+  });
+});
+
+describe("numerology stays its own block, not folded into whatever section renders last", () => {
+  it("puts a blank line before the numerology sentence", () => {
+    const p = buildChartSystem({
+      firstName: "Aditi",
+      tradition: "vedic",
+      chart,
+      derived,
+      numerology: { mulank: 3, bhagyank: 7 },
+    });
+    const lines = p.split("\n");
+    const numIndex = lines.findIndex((l) => l.startsWith("Numerology:"));
+    expect(numIndex).toBeGreaterThan(0);
+    expect(lines[numIndex - 1]).toBe("");
+    // And it must not read as one more item glued onto the block above it.
+    expect(p).not.toMatch(/[A-Za-z].*\n(Numerology:)/);
+    expect(p).toContain("Numerology: Mulank 3, Bhagyank 7.");
+  });
+});
+
+describe("derived facts survive a JSON round trip", () => {
+  it("renders identically whether derived is freshly computed or has been through JSON (as a stored chart returns it)", () => {
+    const fresh = deriveFacts(chart);
+    const roundTripped = JSON.parse(JSON.stringify(deriveFacts(chart)));
+    const a = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived: fresh });
+    const b = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived: roundTripped });
+    expect(a).toBe(b);
   });
 });
