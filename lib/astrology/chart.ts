@@ -1,8 +1,10 @@
 import { DateTime } from "luxon";
 import SwissEph from "swisseph-wasm";
 import type { BirthInput, Chart, Planet, Tradition } from "./types";
-import { degreeInSign, nakshatraOf, signOf, SIGNS } from "./constants";
+import { degreeInSign, nakshatraOf, signOf, houseFrom, SIGNS, CHART_SCHEMA_VERSION } from "./constants";
 import { computeVimshottari } from "./dasha";
+
+export { CHART_SCHEMA_VERSION };
 
 // Lazily initialize the WASM module once per server process.
 let swePromise: Promise<InstanceType<typeof SwissEph>> | null = null;
@@ -67,6 +69,7 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
   const housesRes = swe.houses_ex(jd, iflag, input.lat, input.lng, "P");
   const cusps: number[] = Array.from(housesRes.cusps).slice(1, 13);
   const ascLon: number = housesRes.ascmc[0];
+  const ascSign = signOf(ascLon);
 
   // 4. Planets. calc_ut returns Float64Array [lon, lat, dist, lonSpeed, latSpeed, distSpeed].
   const planets: Planet[] = [];
@@ -80,7 +83,7 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
       name: body.name,
       sign: signOf(lon),
       degree: Number(degreeInSign(lon).toFixed(2)),
-      house: houseOf(lon, cusps),
+      house: tradition === "vedic" ? houseFrom(ascSign, signOf(lon)) : houseOf(lon, cusps),
       retrograde: speed < 0,
       nakshatra: tradition === "vedic" ? nakshatraOf(lon) : undefined,
     });
@@ -93,7 +96,7 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
     name: "Ketu",
     sign: signOf(ketuLon),
     degree: Number(degreeInSign(ketuLon).toFixed(2)),
-    house: houseOf(ketuLon, cusps),
+    house: tradition === "vedic" ? houseFrom(ascSign, signOf(ketuLon)) : houseOf(ketuLon, cusps),
     retrograde: true,
     nakshatra: tradition === "vedic" ? nakshatraOf(ketuLon) : undefined,
   });
@@ -103,12 +106,13 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
 
   return {
     tradition,
-    ascendant: { sign: signOf(ascLon), degree: Number(degreeInSign(ascLon).toFixed(2)) },
+    ascendant: { sign: ascSign, degree: Number(degreeInSign(ascLon).toFixed(2)) },
     houses: cusps.map((c) => Number(c.toFixed(2))),
     planets,
     moonSign: moon.sign,
     sunSign: sun.sign,
     ayanamsa: ayanamsa !== undefined ? Number(ayanamsa.toFixed(3)) : undefined,
     dasha: tradition === "vedic" ? computeVimshottari(moonAbsLon, ut) : undefined,
+    schemaVersion: CHART_SCHEMA_VERSION,
   };
 }

@@ -41,3 +41,10 @@ export function houseFrom(from: string, sign: string): number {
   if (a < 0 || b < 0) return 0;
   return ((b - a + 12) % 12) + 1;
 }
+
+/**
+ * Version 2 moved Vedic charts from Placidus to whole-sign houses. A stored
+ * chart below this version has house numbers that disagree with the rashi
+ * labels every renderer draws, so readers upgrade it before use.
+ */
+export const CHART_SCHEMA_VERSION = 2;

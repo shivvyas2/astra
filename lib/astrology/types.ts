@@ -38,4 +38,6 @@ export type Chart = {
   sunSign: string;
   ayanamsa?: number;
   dasha?: DashaInfo; // Vedic only — current Vimshottari mahadasha/antardasha
+  /** Bumped when the computation changes in a way that moves stored values. */
+  schemaVersion?: number;
 };
