@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 import { computeChart } from "@/lib/astrology/chart";
-import type { BirthInput } from "@/lib/astrology/types";
+import { isChartStale } from "@/lib/astrology/derived";
+import type { BirthInput, Chart } from "@/lib/astrology/types";
 import type { Db } from "@/lib/supabase/route";
 
 export type BirthProfileRow = {
@@ -69,4 +70,47 @@ export async function saveBirthProfile(
 
   const { error } = await supabase.from("birth_profiles").upsert(row, { onConflict: "user_id" });
   if (error) throw new Error(error.message);
+}
+
+/**
+ * Rewrites a stored chart that predates the whole-sign change.
+ *
+ * Readers can always derive correct facts in process, but the numbers the
+ * kundli, the PDF and the iOS app draw come from the stored chart, so it has to
+ * be rewritten for those to agree. Doing it on read means no migration and no
+ * backfill job: a chart corrects the first time its owner uses the app.
+ *
+ * Both traditions are recomputed together, so a profile is never half upgraded.
+ * A failure is swallowed: an upgrade that cannot be written is not a reason to
+ * fail the request that triggered it.
+ */
+export async function ensureCurrentChart(
+  profile: BirthProfileRow,
+  db?: Db,
+): Promise<BirthProfileRow> {
+  const stored = profile.chart as { vedic?: Chart; western?: Chart } | null;
+  if (!stored?.vedic || !isChartStale(stored.vedic)) return profile;
+
+  try {
+    const birth: BirthInput = {
+      birthDate: String(profile.birth_date),
+      birthTime: String(profile.birth_time).slice(0, 5),
+      lat: Number(profile.lat),
+      lng: Number(profile.lng),
+      timezone: String(profile.timezone),
+    };
+    const [vedic, western] = await Promise.all([
+      computeChart(birth, "vedic"),
+      computeChart(birth, "western"),
+    ]);
+    const supabase = db ?? (await createServerSupabase());
+    await supabase
+      .from("birth_profiles")
+      .update({ chart: { vedic, western } })
+      .eq("user_id", profile.user_id);
+    return { ...profile, chart: { vedic, western } };
+  } catch (err) {
+    console.error("chart upgrade skipped", err);
+    return profile;
+  }
 }

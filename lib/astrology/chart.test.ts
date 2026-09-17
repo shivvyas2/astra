@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { computeChart, CHART_SCHEMA_VERSION } from "./chart";
 import { houseFrom } from "./constants";
+import { factsFor, isChartStale } from "./derived";
 
 // Reference birth: 1990-01-01, 12:00 local, New Delhi (Asia/Kolkata).
 const input = {
@@ -61,5 +62,22 @@ describe("vedic houses are whole-sign", () => {
     // whole-sign counting for a chart with a mid-sign ascendant.
     const matches = chart.planets.map((p) => p.house === houseFrom(chart.ascendant.sign, p.sign));
     expect(matches.every(Boolean)).toBe(false);
+  });
+});
+
+describe("derived facts on a computed chart", () => {
+  it("are stored, and carry a lord for every house", async () => {
+    const chart = await computeChart(input, "vedic");
+    expect(chart.derived?.houses).toHaveLength(12);
+    expect(chart.derived?.houses.every((h) => h.lord.length > 0)).toBe(true);
+    expect(isChartStale(chart)).toBe(false);
+  });
+
+  it("factsFor uses the stored block when present and computes when absent", async () => {
+    const chart = await computeChart(input, "vedic");
+    expect(factsFor(chart)).toBe(chart.derived);
+    const legacy = { ...chart, derived: undefined, schemaVersion: undefined };
+    expect(isChartStale(legacy)).toBe(true);
+    expect(factsFor(legacy).houses).toHaveLength(12);
   });
 });

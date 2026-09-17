@@ -1,4 +1,4 @@
-import { signIndex, houseFrom } from "./constants";
+import { signIndex, houseFrom, CHART_SCHEMA_VERSION } from "./constants";
 import { detectNatalDoshas, type Condition } from "./doshas";
 import type { Chart, Planet } from "./types";
 
@@ -265,4 +265,18 @@ export function deriveFacts(chart: Chart): Derived {
     : [];
 
   return { planets, houses, dasha, conditions: detectNatalDoshas(chart) };
+}
+
+/**
+ * A chart written before the whole-sign change carries house numbers that
+ * disagree with every renderer's rashi labels. Readers use this to decide
+ * whether to rewrite it.
+ */
+export function isChartStale(chart: Chart): boolean {
+  return (chart.schemaVersion ?? 1) < CHART_SCHEMA_VERSION || !chart.derived;
+}
+
+/** The stored facts, or freshly computed ones for a chart written before this shipped. */
+export function factsFor(chart: Chart): Derived {
+  return chart.derived ?? deriveFacts(chart);
 }

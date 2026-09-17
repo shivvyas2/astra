@@ -1,0 +1,77 @@
+import { describe, it, expect, vi } from "vitest";
+import { ensureCurrentChart, type BirthProfileRow } from "./birthProfile";
+import { CHART_SCHEMA_VERSION } from "@/lib/astrology/constants";
+
+function fakeDb(updateImpl: (payload: unknown) => Promise<{ error: unknown }>) {
+  const eq = vi.fn(async () => updateImpl(lastPayload));
+  let lastPayload: unknown;
+  const update = vi.fn((payload: unknown) => {
+    lastPayload = payload;
+    return { eq };
+  });
+  const from = vi.fn(() => ({ update }));
+  return { from, update, eq } as unknown as Parameters<typeof ensureCurrentChart>[1];
+}
+
+const baseProfile: BirthProfileRow = {
+  id: "row-1",
+  user_id: "user-1",
+  first_name: "Shiv",
+  last_name: "Vyas",
+  birth_date: "1998-02-09",
+  birth_time: "06:30:00",
+  place_name: "Mumbai, India",
+  lat: 19.076,
+  lng: 72.8777,
+  timezone: "Asia/Kolkata",
+  avatar_url: null,
+  chart: null,
+};
+
+describe("ensureCurrentChart", () => {
+  it("returns the profile unchanged when there is no stored vedic chart", async () => {
+    const db = fakeDb(async () => ({ error: null }));
+    const profile = { ...baseProfile, chart: null };
+    const result = await ensureCurrentChart(profile, db);
+    expect(result).toBe(profile);
+  });
+
+  it("returns the profile unchanged when the stored chart is already current", async () => {
+    const current = { schemaVersion: CHART_SCHEMA_VERSION, derived: {} };
+    const profile = { ...baseProfile, chart: { vedic: current, western: current } };
+    const db = fakeDb(async () => ({ error: null }));
+    const result = await ensureCurrentChart(profile, db);
+    expect(result).toBe(profile);
+  });
+
+  it("recomputes and writes both traditions together for a stale chart", async () => {
+    const stale = { schemaVersion: 1 };
+    const profile = { ...baseProfile, chart: { vedic: stale, western: stale } };
+    let written: unknown;
+    const db = fakeDb(async (payload) => {
+      written = payload;
+      return { error: null };
+    });
+    const result = await ensureCurrentChart(profile, db);
+
+    // The write and the returned row both carry a rewritten vedic AND western chart.
+    expect((written as { chart: { vedic: unknown; western: unknown } }).chart.vedic).toBeTruthy();
+    expect((written as { chart: { vedic: unknown; western: unknown } }).chart.western).toBeTruthy();
+    expect(result.chart?.vedic).not.toBe(stale);
+    expect(result.chart?.western).not.toBe(stale);
+    expect((result.chart?.vedic as { schemaVersion?: number }).schemaVersion).toBe(CHART_SCHEMA_VERSION);
+  });
+
+  it("swallows a write failure and returns the original profile", async () => {
+    const stale = { schemaVersion: 1 };
+    const profile = { ...baseProfile, chart: { vedic: stale, western: stale } };
+    const db = fakeDb(async () => {
+      throw new Error("network down");
+    });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await ensureCurrentChart(profile, db);
+    expect(result).toBe(profile);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

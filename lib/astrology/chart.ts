@@ -3,6 +3,7 @@ import SwissEph from "swisseph-wasm";
 import type { BirthInput, Chart, Planet, Tradition } from "./types";
 import { degreeInSign, nakshatraOf, signOf, houseFrom, SIGNS, CHART_SCHEMA_VERSION } from "./constants";
 import { computeVimshottari } from "./dasha";
+import { deriveFacts } from "./derived";
 
 export { CHART_SCHEMA_VERSION };
 
@@ -104,7 +105,7 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
   const sun = planets.find((p) => p.name === "Sun")!;
   const moon = planets.find((p) => p.name === "Moon")!;
 
-  return {
+  const result: Chart = {
     tradition,
     ascendant: { sign: ascSign, degree: Number(degreeInSign(ascLon).toFixed(2)) },
     houses: cusps.map((c) => Number(c.toFixed(2))),
@@ -115,4 +116,5 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
     dasha: tradition === "vedic" ? computeVimshottari(moonAbsLon, ut) : undefined,
     schemaVersion: CHART_SCHEMA_VERSION,
   };
+  return { ...result, derived: deriveFacts(result) };
 }
