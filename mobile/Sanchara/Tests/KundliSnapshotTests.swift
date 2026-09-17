@@ -32,7 +32,8 @@ final class KundliSnapshotTests: XCTestCase {
             dasha: DashaInfo(
                 mahadasha: "Venus", mahadashaStart: "2012-04-01", mahadashaEnd: "2032-04-01",
                 antardasha: "Mercury", antardashaStart: "2025-02-01", antardashaEnd: "2027-12-01"
-            )
+            ),
+            derived: nil
         )
 
         let view = KundliChartView(chart: chart, selected: .constant(nil))

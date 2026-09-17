@@ -31,7 +31,8 @@ final class OnDeviceRoutingTests: XCTestCase {
             moonSign: "Cancer",
             sunSign: "Leo",
             ayanamsa: 24.17,
-            dasha: dasha
+            dasha: dasha,
+            derived: nil
         )
     }
 

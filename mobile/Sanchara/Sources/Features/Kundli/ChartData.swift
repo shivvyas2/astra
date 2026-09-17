@@ -22,11 +22,61 @@ struct NatalChart: Codable, Equatable, Sendable {
     let sunSign: String
     let ayanamsa: Double?
     let dasha: DashaInfo?
+    let derived: DerivedFacts?
 
     struct Ascendant: Codable, Equatable, Sendable {
         let sign: String
         let degree: Double
     }
+}
+
+/// The classical readings the server derives from the positions.
+///
+/// Mirrors `lib/astrology/derived.ts` field for field, the same way
+/// `NatalChart` mirrors `types.ts`. Everything is optional at the top level:
+/// a chart cached in the app group before this shipped decodes with `derived`
+/// nil, and every consumer falls back to what it printed before. A widget or a
+/// Siri intent must never fail to decode a chart it has already stored.
+///
+/// Conditions are deliberately not carried. They are interpretive, and the
+/// on-device model is only allowed to restate records.
+struct DerivedFacts: Codable, Equatable, Sendable {
+    let planets: [DerivedPlanet]
+    let houses: [DerivedHouse]
+    let dasha: [DerivedPeriod]
+
+    func planet(named name: String) -> DerivedPlanet? {
+        planets.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
+    }
+
+    func house(_ number: Int) -> DerivedHouse? {
+        houses.first { $0.number == number }
+    }
+}
+
+struct DerivedPlanet: Codable, Equatable, Sendable {
+    let name: String
+    let house: Int
+    let rules: [Int]
+    let dignity: String
+    let combust: Bool
+    let fromSun: Double?
+    let aspects: [Int]
+    let conjunct: [String]
+}
+
+struct DerivedHouse: Codable, Equatable, Sendable {
+    let number: Int
+    let sign: String
+    let lord: String
+    let lordHouse: Int
+    let occupants: [String]
+}
+
+struct DerivedPeriod: Codable, Equatable, Sendable {
+    let level: String
+    let lord: String
+    let placement: DerivedPlanet?
 }
 
 struct ChartPlanet: Codable, Equatable, Identifiable, Sendable {
