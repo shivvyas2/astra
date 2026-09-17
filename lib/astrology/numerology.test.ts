@@ -91,4 +91,12 @@ describe("numberRelationship", () => {
   it("treats a number as its own friend", () => {
     expect(numberRelationship(3, 3)).toBe("friend");
   });
+
+  it("resolves an asymmetric pair the same way in both directions", () => {
+    // Moon (2) and Venus (6): ENEMIES.Moon is [] but ENEMIES.Venus contains
+    // Moon, so reading only the first argument's row gives "neutral" one way
+    // and "enemy" the other. Both directions must land on the same value.
+    expect(numberRelationship(2, 6)).toBe("enemy");
+    expect(numberRelationship(6, 2)).toBe("enemy");
+  });
 });

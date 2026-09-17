@@ -133,12 +133,25 @@ const ENEMIES: Record<string, string[]> = {
   Saturn: ["Sun", "Moon", "Mars"],
 };
 
+/**
+ * The classical table is genuinely asymmetric — `ENEMIES.Moon` is `[]` but
+ * `ENEMIES.Venus` contains `Moon` — so consulting only `a`'s row would make
+ * `numberRelationship(2, 6)` and `numberRelationship(6, 2)` disagree, and the
+ * prompt renders the result as a reciprocal sentence ("N and M are enemies").
+ * Two users would then get opposite claims about the same pair. Resolved
+ * compoundly instead: enemy if EITHER direction calls it an enemy, friend
+ * only if BOTH directions do, neutral otherwise.
+ */
 export function numberRelationship(a: number, b: number): "friend" | "neutral" | "enemy" {
   const pa = NUMBER_RULER[a];
   const pb = NUMBER_RULER[b];
   if (!pa || !pb) return "neutral";
   if (pa === pb) return "friend";
-  if (FRIENDS[pa]?.includes(pb)) return "friend";
-  if (ENEMIES[pa]?.includes(pb)) return "enemy";
+  const abEnemy = ENEMIES[pa]?.includes(pb) ?? false;
+  const baEnemy = ENEMIES[pb]?.includes(pa) ?? false;
+  if (abEnemy || baEnemy) return "enemy";
+  const abFriend = FRIENDS[pa]?.includes(pb) ?? false;
+  const baFriend = FRIENDS[pb]?.includes(pa) ?? false;
+  if (abFriend && baFriend) return "friend";
   return "neutral";
 }
