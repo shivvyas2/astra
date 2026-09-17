@@ -192,3 +192,77 @@ export function aspectedHouses(name: string, house: number): number[] {
   const offsets = [7, ...(NODES.has(name) ? [] : SPECIAL_ASPECTS[name] ?? [])];
   return offsets.map((n) => ((house - 1 + n - 1) % 12) + 1);
 }
+
+export function deriveFacts(chart: Chart): Derived {
+  const asc = chart.ascendant.sign;
+  const sun = chart.planets.find((p) => p.name === "Sun");
+
+  // Houses are recomputed here rather than read from `planet.house`, so a
+  // chart stored before the whole-sign change still derives correctly. That is
+  // what lets this ship without a backfill.
+  const houseOfPlanet = new Map(chart.planets.map((p) => [p.name, houseFrom(asc, p.sign)]));
+  const inHouse = (n: number) => chart.planets.filter((p) => houseOfPlanet.get(p.name) === n);
+
+  const planets: PlanetFact[] = chart.planets.map((p) => {
+    const house = houseOfPlanet.get(p.name) ?? 0;
+    const { dignity, fromDeepPoint } = dignityOf(p.name, p.sign, p.degree);
+    const aspects = aspectedHouses(p.name, house);
+    return {
+      name: p.name,
+      sign: p.sign,
+      degree: p.degree,
+      house,
+      nakshatra: p.nakshatra,
+      retrograde: p.retrograde,
+      rules: signsRuledBy(p.name).map((sign) => houseFrom(asc, sign)).sort((a, b) => a - b),
+      dignity,
+      fromDeepPoint,
+      combust: sun ? isCombust(p, sun) : false,
+      fromSun: sun && p.name !== "Sun" ? Number(arcFromSun(p, sun).toFixed(2)) : undefined,
+      aspects,
+      aspectsPlanets: aspects.flatMap((h) => inHouse(h).map((x) => x.name)),
+      conjunct: inHouse(house).filter((x) => x.name !== p.name).map((x) => x.name),
+    };
+  });
+
+  const byName = new Map(planets.map((f) => [f.name, f]));
+  const ascIndex = signIndex(asc);
+
+  const houses: HouseFact[] = Array.from({ length: 12 }, (_, i) => {
+    const number = i + 1;
+    const sign = Object.keys(SIGN_LORD)[(ascIndex + i) % 12];
+    const lord = SIGN_LORD[sign];
+    const lordFact = byName.get(lord);
+    return {
+      number,
+      sign,
+      lord,
+      lordHouse: lordFact?.house ?? 0,
+      lordSign: lordFact?.sign ?? "",
+      lordDignity: lordFact?.dignity ?? "neutral",
+      occupants: inHouse(number).map((p) => p.name),
+      aspectedBy: planets.filter((f) => f.aspects.includes(number)).map((f) => f.name),
+    };
+  });
+
+  const dasha: DashaFact[] = chart.dasha
+    ? [
+        {
+          level: "mahadasha" as const,
+          lord: chart.dasha.mahadasha,
+          start: chart.dasha.mahadashaStart,
+          end: chart.dasha.mahadashaEnd,
+          placement: byName.get(chart.dasha.mahadasha),
+        },
+        {
+          level: "antardasha" as const,
+          lord: chart.dasha.antardasha,
+          start: chart.dasha.antardashaStart,
+          end: chart.dasha.antardashaEnd,
+          placement: byName.get(chart.dasha.antardasha),
+        },
+      ]
+    : [];
+
+  return { planets, houses, dasha, conditions: detectNatalDoshas(chart) };
+}

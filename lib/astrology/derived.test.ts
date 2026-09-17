@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { dignityOf, isCombust, aspectedHouses } from "./derived";
-import type { Planet } from "./types";
+import { dignityOf, isCombust, aspectedHouses, deriveFacts } from "./derived";
+import type { Chart, Planet } from "./types";
 
 const p = (over: Partial<Planet>): Planet => ({
   name: "Mars", sign: "Aries", degree: 10, house: 1, retrograde: false, ...over,
@@ -105,5 +105,91 @@ describe("aspectedHouses", () => {
   it("gives the nodes the 7th only", () => {
     expect(aspectedHouses("Rahu", 3)).toEqual([9]);
     expect(aspectedHouses("Ketu", 3)).toEqual([9]);
+  });
+});
+
+const chart: Chart = {
+  tradition: "vedic",
+  ascendant: { sign: "Scorpio", degree: 14.5 },
+  houses: Array.from({ length: 12 }, (_, i) => i * 30),
+  planets: [
+    // house numbers here are deliberately WRONG (legacy Placidus) so the test
+    // proves deriveFacts recomputes them.
+    { name: "Sun", sign: "Leo", degree: 10, house: 99, retrograde: false },
+    { name: "Moon", sign: "Cancer", degree: 21, house: 99, retrograde: false },
+    { name: "Mars", sign: "Capricorn", degree: 28, house: 99, retrograde: false },
+    { name: "Mercury", sign: "Leo", degree: 12, house: 99, retrograde: false },
+    { name: "Jupiter", sign: "Gemini", degree: 3, house: 99, retrograde: false },
+    { name: "Venus", sign: "Taurus", degree: 2, house: 99, retrograde: false },
+    { name: "Saturn", sign: "Pisces", degree: 12, house: 99, retrograde: true },
+    { name: "Rahu", sign: "Aquarius", degree: 5, house: 99, retrograde: true },
+    { name: "Ketu", sign: "Leo", degree: 5, house: 99, retrograde: true },
+  ],
+  moonSign: "Cancer",
+  sunSign: "Leo",
+  dasha: {
+    mahadasha: "Jupiter", mahadashaStart: "2012-04-01", mahadashaEnd: "2028-04-01",
+    antardasha: "Saturn", antardashaStart: "2025-02-01", antardashaEnd: "2027-12-01",
+  },
+};
+
+describe("deriveFacts", () => {
+  const d = deriveFacts(chart);
+  const fact = (name: string) => d.planets.find((p) => p.name === name)!;
+
+  it("recomputes houses whole-sign, ignoring the stored numbers", () => {
+    // Scorpio lagna: Leo is the 10th sign from Scorpio.
+    expect(fact("Sun").house).toBe(10);
+    expect(fact("Moon").house).toBe(9);
+    expect(fact("Saturn").house).toBe(5);
+  });
+
+  it("assigns lordships, and none to the nodes", () => {
+    // Scorpio lagna: Mars rules Aries (6th) and Scorpio (1st).
+    expect(fact("Mars").rules.sort((a, b) => a - b)).toEqual([1, 6]);
+    expect(fact("Rahu").rules).toEqual([]);
+    expect(fact("Ketu").rules).toEqual([]);
+  });
+
+  it("marks Mars exalted in Capricorn at its deep point", () => {
+    expect(fact("Mars").dignity).toBe("exalted");
+    expect(fact("Mars").fromDeepPoint).toBe(0);
+  });
+
+  it("finds conjunctions and aspects by house", () => {
+    expect(fact("Sun").conjunct.sort()).toEqual(["Ketu", "Mercury"]);
+    // Sun in house 10 aspects the 4th.
+    expect(fact("Sun").aspects).toEqual([4]);
+  });
+
+  it("marks Mercury combust, two degrees from the Sun", () => {
+    expect(fact("Mercury").combust).toBe(true);
+    expect(fact("Mercury").fromSun).toBeCloseTo(2);
+    expect(fact("Sun").fromSun).toBeUndefined();
+  });
+
+  it("gives every house a lord and says where that lord sits", () => {
+    expect(d.houses).toHaveLength(12);
+    const seventh = d.houses.find((h) => h.number === 7)!;
+    expect(seventh.sign).toBe("Taurus");
+    expect(seventh.lord).toBe("Venus");
+    expect(seventh.lordHouse).toBe(7); // Venus is itself in Taurus
+    expect(seventh.occupants).toEqual(["Venus"]);
+  });
+
+  it("carries both dasha lords with their own placements", () => {
+    expect(d.dasha.map((x) => x.lord)).toEqual(["Jupiter", "Saturn"]);
+    const maha = d.dasha[0];
+    expect(maha.level).toBe("mahadasha");
+    expect(maha.placement?.house).toBe(8); // Gemini is the 8th from Scorpio
+    expect(maha.placement?.rules.sort((a, b) => a - b)).toEqual([2, 5]);
+  });
+
+  it("folds in the natal conditions", () => {
+    expect(Array.isArray(d.conditions)).toBe(true);
+  });
+
+  it("returns no dasha facts for a western chart", () => {
+    expect(deriveFacts({ ...chart, tradition: "western", dasha: undefined }).dasha).toEqual([]);
   });
 });
