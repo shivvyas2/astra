@@ -69,8 +69,13 @@ final class OnDeviceReasoner {
                            // Words the derived rows can answer from. Without these the
                            // richer table is unreachable: "who rules my 7th" names no
                            // body, so the cheap filter would reject it before the model runs.
-                           "lord", "ruler", "rules", "aspect", "exalted", "debilitated",
-                           "combust", "strength"]
+                           // `rules`/`ruler` stay despite being ordinary English because
+                           // "which planet rules my chart" has no other route in (no body,
+                           // no ordinal). `aspect` and `strength` were tried and dropped:
+                           // every question they usefully catch already routes via a body
+                           // name or an ordinal, so they added only false positives
+                           // ("what aspects of my life", "where do I get my strength from").
+                           "lord", "ruler", "rules", "exalted", "debilitated", "combust"]
         return periodWords.contains { lower.contains($0) }
     }
 
