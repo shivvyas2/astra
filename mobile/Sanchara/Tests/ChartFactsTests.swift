@@ -16,6 +16,15 @@ final class ChartFactsTests: XCTestCase {
         combust: false, fromSun: 41.2, aspects: [1], conjunct: []
     )
 
+    /// Exercises the two `extras(for:)` branches Venus never reaches: `combust`
+    /// (one of the brief's seven required vocabulary mappings) and `conjunct`.
+    /// `fromSun` is deliberately fractional so `%.0f` rounding is actually
+    /// checked rather than trivially true of a whole number: 4.6 rounds to 5.
+    private let mars = DerivedPlanet(
+        name: "Mars", house: 10, rules: [3, 10], dignity: "neutral",
+        combust: true, fromSun: 4.6, aspects: [], conjunct: ["Jupiter"]
+    )
+
     /// A dasha, so `currentPeriod()` — which is nil whenever `chart.dasha` is
     /// nil — actually renders. This is what lets the forbidden-vocabulary
     /// sweep reach the derived-append branch inside `currentPeriod()`, and
@@ -33,6 +42,8 @@ final class ChartFactsTests: XCTestCase {
             planets: [
                 ChartPlanet(name: "Venus", sign: "Taurus", degree: 2.0, house: 7,
                             retrograde: false, nakshatra: "Krittika"),
+                ChartPlanet(name: "Mars", sign: "Capricorn", degree: 15.0, house: 10,
+                            retrograde: false, nakshatra: nil),
             ],
             moonSign: "Cancer",
             sunSign: "Leo",
@@ -44,7 +55,7 @@ final class ChartFactsTests: XCTestCase {
 
     private var full: ChartFacts {
         ChartFacts(chart: chart(derived: DerivedFacts(
-            planets: [venus],
+            planets: [venus, mars],
             houses: [DerivedHouse(number: 7, sign: "Taurus", lord: "Venus",
                                   lordHouse: 7, occupants: ["Venus"])],
             dasha: []
@@ -78,12 +89,24 @@ final class ChartFactsTests: XCTestCase {
         XCTAssertTrue(row.contains("Linked to sections 1"), row)
     }
 
+    /// The two `extras(for:)` branches no other fixture reaches: `combust`
+    /// (one of the brief's seven required vocabulary mappings, never rendered
+    /// before this test existed) and `conjunct`. 4.6 degrees rounds to 5 under
+    /// `%.0f`, which this pins exactly rather than trusting the rounding mode.
+    func testBodyRowRendersCombustDistanceAndConjunctPlanets() throws {
+        let row = try XCTUnwrap(full.body(named: "Mars"))
+        XCTAssertTrue(row.contains("Within 5 degrees of Sun"), row)
+        XCTAssertTrue(row.contains("Filed alongside Jupiter"), row)
+    }
+
     /// Every row builder that can carry derived text — `body(named:)` (via
-    /// `everything()`), `section(_:)`, and `currentPeriod()` (via
-    /// `fullWithPeriod`, which is the only fixture where it renders) — is
-    /// swept here. A banned word leaking from any one of them fails this test.
+    /// `everything()`, which now also renders Mars's combust/conjunct
+    /// branches), `section(_:)`, and `currentPeriod()` (via `fullWithPeriod`,
+    /// which is the only fixture where it renders) — is swept here. A banned
+    /// word leaking from any one of them fails this test.
     func testNoForbiddenVocabularyReachesTheModel() throws {
         var row = try XCTUnwrap(full.body(named: "Venus")) + full.everything()
+        row += try XCTUnwrap(full.body(named: "Mars"))
         row += try XCTUnwrap(full.section(7))
         row += try XCTUnwrap(fullWithPeriod.currentPeriod())
         for word in ["lord", "aspect", "exalt", "debilit", "house", "dosha", "planet", "astrolog"] {
@@ -108,7 +131,13 @@ final class ChartFactsTests: XCTestCase {
         let row = try XCTUnwrap(bare.body(named: "Venus"))
         XCTAssertTrue(row.contains("Venus"), row)
         XCTAssertFalse(row.contains("Controls"), row)
-        XCTAssertNotNil(bare.section(7))
+
+        // `chart.house(7)` never depended on `derived`, so asserting non-nil
+        // here would prove nothing new about the branch this task added.
+        // What must actually stay silent is the "controlled by" sentence.
+        let sectionRow = try XCTUnwrap(bare.section(7))
+        XCTAssertFalse(sectionRow.contains("controlled by"), sectionRow)
+
         XCTAssertFalse(bare.everything().isEmpty)
 
         // A chart with a dasha but no derived block must still answer the
