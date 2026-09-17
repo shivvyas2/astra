@@ -16,7 +16,7 @@ describe("computeNumerology", () => {
   });
 });
 
-import { personalYear, personalMonth, loShu, numberRelationship } from "./numerology";
+import { personalYear, personalMonth, personalCycle, loShu, numberRelationship } from "./numerology";
 
 describe("personalYear", () => {
   it("reduces birth month plus birth day plus the current year", () => {
@@ -33,6 +33,31 @@ describe("personalMonth", () => {
   it("adds the calendar month to the personal year and reduces", () => {
     // personal year 5 in Sept (9): 5 + 9 = 14 -> 5
     expect(personalMonth("1990-07-15", "2026-09-17")).toBe(5);
+  });
+});
+
+describe("personalCycle", () => {
+  // 1990-07-15 / 2026-09-17 (the fixture used elsewhere in this file) is
+  // unusable here: both personalYear and personalMonth reduce to 5 for that
+  // pair, so a year/month field swap would be invisible to any assertion
+  // built on it. This pair is chosen so the two results are genuinely
+  // distinct, and each assertion below is pinned to its own literal — a
+  // { year, month } built with the fields transposed fails both.
+  //
+  // birthDate "1985-03-22" -> birth month 3, birth day 22.
+  // today "2026-01-10" -> calendar year 2026, calendar month 01 (January).
+  //
+  // personalYear: 3 + 22 + 2026 = 2051 -> digit sum 2+0+5+1 = 8.
+  // personalMonth: personalYear (8) + calendar month (1) = 9 -> already a
+  // single digit, so reduceToDigit(9) = 9.
+  it("pairs the year and month from one call, matching the standalone functions", () => {
+    const result = personalCycle("1985-03-22", "2026-01-10");
+    expect(result.year).toBe(8);
+    expect(result.month).toBe(9);
+    expect(result).toEqual({
+      year: personalYear("1985-03-22", "2026-01-10"),
+      month: personalMonth("1985-03-22", "2026-01-10"),
+    });
   });
 });
 

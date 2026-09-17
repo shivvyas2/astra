@@ -194,7 +194,7 @@ describe("numerology prompt", () => {
     // Anchored to the full literal sentence, not just "friend|neutral|enemy"
     // anywhere in the text: catches a swapped namank/mulank argument order or
     // a wrong relationship word.
-    expect(p).toContain("The namank 1 is a enemy of the mulank 6.");
+    expect(p).toContain("The namank 1 and the mulank 6 are enemies.");
   });
 
   it("keeps the exact-numbers rule", () => {

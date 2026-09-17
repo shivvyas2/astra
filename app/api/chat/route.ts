@@ -8,8 +8,7 @@ import {
   computeNameNumber,
   loShu,
   numberRelationship,
-  personalYear,
-  personalMonth,
+  personalCycle,
 } from "@/lib/astrology/numerology";
 import { transitChart, describeGochara, describeToday } from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
@@ -93,10 +92,7 @@ export async function POST(request: Request) {
       todaySystem = buildTodaySystem({
         today,
         maxWords,
-        personal: {
-          year: personalYear(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
-          month: personalMonth(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
-        },
+        personal: personalCycle(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
       });
     } else {
       const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];

@@ -10,6 +10,13 @@ const DIGNITY_WORD: Record<Dignity, string> = {
   neutral: "neutral",
 };
 
+/** Avoids "is a enemy"/"is a friend" article agreement by phrasing the pair as the subject. */
+const RELATIONSHIP_PHRASE: Record<"friend" | "neutral" | "enemy", string> = {
+  friend: "are friends",
+  neutral: "are neutral to each other",
+  enemy: "are enemies",
+};
+
 /** "s" for a plural list of houses, "" for a single one — shared so every "rules"/"ruling" phrase agrees. */
 function houseSuffix(count: number): string {
   return count > 1 ? "s" : "";
@@ -197,7 +204,7 @@ ${args.firstName}'s real numbers, computed from their birth date and name. These
 - Namank (name number, from "${args.fullName}"): ${args.namank}
 - Repeated digits in the birth date: ${args.grid.repeated.join(", ") || "none"}.
 - Missing digits: ${args.grid.missing.join(", ") || "none"}.
-- The namank ${args.namank} is a ${args.namankToMulank} of the mulank ${args.mulank}.
+- The namank ${args.namank} and the mulank ${args.mulank} ${RELATIONSHIP_PHRASE[args.namankToMulank]}.
 
 Accuracy:
 - Every number you cite must match the values above exactly. Never invent or alter one.

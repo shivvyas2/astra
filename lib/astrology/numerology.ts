@@ -56,6 +56,20 @@ export function personalMonth(birthDate: string, today: string): number {
   return reduceToDigit(personalYear(birthDate, today) + month);
 }
 
+/**
+ * Both personal-cycle numbers together, from one call.
+ *
+ * `personalYear` and `personalMonth` take identical arguments and differ only
+ * by which function is named, so a caller building `{ year, month }` from two
+ * separate positional calls can have them silently transposed — every
+ * existing test still passes, because nothing pins which call produced which
+ * field. Wrapping the pairing here, in a function a unit test can assert
+ * against by name, moves that risk out of every call site.
+ */
+export function personalCycle(birthDate: string, today: string): { year: number; month: number } {
+  return { year: personalYear(birthDate, today), month: personalMonth(birthDate, today) };
+}
+
 export type LoShu = {
   /** How many times each digit 1-9 appears in the birth date. */
   counts: Record<number, number>;
