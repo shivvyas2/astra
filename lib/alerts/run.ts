@@ -13,6 +13,28 @@ const NOTIFIABLE: Severity[] = ["caution", "warning"];
 /** A single alert stays readable; more than this and it becomes a list. */
 const MAX_CONDITIONS_PER_ALERT = 6;
 
+/**
+ * Which newly-detected conditions are worth waking someone for.
+ *
+ * A natal condition is fixed at birth: it cannot start or end, so a change in
+ * one is always an artifact of the computation changing — a house system, a
+ * detector, an ayanamsa — and never an event. Those are recorded silently. The
+ * one exception is a user's first read, where the whole natal set is genuinely
+ * news to them.
+ *
+ * Transit conditions are the opposite: changing is what they do.
+ */
+export function partitionForAlerts<T extends { scope: string }>(args: {
+  started: T[];
+  hadNatalRows: boolean;
+}): { alert: T[]; silent: T[] } {
+  if (!args.hadNatalRows) return { alert: args.started, silent: [] };
+  return {
+    alert: args.started.filter((c) => c.scope !== "natal"),
+    silent: args.started.filter((c) => c.scope === "natal"),
+  };
+}
+
 type ProfileRow = {
   user_id: string;
   first_name: string;
@@ -121,6 +143,16 @@ export async function runAlertsForUser(
   const current = detectConditions(natal, transit);
   const currentBySignature = new Map(current.map((c) => [c.signature, c]));
 
+  // Whether this user has ever had a natal row on record — the only case in
+  // which a natal condition's signature changing is genuinely news, rather
+  // than an artifact of the computation moving under them.
+  const { count: natalCount } = await admin
+    .from("transit_conditions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", profile.user_id)
+    .eq("scope", "natal");
+  const hadNatalRows = (natalCount ?? 0) > 0;
+
   const { data: openRows, error: openError } = await admin
     .from("transit_conditions")
     .select("id, kind, signature, label, severity, scope, detail")
@@ -160,8 +192,15 @@ export async function runAlertsForUser(
     if (error) throw new Error(error.message);
   }
 
-  const startedWorth = started.filter((c) => NOTIFIABLE.includes(c.severity)).slice(0, MAX_CONDITIONS_PER_ALERT);
-  const endedWorth: Condition[] = ended
+  // Every row above is still inserted/closed regardless of scope — the natal
+  // filter only decides what surfaces in the alert and push payloads.
+  const { alert: startedToAlert } = partitionForAlerts({ started, hadNatalRows });
+  const { alert: endedToAlert } = partitionForAlerts({ started: ended, hadNatalRows });
+
+  const startedWorth = startedToAlert
+    .filter((c) => NOTIFIABLE.includes(c.severity))
+    .slice(0, MAX_CONDITIONS_PER_ALERT);
+  const endedWorth: Condition[] = endedToAlert
     .filter((row) => NOTIFIABLE.includes(row.severity))
     .slice(0, MAX_CONDITIONS_PER_ALERT)
     .map((row) => ({
