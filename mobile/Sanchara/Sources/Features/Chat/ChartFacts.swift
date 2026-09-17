@@ -34,13 +34,50 @@ struct ChartFacts: Sendable {
         var line = "\(planet.name): position \(planet.sign) \(planet.degreeText), section \(planet.house)"
         if let nakshatra = planet.nakshatra { line += ", segment \(nakshatra)" }
         if planet.retrograde { line += ", marked retrograde" }
-        return line + "."
+        let tail = extras(for: planet.name)
+        return tail.isEmpty ? line + "." : line + ". " + tail.joined(separator: ". ") + "."
+    }
+
+    /// The derived facts, stated without a single word the on-device model
+    /// reads as fortune telling. See the note at the top of this file: framing
+    /// is what decides whether the model answers or refuses. A chart with no
+    /// `derived` block (cached before Task 12 shipped) yields no extras here,
+    /// and `body(named:)` falls back to the position line it always printed.
+    private static func strengthWord(_ dignity: String) -> String {
+        switch dignity {
+        case "exalted": "highest"
+        case "debilitated": "lowest"
+        case "moolatrikona", "own": "high"
+        default: "standard"
+        }
+    }
+
+    private func extras(for name: String) -> [String] {
+        guard let d = chart.derived?.planet(named: name) else { return [] }
+        var parts: [String] = []
+        if !d.rules.isEmpty {
+            parts.append("Controls sections \(d.rules.map(String.init).joined(separator: ", "))")
+        }
+        parts.append("Strength rating: \(Self.strengthWord(d.dignity))")
+        if d.combust, let gap = d.fromSun {
+            parts.append("Within \(String(format: "%.0f", gap)) degrees of Sun")
+        }
+        if !d.aspects.isEmpty {
+            parts.append("Linked to sections \(d.aspects.map(String.init).joined(separator: ", "))")
+        }
+        if !d.conjunct.isEmpty {
+            parts.append("Filed alongside \(d.conjunct.joined(separator: ", "))")
+        }
+        return parts
     }
 
     /// Everything filed under one section number.
     func section(_ number: Int) -> String? {
         guard let house = chart.house(number) else { return nil }
-        let head = "Section \(number) holds \(house.rashi.english) (\(house.rashi.sanskrit)), position \(house.rashi.number) of 12."
+        var head = "Section \(number) holds \(house.rashi.english) (\(house.rashi.sanskrit)), position \(house.rashi.number) of 12."
+        if let d = chart.derived?.house(number) {
+            head += " It is controlled by \(d.lord), which is filed in section \(d.lordHouse)."
+        }
         guard !house.planets.isEmpty else { return head + " No entries are filed under it." }
         let entries = house.planets
             .map { "\($0.name) at \($0.degreeText)\($0.retrograde ? ", retrograde" : "")" }
@@ -51,11 +88,20 @@ struct ChartFacts: Sendable {
     /// The current period rows.
     func currentPeriod() -> String? {
         guard let dasha = chart.dasha else { return nil }
-        return """
+        var text = """
             Current major period: \(dasha.mahadasha), running \(Self.day(dasha.mahadashaStart)) to \
             \(Self.day(dasha.mahadashaEnd)). Current minor period inside it: \(dasha.antardasha), \
             running \(Self.day(dasha.antardashaStart)) to \(Self.day(dasha.antardashaEnd)).
             """
+        for period in chart.derived?.dasha ?? [] {
+            guard let placement = period.placement else { continue }
+            var line = " Entry \(period.lord) is filed in section \(placement.house)"
+            if !placement.rules.isEmpty {
+                line += ", controlling sections \(placement.rules.map(String.init).joined(separator: ", "))"
+            }
+            text += line + "."
+        }
+        return text
     }
 
     /// The header rows — the three values the table is indexed by.
