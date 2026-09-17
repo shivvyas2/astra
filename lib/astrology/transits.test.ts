@@ -47,3 +47,25 @@ describe("describeGochara", () => {
     expect(text).not.toContain("undefined");
   });
 });
+
+describe("describeGochara affliction inclusion", () => {
+  // Natal Moon in Cancer, transiting Saturn also in Cancer: houseFrom(Cancer,
+  // Cancer) is the 1st, which detectTransitAfflictions reads as the peak phase
+  // of Sade Sati — a real, non-vacuous affliction to assert against.
+  const transitWithAffliction: Chart = {
+    ...natal,
+    planets: [{ name: "Saturn", sign: "Cancer", degree: 5, house: 1, retrograde: false }],
+  };
+
+  it("includes affliction lines by default", () => {
+    const text = describeGochara(natal, transitWithAffliction);
+    expect(text).toContain("Sade Sati");
+  });
+
+  it("omits affliction lines when includeAfflictions is false", () => {
+    const text = describeGochara(natal, transitWithAffliction, { includeAfflictions: false });
+    expect(text).not.toContain("Sade Sati");
+    // Still the plain planet-in-sign line — only the affliction block is gone.
+    expect(text).toContain("Saturn in Cancer");
+  });
+});

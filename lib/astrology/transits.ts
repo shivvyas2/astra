@@ -51,6 +51,13 @@ export async function transitChart(args: {
   }
 }
 
+/** "a", "a and b", "a, b, and c" — reads sanely at any list length. */
+function joinWithAnd(items: string[]): string {
+  if (items.length <= 1) return items.join("");
+  if (items.length === 2) return items.join(" and ");
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
 /**
  * Today's sky read against this person's chart.
  *
@@ -62,8 +69,18 @@ export async function transitChart(args: {
  *
  * Still day-stable: the transit chart is sampled once per day at midday UTC, so
  * this text can sit in the cached half of the system prompt.
+ *
+ * `includeAfflictions` defaults to true because the chat route has no other
+ * source for them. The alerts/predictions job already surfaces
+ * `detectTransitAfflictions` itself, filtered by severity, in its own prompt
+ * block — passing `false` there avoids saying the same thing twice in one
+ * prompt.
  */
-export function describeGochara(natal: Chart, transit: Chart): string {
+export function describeGochara(
+  natal: Chart,
+  transit: Chart,
+  { includeAfflictions = true }: { includeAfflictions?: boolean } = {},
+): string {
   const asc = natal.ascendant.sign;
   const moonSign = natal.moonSign;
 
@@ -78,13 +95,15 @@ export function describeGochara(natal: Chart, transit: Chart): string {
       `house ${fromAsc} from the ascendant`,
       `${ORDINAL[fromMoon]} from the Moon`,
     ];
-    if (touching.length > 0) parts.push(`over ${touching.join(" and ")}`);
+    if (touching.length > 0) parts.push(`over ${joinWithAnd(touching)}`);
     return `- ${parts.join(", ")}.`;
   });
 
-  const afflictions = detectTransitAfflictions(natal, transit);
-  if (afflictions.length > 0) {
-    lines.push(...afflictions.map((c) => `- ${c.label}: ${c.detail}`));
+  if (includeAfflictions) {
+    const afflictions = detectTransitAfflictions(natal, transit);
+    if (afflictions.length > 0) {
+      lines.push(...afflictions.map((c) => `- ${c.label}: ${c.detail}`));
+    }
   }
   return lines.join("\n");
 }

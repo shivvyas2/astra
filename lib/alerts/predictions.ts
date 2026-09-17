@@ -105,7 +105,10 @@ async function writeDueReading(
     firstName: profile.first_name,
     chart,
     numerology: computeNumerology(profile.birth_date),
-    transits: describeGochara(chart, transits),
+    // This job already surfaces detectTransitAfflictions itself, filtered by
+    // severity, in the "Active in their chart right now" block below — asking
+    // for them here too would say the same thing twice in one prompt.
+    transits: describeGochara(chart, transits, { includeAfflictions: false }),
     today: nowLocal.toFormat("cccc, LLLL d, yyyy"),
     slot,
     conditions,
