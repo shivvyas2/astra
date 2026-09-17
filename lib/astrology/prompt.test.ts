@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { buildSystemPrompt, buildChartSystem, buildTodaySystem } from "./prompt";
+import { buildSystemPrompt, buildChartSystem, buildTodaySystem, buildNumerologySystem } from "./prompt";
 import { deriveFacts } from "./derived";
+import { loShu, numberRelationship } from "./numerology";
 import type { Chart } from "./types";
 
 const chart: Chart = {
@@ -165,5 +166,53 @@ describe("derived facts survive a JSON round trip", () => {
     const a = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived: fresh });
     const b = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived: roundTripped });
     expect(a).toBe(b);
+  });
+});
+
+describe("numerology prompt", () => {
+  // 1990-07-15 -> digits 1,9,9,0,0,7,1,5: 1 and 9 repeat twice each; 2,3,4,6,8
+  // never appear. numberRelationship(1, 6) is Sun vs Venus, which ENEMIES
+  // lists explicitly, so this fixture exercises a real (non-default) branch.
+  const p = buildNumerologySystem({
+    firstName: "Aditi",
+    fullName: "Aditi Sharma",
+    mulank: 6,
+    bhagyank: 3,
+    namank: 1,
+    grid: loShu("1990-07-15"),
+    namankToMulank: numberRelationship(1, 6),
+  });
+
+  it("names which digits repeat and which are missing, with the exact digits", () => {
+    // Anchored to the literal line: wrong digits, a swapped repeated/missing
+    // pair, or a dropped line would all fail this.
+    expect(p).toContain("Repeated digits in the birth date: 1, 9.");
+    expect(p).toContain("Missing digits: 2, 3, 4, 6, 8.");
+  });
+
+  it("says how the name number sits with the root number, naming both numbers and the relationship", () => {
+    // Anchored to the full literal sentence, not just "friend|neutral|enemy"
+    // anywhere in the text: catches a swapped namank/mulank argument order or
+    // a wrong relationship word.
+    expect(p).toContain("The namank 1 is a enemy of the mulank 6.");
+  });
+
+  it("keeps the exact-numbers rule", () => {
+    expect(p.toLowerCase()).toContain("never invent or alter one");
+  });
+});
+
+describe("buildTodaySystem with personal cycles", () => {
+  it("carries the personal year and month, each with its own value", () => {
+    // Distinct year/month values so a swap between the two fields, or either
+    // one rendering the wrong number, fails this.
+    const t = buildTodaySystem({ today: "Tuesday", personal: { year: 5, month: 7 } });
+    expect(t).toContain("personal year 5");
+    expect(t).toContain("personal month 7");
+    expect(t).toMatch(/personal year 5 and personal month 7/);
+  });
+
+  it("omits them when absent", () => {
+    expect(buildTodaySystem({ today: "Tuesday" })).not.toContain("personal year");
   });
 });

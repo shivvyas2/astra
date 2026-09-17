@@ -3,7 +3,14 @@ import { DateTime } from "luxon";
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { buildChartSystem, buildTodaySystem, buildNumerologySystem } from "@/lib/astrology/prompt";
-import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
+import {
+  computeNumerology,
+  computeNameNumber,
+  loShu,
+  numberRelationship,
+  personalYear,
+  personalMonth,
+} from "@/lib/astrology/numerology";
 import { transitChart, describeGochara, describeToday } from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
@@ -73,14 +80,24 @@ export async function POST(request: Request) {
 
     if (body.tradition === "numerology") {
       const fullName = `${profile.first_name} ${profile.last_name}`.trim();
+      const namank = computeNameNumber(fullName);
       stableSystem = buildNumerologySystem({
         firstName: profile.first_name,
         fullName,
         mulank: num.mulank,
         bhagyank: num.bhagyank,
-        namank: computeNameNumber(fullName),
+        namank,
+        grid: loShu(String(profile.birth_date)),
+        namankToMulank: numberRelationship(namank, num.mulank),
       });
-      todaySystem = buildTodaySystem({ today, maxWords });
+      todaySystem = buildTodaySystem({
+        today,
+        maxWords,
+        personal: {
+          year: personalYear(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
+          month: personalMonth(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
+        },
+      });
     } else {
       const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
       const derived = factsFor(chart);

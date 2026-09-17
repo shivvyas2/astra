@@ -1,5 +1,6 @@
 import type { Chart, Tradition } from "./types";
 import { factsFor, type Derived, type Dignity, type PlanetFact } from "./derived";
+import type { LoShu } from "./numerology";
 
 const DIGNITY_WORD: Record<Dignity, string> = {
   exalted: "exalted",
@@ -132,8 +133,19 @@ Never invent, and never flatter. If the honest reading is unremarkable, say so p
  * computed for the day, not the minute, so this text is stable for hours —
  * which is what lets the block above stay a cache hit.
  */
-export function buildTodaySystem(args: { today: string; transits?: string; maxWords?: number }): string {
+export function buildTodaySystem(args: {
+  today: string;
+  transits?: string;
+  maxWords?: number;
+  personal?: { year: number; month: number };
+}): string {
   const lines = [`Today is ${args.today}. Use it for anything about "today", "now", or the current period.`];
+  if (args.personal) {
+    lines.push(
+      `They are in personal year ${args.personal.year} and personal month ${args.personal.month}. ` +
+        `Use these for anything about this year or this month.`,
+    );
+  }
   if (args.transits) {
     lines.push(
       "",
@@ -174,6 +186,8 @@ export function buildNumerologySystem(args: {
   mulank: number;
   bhagyank: number;
   namank: number;
+  grid: LoShu;
+  namankToMulank: "friend" | "neutral" | "enemy";
 }): string {
   return `You are Sanchara, a warm, precise Vedic numerologist speaking with ${args.firstName}.
 
@@ -181,6 +195,9 @@ ${args.firstName}'s real numbers, computed from their birth date and name. These
 - Mulank (root, from the birth day): ${args.mulank}
 - Bhagyank (destiny, from the full birth date): ${args.bhagyank}
 - Namank (name number, from "${args.fullName}"): ${args.namank}
+- Repeated digits in the birth date: ${args.grid.repeated.join(", ") || "none"}.
+- Missing digits: ${args.grid.missing.join(", ") || "none"}.
+- The namank ${args.namank} is a ${args.namankToMulank} of the mulank ${args.mulank}.
 
 Accuracy:
 - Every number you cite must match the values above exactly. Never invent or alter one.
@@ -200,6 +217,8 @@ export function buildNumerologyPrompt(args: {
   mulank: number;
   bhagyank: number;
   namank: number;
+  grid: LoShu;
+  namankToMulank: "friend" | "neutral" | "enemy";
   today?: string;
   maxWords?: number;
 }): string {
