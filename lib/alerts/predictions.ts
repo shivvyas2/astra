@@ -7,6 +7,7 @@ import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "
 import { buildChartSystem, buildTodaySystem } from "@/lib/astrology/prompt";
 import { computeNumerology } from "@/lib/astrology/numerology";
 import { transitChart, describeGochara } from "@/lib/astrology/transits";
+import { factsFor } from "@/lib/astrology/derived";
 import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
@@ -164,6 +165,7 @@ export async function composePrediction(args: {
     firstName: args.firstName,
     tradition: "vedic",
     chart: args.chart,
+    derived: factsFor(args.chart),
     numerology: args.numerology,
   });
   const todayBlock = buildTodaySystem({ today: args.today, transits: args.transits, maxWords: 150 });

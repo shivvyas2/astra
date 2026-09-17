@@ -5,6 +5,7 @@ import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking,
 import { buildChartSystem, buildTodaySystem, buildNumerologySystem } from "@/lib/astrology/prompt";
 import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
 import { transitChart, describeGochara, describeToday } from "@/lib/astrology/transits";
+import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 import { selectHistory } from "@/lib/data/history";
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
       todaySystem = buildTodaySystem({ today, maxWords });
     } else {
       const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
+      const derived = factsFor(chart);
 
       // Live transits, computed once per day per neighbourhood and shared.
       let transits: string | undefined;
@@ -96,6 +98,7 @@ export async function POST(request: Request) {
         firstName: profile.first_name,
         tradition: body.tradition as Tradition,
         chart,
+        derived,
         numerology: num,
       });
 
