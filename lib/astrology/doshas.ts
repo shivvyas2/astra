@@ -1,5 +1,5 @@
 import type { Chart, Planet } from "./types";
-import { SIGNS } from "./constants";
+import { SIGNS, signIndex, houseFrom } from "./constants";
 
 export type Severity = "info" | "caution" | "warning";
 
@@ -30,22 +30,12 @@ export function highestSeverity(conditions: { severity: Severity }[]): Severity 
   );
 }
 
-function signIndex(sign: string): number {
-  return SIGNS.indexOf(sign as (typeof SIGNS)[number]);
-}
-
 /** Absolute ecliptic longitude, rebuilt from the stored sign + degree-in-sign. */
 function longitudeOf(planet: Planet): number {
   return signIndex(planet.sign) * 30 + planet.degree;
 }
 
-/** The 1-indexed house of `sign` counted from `from` — the classical "Nth from". */
-export function houseFrom(from: string, sign: string): number {
-  const a = signIndex(from);
-  const b = signIndex(sign);
-  if (a < 0 || b < 0) return 0;
-  return ((b - a + 12) % 12) + 1;
-}
+export { houseFrom };
 
 function planet(chart: Chart, name: string): Planet | undefined {
   return chart.planets.find((p) => p.name === name);

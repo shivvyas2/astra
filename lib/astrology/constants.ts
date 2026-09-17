@@ -24,3 +24,20 @@ export function nakshatraOf(longitude: number): string {
   const idx = Math.floor(((longitude % 360) + 360) % 360 / (360 / 27));
   return NAKSHATRAS[idx];
 }
+
+/** -1 when the name is not one of the twelve. */
+export function signIndex(sign: string): number {
+  return SIGNS.indexOf(sign as (typeof SIGNS)[number]);
+}
+
+/**
+ * The 1-indexed house of `sign` counted from `from` — the classical "Nth from".
+ * Returns 0 when either name is unknown, so a caller can tell it apart from a
+ * real house number.
+ */
+export function houseFrom(from: string, sign: string): number {
+  const a = signIndex(from);
+  const b = signIndex(sign);
+  if (a < 0 || b < 0) return 0;
+  return ((b - a + 12) % 12) + 1;
+}
