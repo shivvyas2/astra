@@ -65,7 +65,12 @@ final class OnDeviceReasoner {
         if ChartFacts.bodyNames.contains(where: { lower.contains($0.lowercased()) }) { return true }
         if ChartFacts.sectionNumber(in: lower) != nil { return true }
         let periodWords = ["dasha", "mahadasha", "antardasha", "period", "lagna", "ascendant",
-                           "rising", "nakshatra", "moon sign", "sun sign", "rashi"]
+                           "rising", "nakshatra", "moon sign", "sun sign", "rashi",
+                           // Words the derived rows can answer from. Without these the
+                           // richer table is unreachable: "who rules my 7th" names no
+                           // body, so the cheap filter would reject it before the model runs.
+                           "lord", "ruler", "rules", "aspect", "exalted", "debilitated",
+                           "combust", "strength"]
         return periodWords.contains { lower.contains($0) }
     }
 

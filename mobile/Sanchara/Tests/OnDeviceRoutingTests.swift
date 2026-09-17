@@ -71,6 +71,29 @@ final class OnDeviceRoutingTests: XCTestCase {
         }
     }
 
+    func testDerivedVocabularyReachesTheTable() {
+        let questions = [
+            "who is the lord of my 7th",
+            "which planet rules my 10th house",
+            "is my Venus exalted",
+            "is anything debilitated in my chart",
+            "is my Mercury combust",
+            "what does my Saturn aspect",
+        ]
+        for question in questions {
+            XCTAssertTrue(
+                OnDeviceReasoner.mentionsTheTable(question),
+                "should reach the table: \(question)"
+            )
+        }
+    }
+
+    func testInterpretiveQuestionsStillDoNotReachTheTable() {
+        for question in ["should I take the job", "will I be happy this year"] {
+            XCTAssertFalse(OnDeviceReasoner.mentionsTheTable(question), question)
+        }
+    }
+
     // MARK: - Reading a house number out of a sentence
 
     func testHouseNumbersAreFoundHoweverTheyAreWritten() {
