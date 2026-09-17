@@ -11,6 +11,7 @@ import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/
 import { selectHistory } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
 import { describeTimelineForPrompt } from "@/lib/timeline/describe";
+import { ensureCurrentChart, type BirthProfileRow } from "@/lib/data/birthProfile";
 
 export const runtime = "nodejs";
 
@@ -46,11 +47,16 @@ export async function POST(request: Request) {
   let todaySystem: string;
 
   try {
-    const { data: profile } = await supabase
+    const { data: loaded, error: profileError } = await supabase
       .from("birth_profiles")
-      .select("first_name, last_name, birth_date, lat, lng, timezone, chart")
+      .select("user_id, first_name, last_name, birth_date, birth_time, lat, lng, timezone, chart")
       .maybeSingle();
-    if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
+    if (profileError) {
+      console.error("chat profile read error", profileError);
+      return new Response("Something went wrong loading your profile. Please try again.", { status: 500 });
+    }
+    if (!loaded?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
+    const profile = await ensureCurrentChart(loaded as BirthProfileRow, supabase);
 
     // "Today"/"now" framed in the USER's timezone (e.g. IST), not the server's,
     // and only to the part of day — a clock time would change the prompt every

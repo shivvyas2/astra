@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ensureCurrentChart, type BirthProfileRow } from "./birthProfile";
+import { ensureCurrentChart, getBirthProfile, type BirthProfileRow } from "./birthProfile";
 import { CHART_SCHEMA_VERSION } from "@/lib/astrology/constants";
 
 function fakeDb(updateImpl: (payload: unknown) => Promise<{ error: unknown }>) {
@@ -11,6 +11,16 @@ function fakeDb(updateImpl: (payload: unknown) => Promise<{ error: unknown }>) {
   });
   const from = vi.fn(() => ({ update }));
   return { from, update, eq } as unknown as Parameters<typeof ensureCurrentChart>[1];
+}
+
+/** A fake Db that also serves the `select(...).maybeSingle()` read getBirthProfile makes. */
+function fakeReadDb(row: BirthProfileRow) {
+  const eq = vi.fn(async () => ({ error: null }));
+  const update = vi.fn(() => ({ eq }));
+  const maybeSingle = vi.fn(async () => ({ data: row, error: null }));
+  const select = vi.fn(() => ({ maybeSingle }));
+  const from = vi.fn(() => ({ select, update }));
+  return { from, select, update, eq } as unknown as Parameters<typeof getBirthProfile>[0];
 }
 
 const baseProfile: BirthProfileRow = {
@@ -93,5 +103,44 @@ describe("ensureCurrentChart", () => {
     expect(result.chart).toEqual({ vedic: stale, western: stale });
     expect(spy).toHaveBeenCalledWith(expect.stringContaining("write failed"), expect.anything());
     spy.mockRestore();
+  });
+});
+
+describe("getBirthProfile", () => {
+  it("returns an upgraded profile when the stored chart is stale", async () => {
+    const stale = { schemaVersion: 1 };
+    const row = { ...baseProfile, chart: { vedic: stale, western: stale } };
+    const db = fakeReadDb(row);
+
+    const result = await getBirthProfile(db);
+
+    expect(result).not.toBeNull();
+    expect(result?.chart?.vedic).not.toBe(stale);
+    expect((result?.chart?.vedic as { schemaVersion?: number }).schemaVersion).toBe(CHART_SCHEMA_VERSION);
+    expect((db as unknown as { update: ReturnType<typeof vi.fn> }).update).toHaveBeenCalled();
+  });
+
+  it("returns the original profile unchanged when the stored chart is already current", async () => {
+    const current = { schemaVersion: CHART_SCHEMA_VERSION, derived: {} };
+    const row = { ...baseProfile, chart: { vedic: current, western: current } };
+    const db = fakeReadDb(row);
+
+    const result = await getBirthProfile(db);
+
+    expect(result).toEqual(row);
+    expect((db as unknown as { update: ReturnType<typeof vi.fn> }).update).not.toHaveBeenCalled();
+  });
+
+  it("returns null when there is no stored profile", async () => {
+    const eq = vi.fn(async () => ({ error: null }));
+    const update = vi.fn(() => ({ eq }));
+    const maybeSingle = vi.fn(async () => ({ data: null, error: null }));
+    const select = vi.fn(() => ({ maybeSingle }));
+    const from = vi.fn(() => ({ select, update }));
+    const db = { from } as unknown as Parameters<typeof getBirthProfile>[0];
+
+    const result = await getBirthProfile(db);
+
+    expect(result).toBeNull();
   });
 });
