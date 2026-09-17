@@ -6,7 +6,7 @@ import { createAdminSupabase } from "@/lib/supabase/admin";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { buildChartSystem, buildTodaySystem } from "@/lib/astrology/prompt";
 import { computeNumerology } from "@/lib/astrology/numerology";
-import { transitChart, describeTransits } from "@/lib/astrology/transits";
+import { transitChart, describeGochara } from "@/lib/astrology/transits";
 import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
@@ -105,7 +105,7 @@ async function writeDueReading(
     firstName: profile.first_name,
     chart,
     numerology: computeNumerology(profile.birth_date),
-    transits: describeTransits(transits),
+    transits: describeGochara(chart, transits),
     today: nowLocal.toFormat("cccc, LLLL d, yyyy"),
     slot,
     conditions,

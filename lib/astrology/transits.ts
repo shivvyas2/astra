@@ -1,4 +1,6 @@
 import { computeChart } from "./chart";
+import { houseFrom, ORDINAL } from "./constants";
+import { detectTransitAfflictions } from "./doshas";
 import type { Chart, Tradition } from "./types";
 
 /**
@@ -49,11 +51,42 @@ export async function transitChart(args: {
   }
 }
 
-/** The one-line summary the prompt carries. */
-export function describeTransits(chart: Chart): string {
-  return chart.planets
-    .map((p) => `${p.name} in ${p.sign}${p.retrograde ? " (retrograde)" : ""}`)
-    .join(", ");
+/**
+ * Today's sky read against this person's chart.
+ *
+ * The old text — "Saturn in Pisces, Jupiter in Gemini" — was true of everyone
+ * alive on that date and related to the reader not at all, which is most of why
+ * answers about "now" came back generic. What makes a transit mean anything is
+ * the house it falls in from the lagna and, in gochara proper, from the natal
+ * Moon.
+ *
+ * Still day-stable: the transit chart is sampled once per day at midday UTC, so
+ * this text can sit in the cached half of the system prompt.
+ */
+export function describeGochara(natal: Chart, transit: Chart): string {
+  const asc = natal.ascendant.sign;
+  const moonSign = natal.moonSign;
+
+  const lines = transit.planets.map((t) => {
+    const fromAsc = houseFrom(asc, t.sign);
+    const fromMoon = houseFrom(moonSign, t.sign);
+    const touching = natal.planets
+      .filter((n) => n.sign === t.sign)
+      .map((n) => `natal ${n.name}`);
+    const parts = [
+      `${t.name} in ${t.sign}${t.retrograde ? " (retrograde)" : ""}`,
+      `house ${fromAsc} from the ascendant`,
+      `${ORDINAL[fromMoon]} from the Moon`,
+    ];
+    if (touching.length > 0) parts.push(`over ${touching.join(" and ")}`);
+    return `- ${parts.join(", ")}.`;
+  });
+
+  const afflictions = detectTransitAfflictions(natal, transit);
+  if (afflictions.length > 0) {
+    lines.push(...afflictions.map((c) => `- ${c.label}: ${c.detail}`));
+  }
+  return lines.join("\n");
 }
 
 /** Coarse enough to stay identical for hours, specific enough to frame "today". */

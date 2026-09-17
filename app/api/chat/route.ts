@@ -4,7 +4,7 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { buildChartSystem, buildTodaySystem, buildNumerologySystem } from "@/lib/astrology/prompt";
 import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
-import { transitChart, describeTransits, describeToday } from "@/lib/astrology/transits";
+import { transitChart, describeGochara, describeToday } from "@/lib/astrology/transits";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 import { selectHistory } from "@/lib/data/history";
@@ -80,7 +80,8 @@ export async function POST(request: Request) {
       // Live transits, computed once per day per neighbourhood and shared.
       let transits: string | undefined;
       try {
-        transits = describeTransits(
+        transits = describeGochara(
+          chart,
           await transitChart({
             lat: Number(profile.lat),
             lng: Number(profile.lng),

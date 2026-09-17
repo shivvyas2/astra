@@ -1,5 +1,5 @@
 import type { Chart, Planet } from "./types";
-import { SIGNS, signIndex, houseFrom } from "./constants";
+import { SIGNS, signIndex, houseFrom, ORDINAL } from "./constants";
 
 export type Severity = "info" | "caution" | "warning";
 
@@ -40,8 +40,6 @@ export { houseFrom };
 function planet(chart: Chart, name: string): Planet | undefined {
   return chart.planets.find((p) => p.name === name);
 }
-
-const ORDINAL = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
 
 /**
  * Standing afflictions in the birth chart itself. These do not change, so the

@@ -48,3 +48,8 @@ export function houseFrom(from: string, sign: string): number {
  * labels every renderer draws, so readers upgrade it before use.
  */
 export const CHART_SCHEMA_VERSION = 2;
+
+/** The classical "Nth from" ordinal, indexed by `houseFrom`'s 1-12 result. */
+export const ORDINAL = [
+  "", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th",
+];
