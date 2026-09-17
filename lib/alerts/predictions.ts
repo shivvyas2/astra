@@ -156,7 +156,7 @@ export async function composePrediction(args: {
   conditions: Condition[];
 }): Promise<AlertCopy> {
   const flagged = args.conditions
-    .filter((c) => c.severity !== "info")
+    .filter((c) => c.severity !== "info" && c.scope !== "natal")
     .slice(0, 4)
     .map((c) => `- ${c.label}: ${c.detail}`)
     .join("\n");
