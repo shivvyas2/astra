@@ -19,6 +19,8 @@ describe("dignityOf", () => {
     expect(dignityOf("Sun", "Aries", 10).fromDeepPoint).toBe(0);
     expect(dignityOf("Sun", "Aries", 13.5).fromDeepPoint).toBeCloseTo(3.5);
     expect(dignityOf("Sun", "Leo", 13.5).fromDeepPoint).toBeUndefined();
+    // A moolatrikona placement outside the exaltation sign has no deep point.
+    expect(dignityOf("Sun", "Leo", 10).fromDeepPoint).toBeUndefined();
   });
 
   it("resolves Mercury in Virgo by degree, the one three-way case", () => {
@@ -33,7 +35,9 @@ describe("dignityOf", () => {
     expect(dignityOf("Moon", "Taurus", 2).dignity).toBe("exalted");
     expect(dignityOf("Moon", "Taurus", 2).fromDeepPoint).toBe(1);
     expect(dignityOf("Moon", "Taurus", 10).dignity).toBe("moolatrikona");
+    expect(dignityOf("Moon", "Taurus", 10).fromDeepPoint).toBe(7);
     expect(dignityOf("Moon", "Taurus", 29).dignity).toBe("moolatrikona");
+    expect(dignityOf("Moon", "Taurus", 29).fromDeepPoint).toBe(26);
     expect(dignityOf("Moon", "Scorpio", 10).dignity).toBe("debilitated");
   });
 

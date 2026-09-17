@@ -150,10 +150,18 @@ export function dignityOf(
   // and own sign resumes above its `to` degree when the sign is also owned
   // by the planet. Every other planet has distinct exaltation and
   // moolatrikona signs, so this block is inert for them.
+  //
+  // This block owns the whole degree span of the sign once entered, and it
+  // must return on every path: falling out of it would hit the unconditional
+  // exaltation check just below and mislabel a degree that isn't exalted.
+  // The final `neutral` only matters if some future table entry shares an
+  // exaltation and moolatrikona sign without ruling it outright — keep it
+  // rather than "simplifying" this into a plain if/else-if chain.
   if (ex && mt && sign === ex.sign && sign === mt.sign) {
     if (degree < mt.from) return { dignity: "exalted", fromDeepPoint };
-    if (degree < mt.to) return { dignity: "moolatrikona" };
+    if (degree < mt.to) return { dignity: "moolatrikona", fromDeepPoint };
     if (signsRuledBy(name).includes(sign)) return { dignity: "own" };
+    return { dignity: "neutral" };
   }
 
   if (ex && sign === ex.sign) return { dignity: "exalted", fromDeepPoint };
