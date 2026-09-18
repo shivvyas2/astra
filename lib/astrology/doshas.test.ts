@@ -53,14 +53,38 @@ describe("natal doshas", () => {
     expect(detectNatalDoshas(neutralNatal())).toEqual([]);
   });
 
-  it("flags Mangal dosha for Mars in the 7th, not the 3rd", () => {
+  it("flags Mangal dosha for Mars in the 7th, not the 3rd, from the sign — not a stale stored house", () => {
+    // C2: detectNatalDoshas must derive the house from the sign
+    // (houseFrom(ascendant, sign)), not read planet.house, so it agrees with
+    // deriveFacts on a chart stored before the whole-sign change. Each case
+    // below sets `.house` to the WRONG whole-sign answer on purpose: if the
+    // detector ever reads `.house` again, these would flip.
     const afflicted = neutralNatal();
-    afflicted.planets.find((p) => p.name === "Mars")!.house = 7;
+    const afflictedMars = afflicted.planets.find((p) => p.name === "Mars")!;
+    afflictedMars.sign = "Libra"; // 7th from Aries
+    afflictedMars.house = 3; // stale/wrong — must be ignored
     expect(detectNatalDoshas(afflicted).map((c) => c.kind)).toContain("mangal_dosha");
 
     const clear = neutralNatal();
-    clear.planets.find((p) => p.name === "Mars")!.house = 3;
+    const clearMars = clear.planets.find((p) => p.name === "Mars")!;
+    clearMars.sign = "Gemini"; // 3rd from Aries
+    clearMars.house = 7; // stale/wrong — must be ignored
     expect(detectNatalDoshas(clear).map((c) => c.kind)).not.toContain("mangal_dosha");
+  });
+
+  it("reports Mangal dosha's ordinal from the whole-sign house, not a stale stored one", () => {
+    // Same pattern derived.test.ts already uses for deriveFacts: a chart
+    // whose stored planet.house is deliberately wrong. Mars in Libra is the
+    // 7th sign from the Aries ascendant; the stored house (99) says
+    // something else entirely. The detail string's ordinal must read "7th",
+    // derived from the sign — not from the stale 99.
+    const afflicted = neutralNatal();
+    const mars = afflicted.planets.find((p) => p.name === "Mars")!;
+    mars.sign = "Libra";
+    mars.house = 99;
+    const dosha = detectNatalDoshas(afflicted).find((c) => c.kind === "mangal_dosha");
+    expect(dosha?.detail).toContain("7th house");
+    expect(dosha?.signature).toBe("mangal_dosha:7");
   });
 
   it("flags Kaal Sarp when every planet sits inside the nodal axis", () => {
@@ -109,6 +133,16 @@ describe("natal doshas", () => {
     eclipse.planets.find((p) => p.name === "Rahu")!.sign = "Leo"; // with the Sun
     const kinds = detectNatalDoshas(eclipse).map((c) => c.kind);
     expect(kinds).toContain("grahan_sun");
+  });
+
+  it("flags Pitru dosha for a node in the 9th, from the sign — not a stale stored house", () => {
+    const afflicted = neutralNatal();
+    const rahu = afflicted.planets.find((p) => p.name === "Rahu")!;
+    rahu.sign = "Sagittarius"; // 9th from Aries
+    rahu.house = 99; // stale/wrong — must be ignored
+    const dosha = detectNatalDoshas(afflicted).find((c) => c.kind === "pitru_dosha");
+    expect(dosha).toBeDefined();
+    expect(dosha?.detail).toContain("9th house");
   });
 });
 

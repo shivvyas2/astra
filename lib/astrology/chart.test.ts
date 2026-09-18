@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { computeChart } from "./chart";
+import { computeChart, CHART_SCHEMA_VERSION } from "./chart";
+import { houseFrom } from "./constants";
+import { factsFor, isChartStale } from "./derived";
 
 // Reference birth: 1990-01-01, 12:00 local, New Delhi (Asia/Kolkata).
 const input = {
@@ -32,5 +34,57 @@ describe("computeChart", () => {
     expect(sun.nakshatra).toBeTruthy();
     expect(vedic.dasha?.mahadasha).toBeTruthy();
     expect(vedic.dasha?.antardasha).toBeTruthy();
+  });
+});
+
+describe("vedic houses are whole-sign", () => {
+  it("places every planet in the Nth sign from the lagna", async () => {
+    const chart = await computeChart(input, "vedic");
+    for (const p of chart.planets) {
+      expect(p.house).toBe(houseFrom(chart.ascendant.sign, p.sign));
+    }
+  });
+
+  it("puts a planet in the lagna's own sign into house 1, whatever its degree", async () => {
+    const chart = await computeChart(input, "vedic");
+    const inLagnaSign = chart.planets.filter((p) => p.sign === chart.ascendant.sign);
+    for (const p of inLagnaSign) expect(p.house).toBe(1);
+  });
+
+  it("stamps the schema version", async () => {
+    const chart = await computeChart(input, "vedic");
+    expect(chart.schemaVersion).toBe(CHART_SCHEMA_VERSION);
+  });
+
+  it("leaves western on Placidus, where a planet can sit in a house whose cusp sign differs", async () => {
+    const chart = await computeChart(input, "western");
+    // Placidus houses are unequal, so at least one planet will not match
+    // whole-sign counting for a chart with a mid-sign ascendant.
+    const matches = chart.planets.map((p) => p.house === houseFrom(chart.ascendant.sign, p.sign));
+    expect(matches.every(Boolean)).toBe(false);
+  });
+});
+
+describe("derived facts on a computed chart", () => {
+  it("are stored, and carry a lord for every house", async () => {
+    const chart = await computeChart(input, "vedic");
+    expect(chart.derived?.houses).toHaveLength(12);
+    expect(chart.derived?.houses.every((h) => h.lord.length > 0)).toBe(true);
+    expect(isChartStale(chart)).toBe(false);
+  });
+
+  it("factsFor uses the stored block when present and computes when absent", async () => {
+    const chart = await computeChart(input, "vedic");
+    expect(factsFor(chart)).toBe(chart.derived);
+    const legacy = { ...chart, derived: undefined, schemaVersion: undefined };
+    expect(isChartStale(legacy)).toBe(true);
+    // Known-vedic fixture, so factsFor cannot return undefined here.
+    expect(factsFor(legacy)!.houses).toHaveLength(12);
+  });
+
+  it("attaches no derived facts to a Western chart — Vedic technique does not apply", async () => {
+    const chart = await computeChart(input, "western");
+    expect(chart.derived).toBeUndefined();
+    expect(factsFor(chart)).toBeUndefined();
   });
 });

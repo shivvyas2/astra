@@ -3,13 +3,21 @@ import { DateTime } from "luxon";
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { buildChartSystem, buildTodaySystem, buildNumerologySystem } from "@/lib/astrology/prompt";
-import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
-import { transitChart, describeTransits, describeToday } from "@/lib/astrology/transits";
+import {
+  computeNumerology,
+  computeNameNumber,
+  loShu,
+  numberRelationship,
+  personalCycle,
+} from "@/lib/astrology/numerology";
+import { transitChart, describeGochara, describeToday } from "@/lib/astrology/transits";
+import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 import { selectHistory } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
 import { describeTimelineForPrompt } from "@/lib/timeline/describe";
+import { ensureCurrentChart, type BirthProfileRow } from "@/lib/data/birthProfile";
 
 export const runtime = "nodejs";
 
@@ -45,11 +53,16 @@ export async function POST(request: Request) {
   let todaySystem: string;
 
   try {
-    const { data: profile } = await supabase
+    const { data: loaded, error: profileError } = await supabase
       .from("birth_profiles")
-      .select("first_name, last_name, birth_date, lat, lng, timezone, chart")
+      .select("user_id, first_name, last_name, birth_date, birth_time, lat, lng, timezone, chart")
       .maybeSingle();
-    if (!profile?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
+    if (profileError) {
+      console.error("chat profile read error", profileError);
+      return new Response("Something went wrong loading your profile. Please try again.", { status: 500 });
+    }
+    if (!loaded?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
+    const profile = await ensureCurrentChart(loaded as BirthProfileRow, supabase);
 
     // "Today"/"now" framed in the USER's timezone (e.g. IST), not the server's,
     // and only to the part of day — a clock time would change the prompt every
@@ -66,21 +79,33 @@ export async function POST(request: Request) {
 
     if (body.tradition === "numerology") {
       const fullName = `${profile.first_name} ${profile.last_name}`.trim();
+      const namank = computeNameNumber(fullName);
       stableSystem = buildNumerologySystem({
         firstName: profile.first_name,
         fullName,
         mulank: num.mulank,
         bhagyank: num.bhagyank,
-        namank: computeNameNumber(fullName),
+        namank,
+        grid: loShu(String(profile.birth_date)),
+        namankToMulank: numberRelationship(namank, num.mulank),
       });
-      todaySystem = buildTodaySystem({ today, maxWords });
+      todaySystem = buildTodaySystem({
+        today,
+        maxWords,
+        personal: personalCycle(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
+      });
     } else {
       const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
+      // factsFor gates on chart.tradition, so this is undefined for western —
+      // Western readings get no derived facts (no Vedic lordship, aspect,
+      // dignity, or dosha technique). See lib/astrology/derived.ts.
+      const derived = factsFor(chart);
 
       // Live transits, computed once per day per neighbourhood and shared.
       let transits: string | undefined;
       try {
-        transits = describeTransits(
+        transits = describeGochara(
+          chart,
           await transitChart({
             lat: Number(profile.lat),
             lng: Number(profile.lng),
@@ -95,6 +120,7 @@ export async function POST(request: Request) {
         firstName: profile.first_name,
         tradition: body.tradition as Tradition,
         chart,
+        derived,
         numerology: num,
       });
 

@@ -13,6 +13,52 @@ const NOTIFIABLE: Severity[] = ["caution", "warning"];
 /** A single alert stays readable; more than this and it becomes a list. */
 const MAX_CONDITIONS_PER_ALERT = 6;
 
+/**
+ * Which newly-detected conditions are worth waking someone for.
+ *
+ * A natal condition is fixed at birth: it cannot start or end, so a change in
+ * one is always an artifact of the computation changing — a house system, a
+ * detector, an ayanamsa — and never an event. Those are recorded silently. The
+ * one exception is a user's first read, where the whole natal set is genuinely
+ * news to them.
+ *
+ * Transit conditions are the opposite: changing is what they do.
+ */
+export function partitionForAlerts<T extends { scope: string }>(args: {
+  conditions: T[];
+  hadNatalRows: boolean;
+}): { alert: T[]; silent: T[] } {
+  if (!args.hadNatalRows) return { alert: args.conditions, silent: [] };
+  return {
+    alert: args.conditions.filter((c) => c.scope !== "natal"),
+    silent: args.conditions.filter((c) => c.scope === "natal"),
+  };
+}
+
+/**
+ * Whether to treat this user as already having natal rows on record, from the
+ * result of the count query alone.
+ *
+ * Fails CLOSED: if the count query errors, `count` comes back `null`, and the
+ * naive `(count ?? 0) > 0` would silently read as "no natal rows" — a
+ * first-time reader — for an existing user. That is the exact bug this task
+ * exists to prevent: an existing user's natal conditions would flow through
+ * unfiltered and "Mangal Dosha has begun" would be pushed to someone whose
+ * chart has not changed since birth. So on error we assume the opposite of
+ * what the naive read would give us: treat the user as already having natal
+ * rows, which routes natal conditions to `silent` rather than `alert`.
+ *
+ * This deliberately does not throw. Natal conditions cannot genuinely change,
+ * so suppressing them costs nothing real — they still show up in-app, and the
+ * next successful run reconciles. Throwing here would abort the whole run for
+ * this user and drop their legitimate transit alerts for the day, which is
+ * the actual user-facing harm.
+ */
+export function deriveHadNatalRows(result: { count: number | null; error: { message: string } | null }): boolean {
+  if (result.error) return true;
+  return (result.count ?? 0) > 0;
+}
+
 type ProfileRow = {
   user_id: string;
   first_name: string;
@@ -121,6 +167,17 @@ export async function runAlertsForUser(
   const current = detectConditions(natal, transit);
   const currentBySignature = new Map(current.map((c) => [c.signature, c]));
 
+  // Whether this user has ever had a natal row on record — the only case in
+  // which a natal condition's signature changing is genuinely news, rather
+  // than an artifact of the computation moving under them.
+  const { count: natalCount, error: natalCountError } = await admin
+    .from("transit_conditions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", profile.user_id)
+    .eq("scope", "natal");
+  if (natalCountError) console.error("alerts: natal count query failed", profile.user_id, natalCountError);
+  const hadNatalRows = deriveHadNatalRows({ count: natalCount, error: natalCountError });
+
   const { data: openRows, error: openError } = await admin
     .from("transit_conditions")
     .select("id, kind, signature, label, severity, scope, detail")
@@ -136,6 +193,10 @@ export async function runAlertsForUser(
 
   const today = nowLocal.toFormat("yyyy-LL-dd");
 
+  // Deliberately inserts the raw, unfiltered `started` — every detected row
+  // is recorded regardless of scope. Do not inline the natal filter here: that
+  // would silently stop natal rows being written, and the same condition
+  // would re-detect as "starting" forever.
   if (started.length > 0) {
     const { error } = await admin.from("transit_conditions").insert(
       started.map((c) => ({
@@ -152,6 +213,8 @@ export async function runAlertsForUser(
     if (error) throw new Error(error.message);
   }
 
+  // Same as above: closes the raw, unfiltered `ended`, not a natal-filtered
+  // subset. Filtering here would leave stale natal rows open forever.
   if (ended.length > 0) {
     const { error } = await admin
       .from("transit_conditions")
@@ -160,8 +223,15 @@ export async function runAlertsForUser(
     if (error) throw new Error(error.message);
   }
 
-  const startedWorth = started.filter((c) => NOTIFIABLE.includes(c.severity)).slice(0, MAX_CONDITIONS_PER_ALERT);
-  const endedWorth: Condition[] = ended
+  // Every row above is still inserted/closed regardless of scope — the natal
+  // filter only decides what surfaces in the alert and push payloads.
+  const { alert: startedToAlert } = partitionForAlerts({ conditions: started, hadNatalRows });
+  const { alert: endedToAlert } = partitionForAlerts({ conditions: ended, hadNatalRows });
+
+  const startedWorth = startedToAlert
+    .filter((c) => NOTIFIABLE.includes(c.severity))
+    .slice(0, MAX_CONDITIONS_PER_ALERT);
+  const endedWorth: Condition[] = endedToAlert
     .filter((row) => NOTIFIABLE.includes(row.severity))
     .slice(0, MAX_CONDITIONS_PER_ALERT)
     .map((row) => ({

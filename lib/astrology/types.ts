@@ -1,3 +1,5 @@
+import type { Derived } from "./derived";
+
 export type Tradition = "vedic" | "western";
 
 // A chat can run in an astrology tradition or in numerology mode.
@@ -38,4 +40,8 @@ export type Chart = {
   sunSign: string;
   ayanamsa?: number;
   dasha?: DashaInfo; // Vedic only — current Vimshottari mahadasha/antardasha
+  /** Bumped when the computation changes in a way that moves stored values. */
+  schemaVersion?: number;
+  /** Classical readings of the positions above. See lib/astrology/derived.ts. */
+  derived?: Derived;
 };

@@ -1,5 +1,5 @@
 import type { Chart, Planet } from "./types";
-import { SIGNS } from "./constants";
+import { SIGNS, signIndex, houseFrom, ORDINAL } from "./constants";
 
 export type Severity = "info" | "caution" | "warning";
 
@@ -30,28 +30,16 @@ export function highestSeverity(conditions: { severity: Severity }[]): Severity 
   );
 }
 
-function signIndex(sign: string): number {
-  return SIGNS.indexOf(sign as (typeof SIGNS)[number]);
-}
-
 /** Absolute ecliptic longitude, rebuilt from the stored sign + degree-in-sign. */
 function longitudeOf(planet: Planet): number {
   return signIndex(planet.sign) * 30 + planet.degree;
 }
 
-/** The 1-indexed house of `sign` counted from `from` — the classical "Nth from". */
-export function houseFrom(from: string, sign: string): number {
-  const a = signIndex(from);
-  const b = signIndex(sign);
-  if (a < 0 || b < 0) return 0;
-  return ((b - a + 12) % 12) + 1;
-}
+export { houseFrom };
 
 function planet(chart: Chart, name: string): Planet | undefined {
   return chart.planets.find((p) => p.name === name);
 }
-
-const ORDINAL = ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"];
 
 /**
  * Standing afflictions in the birth chart itself. These do not change, so the
@@ -67,15 +55,22 @@ export function detectNatalDoshas(chart: Chart): Condition[] {
   const ketu = planet(chart, "Ketu");
 
   // Mangal (Manglik) dosha: Mars in 1, 2, 4, 7, 8 or 12 from the ascendant.
-  if (mars && [1, 2, 4, 7, 8, 12].includes(mars.house)) {
-    found.push({
-      kind: "mangal_dosha",
-      signature: `mangal_dosha:${mars.house}`,
-      label: "Mangal Dosha",
-      severity: "caution",
-      scope: "natal",
-      detail: `Mars sits in the ${ORDINAL[mars.house]} house from the ascendant in ${mars.sign}.`,
-    });
+  // Derived from the sign, not `mars.house`: a chart stored before the
+  // whole-sign change carries a stale Placidus house number, and this must
+  // agree with the whole-sign facts deriveFacts.ts computes from the same
+  // sign — see doshas.test.ts and derived.test.ts for the stale-house cases.
+  if (mars) {
+    const marsHouse = houseFrom(chart.ascendant.sign, mars.sign);
+    if ([1, 2, 4, 7, 8, 12].includes(marsHouse)) {
+      found.push({
+        kind: "mangal_dosha",
+        signature: `mangal_dosha:${marsHouse}`,
+        label: "Mangal Dosha",
+        severity: "caution",
+        scope: "natal",
+        detail: `Mars sits in the ${ORDINAL[marsHouse]} house from the ascendant in ${mars.sign}.`,
+      });
+    }
   }
 
   // Kaal Sarp: every classical planet hemmed inside the Rahu–Ketu axis.
@@ -137,8 +132,10 @@ export function detectNatalDoshas(chart: Chart): Condition[] {
   }
 
   // Pitru dosha, in its most commonly cited form: a node in the 9th house.
+  // Derived from the sign, not `node.house`, for the same reason as Mangal
+  // dosha above.
   for (const node of [rahu, ketu]) {
-    if (node?.house === 9) {
+    if (node && houseFrom(chart.ascendant.sign, node.sign) === 9) {
       found.push({
         kind: "pitru_dosha",
         signature: `pitru_dosha:${node.name}:${node.sign}`,

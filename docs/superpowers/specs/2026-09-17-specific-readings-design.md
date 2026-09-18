@@ -436,29 +436,67 @@ that Mangal Dosha has just begun — an alarming notification caused entirely by
 us changing house systems, about a birth chart that has not changed since they
 were born.
 
-The guard: `computeChart` stamps `chart.schemaVersion`, incremented by this
-work. The alerts run records the version it last reconciled for a user. When the
-stored version is lower, natal-scope conditions are reconciled **silently** —
-open rows closed or inserted to match, `last_reconciled_version` updated, no
-alert emitted and no push sent. Transit-scope conditions are unaffected, since
-they are recomputed daily against the live sky in any case.
+**What shipped instead, and why it's amended here:** this section originally
+prescribed a per-user `last_reconciled_version` column, with natal conditions
+reconciled silently once per user when their stored version fell behind. No
+such column exists, and none was migrated in. What shipped is simpler and
+needs no migration:
 
-This runs once per user. Nothing is suppressed afterwards.
+`lib/alerts/run.ts` exports `partitionForAlerts` and `deriveHadNatalRows`.
+Before deciding what to alert on, `runAlertsForUser` counts each user's
+existing `transit_conditions` rows with `scope = "natal"`. If that count is
+greater than zero (or the count query itself fails — `deriveHadNatalRows`
+fails closed, treating an error as "yes, has rows," so a query error can never
+let a natal condition slip through as a false "starting" alert), the user is
+treated as already reconciled: `partitionForAlerts` routes every natal-scope
+condition in `started`/`ended` to `silent` rather than `alert`, for every run,
+forever. A user with zero natal rows on record — genuinely first-read — gets
+the full natal set surfaced once, same as the original design intended.
+Every row, alerted or silent, is still written to `transit_conditions` so the
+open-row set stays correct; only what reaches a push and an `alerts` row is
+filtered.
+
+This is not "reconcile once per version, using a stored version number." It
+is "suppress natal-scope alerts permanently for anyone who already has at
+least one natal row," decided fresh on every run from the data already in
+`transit_conditions`, with no version column and no migration. It correctly
+solves the problem this section exists for — the whole-sign migration itself
+never generates a false "Mangal Dosha has just begun" push — with less
+machinery than originally specified.
+
+**The behaviour change this buys, stated as a decision:** because there is no
+version to compare against, this mechanism cannot distinguish "the house
+system changed under an existing natal row" from "a new natal detector was
+added that never ran for this user before." Both look identical: a natal
+condition whose signature isn't already an open row for a user who has natal
+rows on record. Both are suppressed. So: **if a new natal detector is ever
+added to `detectNatalDoshas`, existing users will never be notified of it** —
+it will be recorded in `transit_conditions` on their next run, silently, and
+never reach an alert or a push, even though it is genuinely new information
+for them. New users (no prior natal rows) are unaffected and see it
+immediately. This is probably the correct tradeoff — a missed one-time
+notification is a smaller harm than the false "something changed" pushes a
+version-tracked reconciliation would need extra care to avoid — but it was an
+implicit consequence of the shipped code, not a decision anyone wrote down
+until now. If a future natal detector's absence needs to reach existing
+users, it needs its own mechanism (e.g. a one-off backfill job), not a change
+to `partitionForAlerts`.
 
 ### Everything else
 
 - No SQL migration for the chart itself. `chart.derived` fills in lazily; absent means compute in
-  process.
-- Whole-sign house numbers change with the same write, so a chart is never
-  partly migrated.
+  process — and only for Vedic. Western charts carry no `derived` block at
+  all; Vedic technique (lordship, graha drishti, moolatrikona, combustion
+  orbs, the natal doshas) does not apply to a tropical chart. See §0's
+  "Western continues to use `houseOf(lon, cusps)` unchanged."
+- Whole-sign house numbers change with the same write, so a Vedic chart is
+  never partly migrated.
 - The iOS app decodes `birth_profiles.chart` directly under existing RLS, so it
   picks up `derived` with no API change.
 - `ChartCache` entries written before this ships decode fine, because `derived`
   is optional.
-- The silent reconciliation needs somewhere to record the version it last
-  handled per user. Whether that is a column on an existing alerts table or a
-  small new one is an implementation-plan decision; it is one integer either
-  way.
+- No per-user version column or migration was needed; see the reconciliation
+  writeup above.
 
 ## 8. Out of scope
 

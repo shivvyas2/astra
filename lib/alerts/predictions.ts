@@ -6,7 +6,8 @@ import { createAdminSupabase } from "@/lib/supabase/admin";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { buildChartSystem, buildTodaySystem } from "@/lib/astrology/prompt";
 import { computeNumerology } from "@/lib/astrology/numerology";
-import { transitChart, describeTransits } from "@/lib/astrology/transits";
+import { transitChart, describeGochara } from "@/lib/astrology/transits";
+import { factsFor } from "@/lib/astrology/derived";
 import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
@@ -105,7 +106,10 @@ async function writeDueReading(
     firstName: profile.first_name,
     chart,
     numerology: computeNumerology(profile.birth_date),
-    transits: describeTransits(transits),
+    // This job already surfaces detectTransitAfflictions itself, filtered by
+    // severity, in the "Active in their chart right now" block below — asking
+    // for them here too would say the same thing twice in one prompt.
+    transits: describeGochara(chart, transits, { includeAfflictions: false }),
     today: nowLocal.toFormat("cccc, LLLL d, yyyy"),
     slot,
     conditions,
@@ -152,7 +156,7 @@ export async function composePrediction(args: {
   conditions: Condition[];
 }): Promise<AlertCopy> {
   const flagged = args.conditions
-    .filter((c) => c.severity !== "info")
+    .filter((c) => c.severity !== "info" && c.scope !== "natal")
     .slice(0, 4)
     .map((c) => `- ${c.label}: ${c.detail}`)
     .join("\n");
@@ -161,6 +165,7 @@ export async function composePrediction(args: {
     firstName: args.firstName,
     tradition: "vedic",
     chart: args.chart,
+    derived: factsFor(args.chart),
     numerology: args.numerology,
   });
   const todayBlock = buildTodaySystem({ today: args.today, transits: args.transits, maxWords: 150 });

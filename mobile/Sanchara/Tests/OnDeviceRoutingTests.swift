@@ -31,7 +31,8 @@ final class OnDeviceRoutingTests: XCTestCase {
             moonSign: "Cancer",
             sunSign: "Leo",
             ayanamsa: 24.17,
-            dasha: dasha
+            dasha: dasha,
+            derived: nil
         )
     }
 
@@ -67,6 +68,47 @@ final class OnDeviceRoutingTests: XCTestCase {
                 OnDeviceReasoner.mentionsTheTable(question),
                 "\"\(question)\" should go straight to a full reading"
             )
+        }
+    }
+
+    /// Each question here names no body and no house number, so it can only
+    /// reach the table through one specific new word — unlike "who is the
+    /// lord of my 7th" or "is my Venus exalted", which would route anyway via
+    /// the ordinal or the body name (see testQuestionsNamingPartOfTheChartGetOffered
+    /// for that pre-existing coverage). This is what actually pins the change.
+    func testDerivedVocabularyReachesTheTable() {
+        let questions = [
+            "which planet rules my chart",   // depends on "rules"
+            "who is my chart ruler",         // depends on "ruler"
+            "what is my chart lord",         // depends on "lord"
+            "is anything exalted in my chart",     // depends on "exalted"
+            "is anything debilitated in my chart", // depends on "debilitated"
+            "is anything combust",           // depends on "combust"
+        ]
+        for question in questions {
+            XCTAssertTrue(
+                OnDeviceReasoner.mentionsTheTable(question),
+                "should reach the table: \(question)"
+            )
+        }
+    }
+
+    func testInterpretiveQuestionsStillDoNotReachTheTable() {
+        for question in ["should I take the job", "will I be happy this year"] {
+            XCTAssertFalse(OnDeviceReasoner.mentionsTheTable(question), question)
+        }
+    }
+
+    /// `aspect` and `strength` were tried and dropped from the trigger list:
+    /// every lookup they would have caught already routes via a body name or
+    /// an ordinal, so they only added false positives. These pin that call so
+    /// a future editor who re-adds them has to confront the reason.
+    func testDroppedWordsDoNotReachTheTable() {
+        for question in [
+            "what aspects of my life should I focus on",
+            "where do I get my strength from",
+        ] {
+            XCTAssertFalse(OnDeviceReasoner.mentionsTheTable(question), question)
         }
     }
 
