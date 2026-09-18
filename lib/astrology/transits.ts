@@ -83,23 +83,30 @@ export function describeGochara(
 ): string {
   const asc = natal.ascendant.sign;
   const moonSign = natal.moonSign;
+  const vedic = natal.tradition === "vedic";
 
   const lines = transit.planets.map((t) => {
-    const fromAsc = houseFrom(asc, t.sign);
-    const fromMoon = houseFrom(moonSign, t.sign);
     const touching = natal.planets
       .filter((n) => n.sign === t.sign)
       .map((n) => `natal ${n.name}`);
-    const parts = [
-      `${t.name} in ${t.sign}${t.retrograde ? " (retrograde)" : ""}`,
-      `house ${fromAsc} from the ascendant`,
-      `${ORDINAL[fromMoon]} from the Moon`,
-    ];
+    const parts = [`${t.name} in ${t.sign}${t.retrograde ? " (retrograde)" : ""}`];
+
+    // Gochara is Vedic doctrine: the house counted from the lagna, the house
+    // counted from the natal Moon, and the afflictions those positions raise.
+    // The house numbers are whole-sign, which is wrong for a tropical chart —
+    // Western keeps Placidus (see the spec's §0) — and Sade Sati has no meaning
+    // there at all. So a Western reading gets the plain sky it had before any
+    // of this existed: where each body is, and which natal body it sits on.
+    if (vedic) {
+      parts.push(`house ${houseFrom(asc, t.sign)} from the ascendant`);
+      parts.push(`${ORDINAL[houseFrom(moonSign, t.sign)]} from the Moon`);
+    }
+
     if (touching.length > 0) parts.push(`over ${joinWithAnd(touching)}`);
     return `- ${parts.join(", ")}.`;
   });
 
-  if (includeAfflictions) {
+  if (vedic && includeAfflictions) {
     const afflictions = detectTransitAfflictions(natal, transit);
     if (afflictions.length > 0) {
       lines.push(...afflictions.map((c) => `- ${c.label}: ${c.detail}`));

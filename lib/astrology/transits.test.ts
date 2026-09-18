@@ -69,3 +69,47 @@ describe("describeGochara affliction inclusion", () => {
     expect(text).toContain("Saturn in Cancer");
   });
 });
+
+describe("describeGochara for a western chart", () => {
+  // Gochara — houses from the lagna and from the Moon, and the afflictions they
+  // raise — is Vedic. A tropical chart must not be handed any of it: the house
+  // numbers would be whole-sign where Western is Placidus, and Sade Sati means
+  // nothing in that tradition.
+  const western: Chart = { ...natal, tradition: "western" };
+  // Saturn transits Cancer, the sign the natal Moon occupies — in a Vedic chart
+  // that is Sade Sati's peak phase, so this fixture would name it if the guard
+  // were missing.
+  const overTheMoon: Chart = {
+    ...western,
+    planets: [{ name: "Saturn", sign: "Cancer", degree: 3, house: 1, retrograde: false }],
+  };
+
+  const text = describeGochara(western, overTheMoon);
+
+  it("still says where each transiting body is", () => {
+    expect(text).toContain("Saturn in Cancer");
+  });
+
+  it("still names the natal body it sits on", () => {
+    expect(text).toContain("over natal Moon");
+  });
+
+  it("counts no house from the ascendant", () => {
+    expect(text).not.toMatch(/from the ascendant/);
+  });
+
+  it("counts no house from the Moon", () => {
+    expect(text).not.toMatch(/from the Moon/);
+  });
+
+  it("names no Vedic affliction", () => {
+    expect(text).not.toContain("Sade Sati");
+  });
+
+  it("still gives a Vedic chart the full gochara reading", () => {
+    const vedicText = describeGochara(natal, { ...natal, planets: overTheMoon.planets });
+    expect(vedicText).toMatch(/house 9 from the ascendant/);
+    expect(vedicText).toMatch(/1st from the Moon/);
+    expect(vedicText).toContain("Sade Sati");
+  });
+});
