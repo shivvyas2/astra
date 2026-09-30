@@ -4,6 +4,59 @@ All notable changes to Sanchara are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-09-18
+
+### Added
+
+- **Readings cite the chart, not the sign.** Every Vedic reading now carries the
+  lord of each house and where that lord sits, which planets aspect what, each
+  planet's dignity (exalted, debilitated, moolatrikona or own sign), which
+  planets are combust, and where the lord of the running dasha is placed. The
+  facts are computed once and stored with the chart, so a question about the
+  10th house is answered from its actual ruler rather than a generality about
+  the sign on it.
+- **Transits read against the chart.** Gochara: each transiting planet is now
+  reported by the house it occupies counted from the ascendant and from the
+  natal Moon, along with the affliction those positions raise — Sade Sati and
+  the rest — instead of a bare list of where the planets are. Vedic only.
+- **Numerology goes deeper.** The reading now sees the personal year and
+  personal month, the Lo Shu grid with its repeated and missing numbers, and
+  how the core numbers relate to one another.
+- **More answered on the phone.** On-device lookups now cover house rulers,
+  aspects, strength ratings and combustion, so those questions are answered
+  without leaving the device.
+
+### Changed
+
+- **Vedic houses are whole-sign.** The chart, the kundli PDF and the on-device
+  table labelled houses whole-sign from the ascendant but filled them with
+  Placidus numbers, so a planet could be drawn in a house marked with a sign it
+  was not in, and two houses could share one sign — which leaves lordship
+  undefined. Vedic charts are now whole-sign throughout. Existing charts upgrade
+  themselves the first time they are read; nothing to do. Western charts are
+  unchanged and stay Placidus.
+
+### Fixed
+
+- Western readings were being handed Vedic technique on a tropical chart:
+  moolatrikona, graha drishti, house numbers from a different house system, and
+  a standing-conditions block naming Mangal, Kaal Sarp and Pitru dosha. A
+  Western reading now gets the plain sky again — where each body is and which
+  natal body it sits on.
+- A dosha fixed at birth could announce itself as news. Moving Vedic charts to
+  whole-sign houses shifts how some natal conditions are detected, which would
+  have pushed "Mangal Dosha has begun" to people whose chart has not changed
+  since they were born. Natal conditions never alert now; they reconcile
+  silently.
+- The daily push prompt listed natal doshas twice.
+- The natal dosha detectors read a planet's house from its sign rather than a
+  stored house number, so they no longer disagree with the chart they are
+  drawn from.
+- Number relationships were resolved from a single row instead of compoundly.
+- Transit afflictions were reported twice in the daily predictions.
+- A failed read while loading a birth profile was reported as though the
+  profile did not exist.
+
 ## [0.2.0] - 2026-09-16
 
 ### Added
@@ -39,5 +92,6 @@ The first tagged release. Everything below has shipped to production on Vercel; 
 - The app is now called Sanchara. The iOS target, copy, and prompts were renamed from Astra. The bundle identifier and production hostname are unchanged.
 - Vimshottari antardashas are laid out from each mahadasha's virtual start, so sub-periods line up with the real period rather than the birth moment.
 
+[0.3.0]: https://github.com/shivvyas2/astra/releases/tag/v0.3.0
 [0.2.0]: https://github.com/shivvyas2/astra/releases/tag/v0.2.0
 [0.1.0]: https://github.com/shivvyas2/astra/releases/tag/v0.1.0

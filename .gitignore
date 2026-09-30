@@ -17,3 +17,19 @@ mobile/Sanchara/Sources/Generated/
 # Local release-rule cache written by the release skill.
 .omc/
 mobile/SourcePackages/
+
+# Supabase CLI scratch (project ref, versions). Not source.
+supabase/.temp/
+
+# Xcode per-user state, anywhere in the tree.
+xcuserdata/
+*.xcuserstate
+
+# Agent and editor workspaces, never committed.
+.claude/
+.superpowers/
+.omc/
+
+# Unrelated scratch projects that live beside this checkout.
+/Astra/
+/Whoop/

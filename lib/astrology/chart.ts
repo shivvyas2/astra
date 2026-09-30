@@ -119,6 +119,6 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
   // Every technique in derived.ts — lordship, graha drishti, moolatrikona,
   // combustion orbs, the natal doshas — is Vedic. Western continues to use
   // Placidus houses (set above) and gets no derived block at all; see
-  // docs/superpowers/specs/2026-09-17-specific-readings-design.md §0.
+  // docs/design/2026-09-17-specific-readings.md §0.
   return { ...result, derived: tradition === "vedic" ? deriveFacts(result) : undefined };
 }

@@ -1,0 +1,33 @@
+name: Bug report
+description: Something does not work the way it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      placeholder: "Web chat, kundli PDF, iOS timeline, period widget, daily push"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS, or browser
+      placeholder: "iPhone 17 Pro, iOS 26.1; or Safari 26 on macOS"
+  - type: textarea
+    id: chart
+    attributes:
+      label: Chart details, if the bug is about a computed value
+      description: Birth date, time, place and the tradition (Vedic, Western, numerology). Use a made-up chart if you would rather not share yours; what matters is that it reproduces.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Console output, Vercel logs, or a screenshot. Please remove anything personal.

@@ -1,0 +1,15 @@
+# gitleaks configuration. Extends the default rules and allowlists the one
+# historical match that is not a secret: a curl example in a since-removed
+# planning document that sent the literal bearer token "not-a-real-jwt" to
+# prove the route rejects garbage.
+[extend]
+useDefault = true
+
+[allowlist]
+regexTarget = "line"
+regexes = [
+  '''Bearer not-a-real-jwt''',
+]
+paths = [
+  '''docs/superpowers/plans/.*\.md''',
+]

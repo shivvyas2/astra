@@ -1,7 +1,8 @@
 name: GitHub Release
 
 # Publishes a GitHub release for every version tag, using that version's
-# section of CHANGELOG.md as the notes. Does nothing if the release exists.
+# section of CHANGELOG.md as the notes and the engineering handbook (PDF and
+# EPUB) as assets. Does nothing if the release exists.
 
 on:
   push:
@@ -39,4 +40,6 @@ jobs:
             echo "Release $GITHUB_REF_NAME already exists; skipping"
             exit 0
           fi
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md
+          gh release create "$GITHUB_REF_NAME" --title "Sanchara $GITHUB_REF_NAME" --notes-file notes.md \
+            docs/handbook/Sanchara-Engineering-Handbook.pdf \
+            docs/handbook/Sanchara-Engineering-Handbook.epub

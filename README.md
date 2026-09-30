@@ -1,4 +1,16 @@
-# Sanchara
+<h1 align="center">Sanchara</h1>
+
+<p align="center">An astrology app that computes a real birth chart and has Claude interpret only the computed facts. Web on Vercel, native on iOS, one API, one Supabase project.</p>
+
+<p align="center"><a href="docs/handbook/Sanchara-Engineering-Handbook.pdf">Read the engineering handbook</a> · <a href="https://github.com/shivvyas2/astra/releases/latest">Latest release</a> · <a href="CONTRIBUTING.md">Contribute</a></p>
+
+<p align="center">
+  <a href="https://github.com/shivvyas2/astra/actions/workflows/ci.yml"><img src="https://github.com/shivvyas2/astra/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT"></a>
+  <img src="https://img.shields.io/badge/Next.js-15-black.svg" alt="Next.js 15">
+  <img src="https://img.shields.io/badge/iOS-17%2B-black.svg" alt="iOS 17+">
+  <img src="https://img.shields.io/badge/Swift-5-orange.svg" alt="Swift 5">
+</p>
 
 Sanchara is an astrology app that computes a person's real birth chart from their birth date, time, and place, then has Claude interpret it. It ships as a Next.js web app on Vercel and a native SwiftUI app for iOS, both backed by one API and one Supabase project.
 
@@ -84,7 +96,9 @@ Two cron schedules in `vercel.json` hit `/api/cron/daily`, which writes the twic
 ├── middleware.ts              Refreshes the Supabase session on every request
 ├── supabase/migrations/       Numbered SQL migrations
 ├── public/.well-known/        Apple App Site Association for Universal Links
-├── docs/                      Setup guides (see below)
+├── docs/                      Setup guides, design notes, and the handbook
+│   ├── handbook/              The engineering handbook, as PDF, EPUB, and HTML
+│   └── design/                Design notes, one per feature
 ├── mobile/                    The iOS app (see below)
 ├── vercel.json                Cron schedules
 └── .env.example               Every environment variable, documented
@@ -207,8 +221,8 @@ Three GitHub Actions workflows live in `.github/workflows/`.
 
 | Workflow | Runs on | What it does |
 | --- | --- | --- |
-| `ci.yml` | Every push to `main` and every pull request | Web: typecheck, Vitest, `next build`. iOS: XcodeGen, then an unsigned simulator build and the XCTest suite on a macOS 26 runner. |
-| `release.yml` | Tag `v*` | Creates the GitHub release with that version's section of `CHANGELOG.md`. |
+| `ci.yml` | Every push to `main` and every pull request | Web: typecheck, Vitest, `next build`. iOS: XcodeGen, then an unsigned simulator build and the XCTest suite on a macOS 26 runner. Secrets: a gitleaks scan of the full history. |
+| `release.yml` | Tag `v*` | Creates the GitHub release with that version's section of `CHANGELOG.md` and the handbook PDF and EPUB as assets. |
 | `ios-testflight.yml` | Tag `v*`, or by hand | Archives the app with the version from the tag and the run number as the build number, switches push to the production environment, and uploads to App Store Connect. |
 
 Web deployment is handled by Vercel's Git integration, so there is no deploy step in Actions. Every push to `main` becomes a production deployment once CI passes.
@@ -240,10 +254,36 @@ Releases are tagged from `main`.
 
 The tag triggers the GitHub release and the TestFlight upload. Vercel deploys the commit.
 
+## The handbook
+
+<a href="docs/handbook/Sanchara-Engineering-Handbook.pdf"><img src="docs/handbook/cover.jpg" width="160" align="right" alt="Sanchara Engineering Handbook cover"></a>
+
+The Sanchara Engineering Handbook is the long-form description of the system in 16 chapters and 3 appendices: the architecture, the chart engine, how a reading is written and what it costs, identity and access, one chapter per feature (intake, chat, kundli, the life timeline, daily readings and alerts, on-device answers and widgets, profile and admin, the web shell), then the data model, the iOS project, setup and release, and a catalogue of what breaks and what catches it. Read the chapter for the area you are changing before a large change.
+
+- [PDF](docs/handbook/Sanchara-Engineering-Handbook.pdf) and [EPUB](docs/handbook/Sanchara-Engineering-Handbook.epub) in the repo
+- Downloads on the [latest release](https://github.com/shivvyas2/astra/releases/latest)
+- Source chapters in `docs/handbook/src/chapters/`, built with `docs/handbook/make-book.sh` (`build.py`, then `render-pdf.sh`, then `render-epub.sh`)
+
+Where the code and the handbook disagree, the code is right and the handbook has a bug. Please file it.
+
+<br clear="all">
+
 ## Costs
 
 What a reading costs, and the caching and effort settings that keep it low, are in [docs/MODEL_COSTS.md](docs/MODEL_COSTS.md).
 
-## Design history
+## Design notes
 
-The original design spec, implementation plan, and the iOS design spec are under `docs/superpowers/`. The product was called Astra during development. The repository, bundle identifier, and production hostname still carry that name.
+The design notes that preceded each feature are under `docs/design/`: the original web app, the native iOS app, the timeline and widget and push work, and the specific-readings work that moved Vedic charts to whole-sign houses. The product was called Astra during development. The repository, bundle identifier, and production hostname still carry that name.
+
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for how the repo works: one branch per change, conventional commits, a design note for anything larger than a fix, and the tests above before you open a pull request. Security issues go through [SECURITY.md](SECURITY.md), not the issue tracker.
+
+## Privacy
+
+Birth details and conversations are personal. Every table is behind Row Level Security, the model is handed one user's computed chart and nothing else, and the service-role and model keys never leave the server. There is no analytics SDK, no ad SDK, and no third-party crash reporter.
+
+## License
+
+[MIT](LICENSE). The Swiss Ephemeris is used through `swisseph-wasm` under its own licence; check it before redistributing a build commercially.
