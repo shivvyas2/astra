@@ -33,3 +33,6 @@ xcuserdata/
 # Unrelated scratch projects that live beside this checkout.
 /Astra/
 /Whoop/
+
+# Python bytecode from the handbook build scripts.
+__pycache__/
