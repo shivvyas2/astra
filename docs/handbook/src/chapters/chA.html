@@ -1,0 +1,374 @@
+<section class="chapter" id="chA" data-hue="ref">
+<p class="chapter-kicker">Appendix A</p>
+<h2><span class="num">A</span><span>Why Sanchara exists</span></h2>
+
+<p class="lede">
+  Most astrology apps either guess the sky or hand a language model a sun sign and let it write.
+  Sanchara computes the chart with the Swiss Ephemeris and lets Claude interpret only what was
+  computed. Everything else in this book follows from that one split.
+</p>
+
+<p>
+  This appendix is the product story behind the code on <code>main</code> on 30 September 2026,
+  version 0.3.0. It is written the way a launch document would be: the problem, the bet, who the
+  app is for, what each release delivered, and a press release with the questions a sceptical
+  reader would ask. Where it makes a claim about behaviour, the claim is grounded in a file you can
+  open. The design notes under <code>docs/design/</code> record intent; where they and the code
+  disagree, this appendix follows the code and says so.
+</p>
+
+<h3 id="sA-1"><span class="num">A.1</span><span>The problem</span></h3>
+
+<p>
+  An astrology reading has two parts: the chart, and what the chart means. The first part is
+  astronomy. Where the Sun, Moon and planets stood at a particular minute over a particular
+  town is a fact, and it can be computed to a fraction of a degree. The second part is
+  interpretation, which is a craft with a vocabulary of its own: lords, aspects, dignity, periods,
+  transits. A good reading rests the second part on the first.
+</p>
+
+<p>
+  Consumer apps mostly fail at one end or the other. Some never compute a chart at all: they know a
+  birth date, look up a sun sign, and serve a paragraph that is true of a twelfth of the
+  population. Others compute a chart and then hand a language model a loose description of it and
+  hope. The model, given sign-level facts, writes sign-level prose. The specific-readings design
+  note from 17 September 2026 puts the failure precisely: "A model given sign-level facts writes
+  sign-level prose; the instructions have said 'never a generic horoscope' all along and cannot fix
+  an input problem."
+</p>
+
+<p>
+  There is a third failure the first design note names directly: a model asked to state a
+  planetary position will state one, whether or not it is true. A language model has no
+  ephemeris. Left to itself it will put Saturn wherever the sentence wants Saturn to be.
+</p>
+
+<h3 id="sA-2"><span class="num">A.2</span><span>The bet</span></h3>
+
+<p>
+  The first design note, dated 23 July 2026, states the bet in one line: "Claude never guesses
+  planetary positions. It interprets computed values." The code keeps that promise with a wall
+  between two kinds of work. On one side, deterministic computation from the birth moment. On the
+  other, a model that is handed the results and told, in the system prompt itself, "These are the
+  only facts you have."
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 300" role="img" aria-label="Birth details flow left to right through the Swiss Ephemeris, the chart JSON and the derived facts, cross a boundary into the system prompt, and only then reach Claude, whose reading is streamed back. The computed side is deterministic; the model side interprets and never computes.">
+  <defs>
+    <marker id="chAa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="chAb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">COMPUTED, DETERMINISTIC</text>
+  <text class="lbl-sm" x="560" y="24">INTERPRETED, NEVER COMPUTED</text>
+
+  <rect class="box" x="20" y="60" width="150" height="50" rx="8"/>
+  <text class="lbl" x="95" y="82" text-anchor="middle">Birth details</text>
+  <text class="lbl-sm" x="95" y="100" text-anchor="middle">date, time, place, zone</text>
+
+  <rect class="box-hot" x="200" y="50" width="170" height="70" rx="10"/>
+  <text class="lbl" x="285" y="76" text-anchor="middle">Swiss Ephemeris</text>
+  <text class="lbl-hot" x="285" y="96" text-anchor="middle">WASM, in the route handler</text>
+  <text class="lbl-sm" x="285" y="112" text-anchor="middle">lib/astrology/chart.ts</text>
+
+  <rect class="box" x="400" y="60" width="130" height="50" rx="8"/>
+  <text class="lbl" x="465" y="82" text-anchor="middle">Chart JSON</text>
+  <text class="lbl-sm" x="465" y="100" text-anchor="middle">vedic and western</text>
+
+  <rect class="box" x="400" y="150" width="130" height="50" rx="8"/>
+  <text class="lbl" x="465" y="172" text-anchor="middle">Derived facts</text>
+  <text class="lbl-sm" x="465" y="190" text-anchor="middle">lords, drishti, dignity</text>
+
+  <rect class="box-alt" x="200" y="150" width="170" height="50" rx="8"/>
+  <text class="lbl" x="285" y="172" text-anchor="middle">Today's sky</text>
+  <text class="lbl-sm" x="285" y="190" text-anchor="middle">once a day, midday UTC</text>
+
+  <rect class="box" x="600" y="60" width="150" height="50" rx="8"/>
+  <text class="lbl" x="675" y="82" text-anchor="middle">System prompt</text>
+  <text class="lbl-sm" x="675" y="100" text-anchor="middle">"the only facts you have"</text>
+
+  <rect class="box-hot" x="600" y="150" width="150" height="50" rx="10"/>
+  <text class="lbl" x="675" y="172" text-anchor="middle">Claude</text>
+  <text class="lbl-hot" x="675" y="190" text-anchor="middle">Sonnet, or Opus for deep</text>
+
+  <rect class="box" x="600" y="230" width="150" height="40" rx="8"/>
+  <text class="lbl" x="675" y="255" text-anchor="middle">Streamed reading</text>
+
+  <path class="flow" d="M170 85 L 194 85" marker-end="url(#chAa)"/>
+  <path class="flow" d="M370 85 L 394 85" marker-end="url(#chAa)"/>
+  <path class="flow" d="M465 110 L 465 144" marker-end="url(#chAa)"/>
+  <path class="flow-dash" d="M370 175 L 394 175" marker-end="url(#chAa)"/>
+  <path class="flow-hot" d="M530 85 L 594 85" marker-end="url(#chAb)"/>
+  <path class="flow-hot" d="M530 175 L 560 175 L 560 100 L 594 100" marker-end="url(#chAb)"/>
+  <path class="flow" d="M675 110 L 675 144" marker-end="url(#chAa)"/>
+  <path class="flow" d="M675 200 L 675 224" marker-end="url(#chAa)"/>
+
+  <line class="wall" x1="565" y1="40" x2="565" y2="280"/>
+  <text class="lbl-sm" x="20" y="250">Nothing crosses the line except text the engine wrote.</text>
+  <text class="lbl-sm" x="20" y="268">The model has no ephemeris and is told to interpret only what is listed.</text>
+</svg>
+<figcaption>
+  The split that defines the product. Every fact the model sees was produced by
+  <code>computeChart</code>, <code>deriveFacts</code> or <code>describeGochara</code>; the prompt
+  in <code>lib/astrology/prompt.ts</code> forbids stating anything not listed.
+</figcaption>
+</figure>
+
+<p>
+  The computed side is <code>computeChart</code> in <code>lib/astrology/chart.ts</code>. It turns a
+  local birth time into universal time with luxon, asks the ephemeris for a Julian day, sets
+  Lahiri as the ayanamsa for Vedic and leaves Western tropical, computes Placidus cusps and the
+  ascendant with <code>houses_ex</code>, then places eight bodies with <code>calc_ut</code> and
+  derives Ketu as Rahu plus 180 degrees. For Vedic it adds nakshatras, the current Vimshottari
+  period, and, since 0.3.0, a <code>derived</code> block: what each planet rules, what it aspects,
+  its dignity, whether it is combust, and where the running dasha lord sits. Both traditions are
+  computed once at intake and stored in <code>birth_profiles.chart</code>.
+</p>
+
+<p>
+  The interpreted side is <code>buildChartSystem</code>. It renders the chart as text, then sets the
+  rules. The two that carry the product are these, quoted from the prompt: "Never state a
+  placement, lordship, aspect, dasha, condition or number that is not listed above," and "No
+  sign-personality writing. A sentence that would be true of a twelfth of the population is not an
+  answer." The same wall holds outside chat. The daily readings and dosha alerts in
+  <code>lib/alerts/</code> decide in code whether a dosha exists, and the model's only job, as the
+  comment in <code>compose.ts</code> says, is "to say what the change means and what to do about
+  it." On the phone, the on-device model may only restate rows from a table it looked up.
+</p>
+
+<h4>Who it is for</h4>
+
+<p>
+  The app is for someone who wants a reading of their own chart rather than their sign, and who is
+  willing to type a birth time and a birthplace to get it. Two traditions are served, chosen per
+  conversation: Vedic, sidereal with Lahiri, printed as a kundli because, as the PDF renderer's
+  comment puts it, "in most families it is a piece of paper that gets kept"; and Western, tropical. Numerology is a third mode with its own prompt. The choices in
+  the code say who the author had in mind: the cron schedule is annotated in IST, the kundli PDF
+  prints Sanskrit rashi names because "a North Indian chart labelled Scorpio reads as a translation
+  of someone else's diagram," and the alerts vocabulary is Sade Sati, Mangal dosha and Kaal Sarp.
+  The Western mode is real but plainer, and <a href="#sA-5">A.5</a> says why.
+</p>
+
+<h3 id="sA-3"><span class="num">A.3</span><span>What shipped, release by release</span></h3>
+
+<p>
+  The changelog records three tagged versions, all within three days of each other in September
+  2026. That compresses two months of work, so the table also names the earlier milestones the git
+  history shows.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>When</th><th>What</th><th>Where it lives now</th></tr></thead>
+<tbody>
+<tr><td>23 to 24 July 2026</td><td>Design note, chart engine, prompt builder, streaming chat, admin, landing page. Merged as the MVP on 24 July.</td><td><code>lib/astrology/</code>, <code>app/api/chat/</code>, <code>app/admin/</code></td></tr>
+<tr><td>25 August 2026</td><td>iOS design note. Bearer auth on the route handlers, <code>POST /api/profile</code>, <code>DELETE /api/account</code>, the Universal Links file.</td><td><code>lib/supabase/route.ts</code>, <code>public/.well-known/</code></td></tr>
+<tr><td>26 August 2026</td><td>Dosha alerts, twice-daily readings, prompt caching and effort settings. iOS chat, intake, Apple sign-in, email codes, readings inbox.</td><td><code>lib/alerts/</code>, <code>mobile/Sanchara/</code></td></tr>
+<tr><td class="num-cell">0.1.0, 16 September 2026</td><td>First tagged release. The rename to Sanchara. Life timeline, kundli on the phone, Siri, widgets, on-device answers.</td><td><code>lib/timeline/</code>, <code>mobile/SancharaWidgets/</code></td></tr>
+<tr><td class="num-cell">0.2.0, 16 September 2026</td><td>A meaning for every period, chat that sees the timeline, better moment extraction, the current-period widget, the push environment fix.</td><td><code>lib/timeline/explain.ts</code>, <code>PeriodWidget.swift</code></td></tr>
+<tr><td class="num-cell">0.3.0, 18 September 2026</td><td>Derived chart facts, whole-sign Vedic houses, gochara, deeper numerology, more answered on the phone, and the fixes those changes forced.</td><td><code>lib/astrology/derived.ts</code>, <code>transits.ts</code>, <code>numerology.ts</code></td></tr>
+</tbody></table></div>
+
+<h4>0.1.0: the whole product, once</h4>
+
+<p>
+  The first tag is large because it is the first tag. The changelog's Added list is the feature list
+  of the README: the chart engine for both traditions, streaming readings with an optional deep
+  reading on Opus, the kundli PDF, the life timeline with moments pinned by hand or proposed from
+  chat history "and confirmed before anything is saved," morning and night readings on the user's
+  local clock with a push only when a dosha or hard transit starts or ends, the native app, Siri and
+  widgets, the admin area and the landing page. Two entries sit under Changed. One is the rename,
+  covered below. The other is a correctness fix in the dasha engine: antardashas are laid out from
+  each mahadasha's "virtual start" rather than from the birth moment, which is what the
+  <code>virtualStart</code> field in <code>lib/astrology/dasha.ts</code> records, so that
+  sub-periods line up with the real period.
+</p>
+
+<h4>0.2.0: the timeline learns to speak</h4>
+
+<p>
+  Tagged the same day. The timeline had drawn the dasha periods but named them only by planet. This
+  release adds a one-line theme and a short meaning per period, written by Claude from the chart and
+  the moments pinned inside it, stored in <code>period_readings</code> with a hash of those moments
+  so a changed period is rewritten and an unchanged one is not. The chat gains the same timeline as
+  a block in its cached prompt, so "why was 2021 so hard" is answered against the user's 2021. The
+  scan now resolves relative dates and ages from the message date and birth date, quotes the words
+  each moment came from, and keeps undated events for the user to date. A Home Screen and Lock
+  Screen widget shows the current period. The one fix matters operationally: the app had reported
+  its push environment from the build configuration rather than the signing entitlement, so a
+  Release build from Xcode registered a sandbox token as production and never received a push.
+</p>
+
+<h4>0.3.0: readings cite the chart, not the sign</h4>
+
+<p>
+  This is the release that closes the gap named in <a href="#sA-1">A.1</a>. Every Vedic reading now
+  carries the lord of each house and where that lord sits, which planets aspect what, each planet's
+  dignity, which are combust, and where the running dasha lord is placed. Transits are read as
+  gochara, by the house they occupy from the ascendant and from the natal Moon, with the affliction
+  those positions raise. Numerology sees the personal year and month, the Lo Shu grid, and the
+  relationship between the core numbers. The phone answers questions about rulers, aspects and
+  strength on the device.
+</p>
+
+<p>
+  The Changed entry is the one users could notice: Vedic houses became whole-sign, because the
+  chart, the PDF and the on-device table had labelled houses whole-sign from the ascendant while
+  filling them with Placidus numbers. "Existing charts upgrade themselves the first time they are
+  read; nothing to do." The Fixed list is the consequence of doing that carefully. Western readings
+  had been handed Vedic technique on a tropical chart and now get "the plain sky again." And a
+  dosha fixed at birth could have announced itself as news when the house system shifted the
+  detectors; "Natal conditions never alert now; they reconcile silently." Both of those are
+  decisions in their own right, and <a href="#chB">Appendix B</a> records them.
+</p>
+
+<h4>The name</h4>
+
+<p>
+  The product was called Astra from the first commit on 23 July 2026 until the commit of 16
+  September 2026 that renamed the iOS target, the copy and the prompts. The changelog for 0.1.0
+  states the rule: "The bundle identifier and production hostname are unchanged." So the repository
+  is still <code>astra</code>, the bundle id is <code>com.shivvyas.astra</code>, the App Group is
+  <code>group.com.shivvyas.astra</code>, the production host is <code>astra.shivvyas.com</code>, and
+  the first migration is headed "Astra schema + RLS." The user-facing name is Sanchara everywhere:
+  the system prompt opens "You are Sanchara," the widget bundle is <code>SancharaWidgets</code>, and
+  the custom URL scheme a widget tap uses is <code>sanchara://</code>. Why the identifiers stayed is
+  a decision in <a href="#chB">Appendix B</a>; in short, Apple's push, sign-in and associated-domain
+  configuration is wired to them.
+</p>
+
+<h3 id="sA-4"><span class="num">A.4</span><span>PR/FAQ</span></h3>
+
+<div class="prfaq">
+<p class="prfaq-kicker">Press release</p>
+<p class="release">
+  Sanchara computes your real birth chart and reads it to you. Give it the date, time and place you
+  were born and the Swiss Ephemeris places every planet, house, nakshatra and period exactly. Then
+  ask it anything. The reading names the placement it is reading from, in the Vedic or Western
+  tradition you choose, and it will not tell you something that is true of everyone born under your
+  sign. Twice a day it writes a reading for your morning and your night, and it only sends a
+  notification when something in your sky actually changes. On iPhone the chart lives on the phone,
+  so Siri, the widget and simple questions answer with no network and no charge. Your kundli is a
+  document you can print.
+</p>
+
+<p class="faq-q">Does the model compute my chart?</p>
+<p class="faq-a">
+  No. <code>computeChart</code> in <code>lib/astrology/chart.ts</code> does, using
+  <code>swisseph-wasm</code> inside the route handler, and the result is stored with your profile.
+  The model is handed the result as text and told it is "the only facts you have." If you ask about a
+  placement that is not in the chart, the prompt instructs it to say what the chart does show
+  instead.
+</p>
+
+<p class="faq-q">Why is my Vedic chart different from my Western one?</p>
+<p class="faq-a">
+  Two settings, both in <code>computeChart</code>. Vedic is computed sidereal with the Lahiri
+  ayanamsa, which currently sets positions roughly 24 degrees behind tropical, so a Sun in early
+  Capricorn tropically is in Sagittarius sidereally; the test in <code>chart.test.ts</code> asserts
+  exactly that. Vedic houses are whole-sign from the ascendant; Western houses are Placidus.
+</p>
+
+<p class="faq-q">Why did my house numbers change in September?</p>
+<p class="faq-a">
+  Before 0.3.0 the Vedic chart labelled its houses whole-sign but numbered the planets by Placidus
+  cusps, so a planet could be drawn in a house whose sign it was not in. Since 0.3.0 both agree. A
+  stored chart from before the change carries <code>schemaVersion</code> below 2 and is recomputed
+  the first time it is read, by <code>ensureCurrentChart</code> in
+  <code>lib/data/birthProfile.ts</code>.
+</p>
+
+<p class="faq-q">Will I get a notification every day?</p>
+<p class="faq-a">
+  Two readings are written every day, morning and night on your own clock, and they arrive as pushes
+  when push is configured. A dosha alert is different: it is sent only when a condition starts or
+  ends. The daily job diffs the conditions it computes today against the open rows in
+  <code>transit_conditions</code>, and a condition that merely continues is never re-notified,
+  "which is what keeps a standing Sade Sati from becoming a daily nag." A condition fixed at birth
+  is never announced as news at all.
+</p>
+
+<p class="faq-q">What does a reading cost to run?</p>
+<p class="faq-a">
+  Measured on a real chart and question, and recorded in <code>docs/MODEL_COSTS.md</code>: a
+  mid-conversation turn on Sonnet 5 went from roughly $0.023 to $0.008 after the system prompt was
+  split so its stable half is a cache read, and after routine readings were set to low effort,
+  which cut output from 1,452 to 719 tokens for the same placements cited. A deep reading keeps
+  the default effort on Opus. On an iPhone with Apple Intelligence, a lookup question never reaches
+  the API at all.
+</p>
+
+<p class="faq-q">Why is a Western reading plainer than a Vedic one?</p>
+<p class="faq-a">
+  Because the techniques that make a Vedic reading specific are Vedic. Lordship, graha drishti,
+  moolatrikona, combustion orbs and the natal doshas apply to a sidereal whole-sign chart, and
+  applying them to a tropical Placidus chart would cite Indian technique as though it were Western.
+  So <code>factsFor</code> returns nothing for a Western chart and the prompt renders the plain
+  positions; today's sky is given as where each body is and which natal body it sits on.
+</p>
+
+<p class="faq-q">Who can read my conversations?</p>
+<p class="faq-a">
+  You, through Row Level Security policies that scope every table to <code>auth.uid()</code>, and an
+  admin who signs in at <code>/admin/login</code> and appears in the <code>admins</code> table, which
+  has no insert policy, so signing up can never grant it. The admin area reads through the
+  service-role client on the server and is read-only for transcripts.
+</p>
+</div>
+
+<h3 id="sA-5"><span class="num">A.5</span><span>What is deliberately not built</span></h3>
+
+<p>
+  The four design notes each carry a non-goals list, and most of those lines are still true of the
+  code. A few items from the iOS note were planned and never landed. Listing both kinds keeps a new
+  contributor from either building something on purpose left out or assuming something exists.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Not built</th><th>Source</th><th>What the code does instead</th></tr></thead>
+<tbody>
+<tr><td>Payments or subscriptions</td><td>Web note, iOS note</td><td>Deep reading is a boolean on the chat request (<code>deep?: boolean</code> in <code>app/api/chat/route.ts</code>), a config toggle rather than billing.</td></tr>
+<tr><td>Social features, sharing, public profiles</td><td>Web note</td><td>Nothing in the schema is readable by anyone but its owner and an admin.</td></tr>
+<tr><td>Android, iPad layouts, macOS</td><td>iOS note</td><td><code>TARGETED_DEVICE_FAMILY</code> is <code>"1"</code> in <code>mobile/project.yml</code>: iPhone only.</td></tr>
+<tr><td>The admin area on iOS</td><td>iOS note</td><td>Admin stays under <code>app/admin/</code> on the web with its own login.</td></tr>
+<tr><td>On-device chart computation</td><td>iOS note</td><td>The phone decodes <code>birth_profiles.chart</code> and caches it; the ephemeris runs only on Vercel.</td></tr>
+<tr><td>Offline chat</td><td>iOS note</td><td>Offline viewing is in: <code>ProfileStore</code> starts from the cached chart and details, so an offline launch is "still a usable app." Sending a message needs the API.</td></tr>
+<tr><td>Face ID lock, haptics</td><td>iOS note, planned</td><td>Neither is in the sources; there is no biometric or feedback-generator call in <code>mobile/Sanchara/Sources/</code>. The note listed them as native capabilities to add; they were not.</td></tr>
+<tr><td>Divisional charts, Shadbala, Ashtakavarga</td><td>Specific-readings note</td><td>Depth is "core Parashari": lords, drishti, dignity, combustion, dasha lord placement, gochara.</td></tr>
+<tr><td>Planetary friendship in dignity</td><td>Specific-readings note, <code>derived.ts</code></td><td>Dignity stops at five values. Friendship is a compound of natural and temporal, and "half of it is misleading rather than partial." The natural table is used only in numerology, where it is the whole rule.</td></tr>
+<tr><td>Node lordship and node aspects beyond the 7th</td><td><code>derived.ts</code></td><td>Rahu and Ketu rule nothing and aspect only the 7th, because "a contested claim repeated in every reading is worse than a missing one."</td></tr>
+<tr><td>Yogas beyond the conditions in <code>doshas.ts</code></td><td>Specific-readings note</td><td>The natal doshas and transit afflictions <code>detectConditions</code> returns, and no more.</td></tr>
+<tr><td>Western aspects</td><td>Web note listed "aspects (major)" for Western</td><td>Not computed. Only Vedic charts get a <code>derived</code> block; a Western reading gets positions and the plain sky.</td></tr>
+<tr><td>Nakshatra pada</td><td>Web note listed "nakshatra + pada"</td><td>Only the nakshatra name is stored (<code>nakshatraOf</code> in <code>constants.ts</code>); no pada is computed anywhere.</td></tr>
+<tr><td>An in-app notice about changed house numbers</td><td>Specific-readings note</td><td>Called "a product decision, not a technical one." Charts upgrade silently on read.</td></tr>
+<tr><td>A bigger deep-reading budget</td><td>Specific-readings note</td><td><code>WORDS_DEEP</code> is still 320, to be judged "against real answers after this lands, not guessed at now."</td></tr>
+</tbody></table></div>
+
+<div class="note"><b>One leftover</b>
+The README's stack table lists three.js for the landing page, and <code>three</code> is still in
+<code>package.json</code>. Nothing imports it. The iOS design note noticed this in August: the hero
+is a photo with GSAP scroll sections, not WebGL. It is a dependency to remove, not a feature to
+document.
+</div>
+
+<h3 id="sA-6"><span class="num">A.6</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>docs/design/2026-07-23-web-app.md</code>, for the original bet and the first non-goals.</li>
+  <li><code>lib/astrology/chart.ts</code>, for the computed side of the wall, in 124 lines.</li>
+  <li><code>lib/astrology/prompt.ts</code>, for the rules the model is given, especially the Accuracy block.</li>
+  <li><code>CHANGELOG.md</code>, for the three releases and the exact wording of what changed.</li>
+  <li><code>docs/design/2026-09-17-specific-readings.md</code>, for why 0.3.0 was necessary and what it left out.</li>
+  <li><code>docs/MODEL_COSTS.md</code>, for the numbers behind the cost answer in the FAQ.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">What is the one thing the model is never allowed to do, and where is it enforced?</p>
+<p class="a">State a fact that was not computed. It is enforced by construction (the model has no ephemeris and only sees text the engine wrote) and by instruction (the Accuracy block in <code>buildChartSystem</code>, and the alert and prediction prompts' "Never invent a placement, dosha, date, or number that is not listed above").</p>
+<p class="q">Why does a Western reading get no derived facts?</p>
+<p class="a">Because every technique in <code>derived.ts</code> is Vedic and assumes whole-sign houses from a sidereal ascendant. <code>factsFor</code> returns <code>undefined</code> unless <code>chart.tradition</code> is <code>"vedic"</code>.</p>
+<p class="q">Which identifiers still say Astra, and why were they kept?</p>
+<p class="a">The bundle id, the App Group, the URL name, the production host and the repository. Apple's push credentials, Sign in with Apple and associated domains are configured against them; changing them would mean new App IDs and re-setup of every capability.</p>
+<p class="q">What did 0.2.0 fix that no user could have diagnosed?</p>
+<p class="a">The push environment was read from the build configuration rather than the signing entitlement, so a Release build run from Xcode registered a sandbox token as production and silently never received a push.</p>
+</div>
+</section>

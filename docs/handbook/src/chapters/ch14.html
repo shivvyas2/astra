@@ -1,0 +1,737 @@
+<section class="chapter" id="ch14" data-hue="ios">
+<p class="chapter-kicker">Chapter fourteen</p>
+<h2><span class="num">14</span><span>The iOS app</span></h2>
+
+<p class="lede">
+  Sanchara for iOS is a SwiftUI app that talks to the same route handlers and the same Supabase
+  project as the web app, holds no secret the web does not also publish, and is built from a
+  127-line YAML spec rather than a checked-in Xcode project. Everything about how it is
+  assembled, configured, signed and shipped follows from that.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. It
+  covers the plumbing under the features: the generated project and its three targets, the
+  generated configuration file, the entry point and the routing state machine, the design tokens,
+  the API client and its streaming reader, the plist and entitlement choices, how the XCTest suite
+  is organised, and the two GitHub Actions workflows that build it on every push and ship it to
+  TestFlight on every tag. The features themselves (chat, kundli, timeline, alerts, on-device
+  answers) live in their own chapters; <a href="#ch10">chapter 10</a> in particular covers the
+  widget extension and the App Group cache.
+</p>
+
+<h3 id="s14-1"><span class="num">14.1</span><span>One spec, three targets</span></h3>
+
+<p>
+  The Xcode project is generated. <code>mobile/project.yml</code> is the whole description of the
+  app for XcodeGen, and <code>.gitignore</code> excludes <code>mobile/Sanchara.xcodeproj/</code>,
+  <code>mobile/build/</code>, <code>mobile/SourcePackages/</code> and the generated sources
+  folder. The comment in the ignore file is the rule: "Run <code>cd mobile &amp;&amp; xcodegen
+  generate</code> after changing the spec." The practical consequence is that adding a Swift
+  file means regenerating the project, and that two engineers can never diverge on a
+  <code>project.pbxproj</code> merge, because there is no such file to merge.
+</p>
+
+<pre><code># mobile/project.yml
+name: Sanchara
+options:
+  bundleIdPrefix: com.shivvyas
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    CODE_SIGN_STYLE: Automatic</code></pre>
+
+<p>
+  The base settings also name the development team, which this handbook does not reproduce.
+  Signing is automatic everywhere: locally through Xcode, on CI by turning signing off, and in
+  the TestFlight workflow through an App Store Connect API key. One package is declared,
+  supabase-swift at 2.0.0 or later, and only the app target links it.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 290" role="img" aria-label="Three targets: the Sanchara app links the Supabase package and embeds the SancharaWidgets extension; SancharaTests depends on the app; the extension links no package and instead compiles six app source files listed by path.">
+  <defs>
+    <marker id="ch14a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch14b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box-hot" x="40" y="40" width="220" height="54" rx="10"/>
+  <text class="lbl" x="150" y="62" text-anchor="middle">Sanchara</text>
+  <text class="lbl-hot" x="150" y="82" text-anchor="middle">application, iOS 17.0</text>
+
+  <rect class="box" x="330" y="40" width="200" height="54" rx="10"/>
+  <text class="lbl" x="430" y="62" text-anchor="middle">SancharaTests</text>
+  <text class="lbl-sm" x="430" y="82" text-anchor="middle">bundle.unit-test</text>
+
+  <rect class="box" x="600" y="40" width="240" height="54" rx="10"/>
+  <text class="lbl" x="720" y="62" text-anchor="middle">SancharaWidgets</text>
+  <text class="lbl-sm" x="720" y="82" text-anchor="middle">app-extension, iOS 17.0</text>
+
+  <rect class="box-alt" x="40" y="190" width="220" height="54" rx="10"/>
+  <text class="lbl" x="150" y="212" text-anchor="middle">Supabase</text>
+  <text class="lbl-sm" x="150" y="232" text-anchor="middle">supabase-swift, from 2.0.0</text>
+
+  <rect class="box-alt" x="600" y="170" width="240" height="80" rx="10"/>
+  <text class="lbl" x="720" y="192" text-anchor="middle">Six app source files</text>
+  <text class="lbl-sm" x="720" y="212" text-anchor="middle">Theme, ReadingCard, ChartCache</text>
+  <text class="lbl-sm" x="720" y="230" text-anchor="middle">ChartData, BirthProfileDetails, OpenKundliIntent</text>
+
+  <path class="flow" d="M330 67 L 266 67" marker-end="url(#ch14a)"/>
+  <text class="lbl-sm" x="270" y="58">depends on, @testable import</text>
+  <path class="flow-hot" d="M150 94 L 150 184" marker-end="url(#ch14b)"/>
+  <text class="lbl-sm" x="158" y="140">links the package product</text>
+  <path class="flow" d="M260 50 L 594 50" marker-end="url(#ch14a)"/>
+  <text class="lbl-sm" x="380" y="30">embeds the extension</text>
+  <path class="flow" d="M720 94 L 720 164" marker-end="url(#ch14a)"/>
+  <text class="lbl-sm" x="728" y="132">compiles by path, no package</text>
+  <text class="lbl-sm" x="40" y="276">The extension declares no package dependency. Anything it needs from the app is listed file by file, and each file imports only Foundation, SwiftUI or AppIntents.</text>
+</svg>
+<figcaption>
+  Three targets, one package. The tests import the app; the app links Supabase and embeds the
+  widgets; the widgets reach into the app's sources by path and nowhere else.
+</figcaption>
+</figure>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Target</th><th>Type</th><th>Bundle id</th><th>Sources</th><th>Depends on</th></tr></thead>
+<tbody>
+<tr><td><code>Sanchara</code></td><td>application</td><td><code>com.shivvyas.astra</code></td><td><code>Sanchara/Sources</code>, <code>Sanchara/Resources</code> as a resources phase</td><td>the Supabase package product; the <code>SancharaWidgets</code> target</td></tr>
+<tr><td><code>SancharaWidgets</code></td><td>app-extension</td><td><code>com.shivvyas.astra.widgets</code></td><td><code>SancharaWidgets</code> plus six app files by path</td><td>nothing</td></tr>
+<tr><td><code>SancharaTests</code></td><td>bundle.unit-test</td><td><code>com.shivvyas.astra.tests</code></td><td><code>Sanchara/Tests</code></td><td>the <code>Sanchara</code> target</td></tr>
+</tbody></table></div>
+
+<p>
+  Three per-target settings are worth knowing. <code>GENERATE_INFOPLIST_FILE</code> is
+  <code>NO</code> for the app and the extension, because each keeps a real
+  <code>Info.plist</code> that the TestFlight workflow edits with PlistBuddy; the test bundle
+  lets Xcode generate its own. <code>TARGETED_DEVICE_FAMILY</code> is <code>"1"</code>, iPhone
+  only. And the extension sets <code>SKIP_INSTALL: YES</code>, the standard way to keep an
+  embedded extension out of the archive's products list. The extension carries its own
+  <code>deploymentTarget</code> of iOS 17.0 with a comment noting that widgets and controls
+  arrived on that schedule while the app itself still runs on iOS 17; the newer surfaces
+  (controls on iOS 18, snippets and the on-device model on iOS 26) are gated in code with
+  <code>#available</code>, not by raising the floor.
+</p>
+
+<h3 id="s14-2"><span class="num">14.2</span><span>Configuration and the icon</span></h3>
+
+<h4>make-config.sh and the generated AppConfig</h4>
+
+<pre><code># mobile/scripts/make-config.sh
+read_var() { grep -E "^$1=" "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'" | tr -d '\r'; }
+
+SUPABASE_URL="$(read_var NEXT_PUBLIC_SUPABASE_URL)"
+SUPABASE_ANON_KEY="$(read_var NEXT_PUBLIC_SUPABASE_ANON_KEY)"
+API_BASE_URL="${SANCHARA_API_BASE_URL:-https://astra.shivvyas.com}"
+
+cat &gt; "$OUT" &lt;&lt;SWIFT
+// Generated by mobile/scripts/make-config.sh, do not edit, do not commit.
+import Foundation
+
+enum AppConfig {
+    static let supabaseURL = URL(string: "$SUPABASE_URL")!
+    static let supabaseAnonKey = "$SUPABASE_ANON_KEY"
+    static let apiBaseURL = URL(string: "$API_BASE_URL")!
+}
+SWIFT</code></pre>
+
+<p>
+  The app has no secrets file and no build-time environment; it has one generated Swift file,
+  <code>mobile/Sanchara/Sources/Generated/AppConfig.swift</code>, written by
+  <code>mobile/scripts/make-config.sh</code> from the repo's <code>.env.local</code>. The script
+  reads exactly two variables, the same two the web app ships to browsers:
+  <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>. Its header
+  comment states the boundary: those values "are designed to ship in clients (RLS is the
+  security boundary, not secrecy)", while <code>SUPABASE_SERVICE_ROLE_KEY</code> and
+  <code>ANTHROPIC_API_KEY</code> "are never read here and must never reach the app binary." The
+  script fails loudly if either value is missing. A third value,
+  <code>SANCHARA_API_BASE_URL</code>, is read from the shell environment rather than the file and
+  defaults to the production host, which is how a developer points a build at a local or preview
+  API without touching the checked-in code. The output folder is gitignored, so the generated
+  file exists on every machine that built the app and in no commit.
+</p>
+
+<p>
+  Three places consume the three constants. <code>Supa.client</code> is constructed from
+  <code>supabaseURL</code> and <code>supabaseAnonKey</code>. <code>SancharaAPI.request</code>
+  builds every URL by appending a path to <code>apiBaseURL</code>. And
+  <code>AuthStore</code> uses <code>apiBaseURL</code> to form the
+  <code>auth/callback</code> redirect for magic-link email.
+</p>
+
+<h4>make-icon.py</h4>
+
+<p>
+  The app icon is not a design file; it is <code>mobile/scripts/make-icon.py</code>, a Pillow
+  script that writes
+  <code>Sanchara/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png</code>. The docstring
+  describes the mark: "a warm disc with a soft corona on the near-black ground, using the same
+  tokens as <code>app/globals.css</code>." The three colours are literally the site's tokens
+  (<code>BG</code> 0x0A0A0B, <code>ACCENT</code> 0xE8663D, <code>FG</code> 0xF4F1EA). The
+  script renders on a 4096-pixel canvas and downsamples to 1024 with Lanczos so the edges stay
+  clean at small sizes. It builds the image in four passes: sixty concentric translucent rings
+  blurred into a glow for the corona, the disc itself with a warm vertical falloff so it reads
+  as lit, a thin bright limb along the upper edge masked by its own falloff so it fades toward
+  the equator, and the final resize. The disc sits at 46 percent of the height rather than
+  centred, with a radius of a fifth of the canvas. Changing the icon means changing numbers
+  in a script and re-running it, which is the same discipline as the generated project and the
+  generated config: nothing binary is hand-made.
+</p>
+
+<h3 id="s14-3"><span class="num">14.3</span><span>Entry point and routing</span></h3>
+
+<pre><code>// mobile/Sanchara/Sources/SancharaApp.swift
+@main
+struct SancharaApp: App {
+    // APNs callbacks have no SwiftUI equivalent, so the app keeps a delegate.
+    @UIApplicationDelegateAdaptor(SancharaAppDelegate.self) private var appDelegate
+    @State private var auth = AuthStore()
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environment(auth)
+                .preferredColorScheme(.dark)
+        }
+    }
+}</code></pre>
+
+<p>
+  Sixteen lines. One <code>AuthStore</code> is created here and passed down through the
+  environment; nothing else in the app creates one. The app delegate exists for one reason the
+  comment gives, APNs token and notification callbacks, and it lives in
+  <code>Services/Push.swift</code>. The dark colour scheme is forced at the root and again in
+  <code>Info.plist</code>, which section 14.6 returns to.
+</p>
+
+<p>
+  <code>RootView</code> is a switch over <code>AuthStore.State</code>, and
+  <code>SignedInView</code> is a switch over <code>ProfileStore.State</code>. Between them they
+  are the whole routing policy of the app: there is no tab bar and nothing at the root remembers
+  a screen. <code>ChatView</code> owns the one <code>NavigationStack</code> that matters and
+  presents history, profile, kundli, timeline and alerts as sheets.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/RootView.swift
+var body: some View {
+    Group {
+        switch auth.state {
+        case .loading:
+            LoadingScreen()
+        case .signedOut:
+            AuthView()
+        case .awaitingCode(let email, let purpose):
+            VerifyCodeView(email: email, purpose: purpose)
+        case .signedIn:
+            SignedInView()
+        }
+    }
+    .task { await auth.start() }
+    .onOpenURL { url in
+        // Two kinds of URL arrive here: Supabase's auth callback, and our
+        // own scheme from a widget tap. Only the first is for the auth
+        // store; handing it a sanchara:// URL would show "link expired".
+        if DeepLink.isDeepLink(url) {
+            DeepLink.shared.handle(url: url)
+        } else {
+            Task { await auth.handle(url: url) }
+        }
+    }
+}</code></pre>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 360" role="img" aria-label="Left: AuthStore states. loading goes to signedOut when there is no session and to signedIn when there is one; signedOut reaches signedIn directly by password or Apple, or through awaitingCode when a six-digit code was emailed; signedIn returns to signedOut on sign-out. Right: once signed in, ProfileStore loads and lands on needsIntake, ready, or failed; intake saves and reloads to ready; failed offers try again or sign out.">
+  <defs>
+    <marker id="ch14c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch14d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">ROOTVIEW: AuthStore.State</text>
+  <text class="lbl-sm" x="470" y="24">SIGNEDINVIEW: ProfileStore.State</text>
+
+  <rect class="box" x="20" y="60" width="150" height="36" rx="8"/><text class="lbl" x="95" y="83" text-anchor="middle">loading</text>
+  <rect class="box" x="20" y="160" width="150" height="36" rx="8"/><text class="lbl" x="95" y="183" text-anchor="middle">signedOut / AuthView</text>
+  <rect class="box" x="220" y="160" width="190" height="36" rx="8"/><text class="lbl" x="315" y="183" text-anchor="middle">awaitingCode / VerifyCode</text>
+  <rect class="box-hot" x="220" y="250" width="190" height="40" rx="10"/><text class="lbl" x="315" y="275" text-anchor="middle">signedIn / SignedInView</text>
+
+  <path class="flow" d="M95 96 L 95 154" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="102" y="130">no session</text>
+  <path class="flow" d="M170 70 L 190 70 L 190 270 L 214 270" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="196" y="120">session found,</text>
+  <text class="lbl-sm" x="196" y="134">or .signedIn event</text>
+  <path class="flow" d="M170 178 L 214 178" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="150" y="150">code emailed</text>
+  <path class="flow" d="M315 196 L 315 244" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="322" y="224">code verified</text>
+  <path class="flow" d="M95 196 L 95 280 L 214 280" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="104" y="274">password or Apple</text>
+  <path class="flow-dash" d="M300 290 L 300 315 L 60 315 L 60 202" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="66" y="332">signOut(), or a .signedOut event</text>
+
+  <line class="wall" x1="440" y1="30" x2="440" y2="340"/>
+
+  <rect class="box" x="480" y="60" width="150" height="36" rx="8"/><text class="lbl" x="555" y="83" text-anchor="middle">loading</text>
+  <rect class="box" x="470" y="170" width="120" height="40" rx="8"/><text class="lbl" x="530" y="188" text-anchor="middle">needsIntake</text><text class="lbl-sm" x="530" y="203" text-anchor="middle">IntakeView</text>
+  <rect class="box-hot" x="610" y="170" width="110" height="40" rx="10"/><text class="lbl" x="665" y="188" text-anchor="middle">ready</text><text class="lbl-hot" x="665" y="203" text-anchor="middle">ChatView</text>
+  <rect class="box-alt" x="740" y="170" width="100" height="40" rx="8"/><text class="lbl" x="790" y="195" text-anchor="middle">failed</text>
+
+  <path class="flow-hot" d="M410 270 L 455 270 L 455 78 L 474 78" marker-end="url(#ch14d)"/>
+  <text class="lbl-sm" x="414" y="262">load()</text>
+  <path class="flow" d="M540 96 L 530 164" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="456" y="140">no chart row</text>
+  <path class="flow-hot" d="M580 96 L 660 164" marker-end="url(#ch14d)"/>
+  <text class="lbl-sm" x="600" y="140">chart row</text>
+  <path class="flow-dash" d="M630 70 L 790 70 L 790 164" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="640" y="62">fetch failed and no cache</text>
+  <path class="flow" d="M590 190 L 604 190" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="560" y="232">saved, load() again</text>
+  <path class="flow-dash" d="M840 190 L 850 190 L 850 44 L 555 44 L 555 54" marker-end="url(#ch14c)"/>
+  <text class="lbl-sm" x="700" y="40">Try again</text>
+  <text class="lbl-sm" x="742" y="228">or Sign out</text>
+  <text class="lbl-sm" x="470" y="332">An offline launch with a cached chart and details is .ready, not .failed.</text>
+</svg>
+<figcaption>
+  Two switches, eight states. The left half is identity and never touches the chart; the right
+  half assumes identity and only asks whether a chart exists. A sign-out from anywhere collapses
+  both.
+</figcaption>
+</figure>
+
+<p>
+  <code>AuthStore.start()</code> sets the first state from whether supabase-swift has a session
+  in the Keychain, then loops over <code>authStateChanges</code> for the life of the app:
+  <code>.signedIn</code> and <code>.tokenRefreshed</code> with a session move to
+  <code>.signedIn</code>, <code>.signedOut</code> moves to <code>.signedOut</code>. The
+  <code>awaitingCode</code> state carries the email and a <code>CodePurpose</code>, either
+  <code>.signIn</code> (a passwordless code) or <code>.confirmSignUp</code> (confirming the
+  address on a password account), which decides which Supabase OTP type verifies it. A password
+  sign-in that fails with "not confirmed" lands in <code>awaitingCode</code> rather than an error,
+  which is how an unconfirmed account recovers.
+</p>
+
+<p>
+  <code>SignedInView</code> owns a <code>ProfileStore</code> and calls <code>load()</code> in a
+  <code>.task</code>. The store seeds the chart and details from the App Group cache, fetches the
+  <code>birth_profiles</code> row that has a non-null <code>chart</code>, and lands on
+  <code>.needsIntake</code> when there is none or <code>.ready</code> when there is one.
+  <code>IntakeView</code> is handed a closure that calls <code>load()</code> again once the
+  profile is saved, so the same switch carries the person from intake to chat without any
+  navigation code. <code>.failed</code> is reached only when the fetch throws and the cache had
+  nothing; it shows the message, a "Try again" button that reloads, and a "Sign out" button.
+  The web app makes the same decision in a redirect: <code>/api/chat</code> refuses a user with
+  no chart and the chat page sends them to intake.
+</p>
+
+<h3 id="s14-4"><span class="num">14.4</span><span>Design: tokens, components, the card</span></h3>
+
+<pre><code>// mobile/Sanchara/Sources/Design/Theme.swift
+enum Theme {
+    /// `--bg: #0a0a0b`
+    static let bg = Color(hex: 0x0A0A0B)
+    /// `--fg: #f4f1ea`
+    static let fg = Color(hex: 0xF4F1EA)
+    /// `--muted: #9a978f`
+    static let muted = Color(hex: 0x9A978F)
+    /// `--accent: #e8663d`
+    static let accent = Color(hex: 0xE8663D)
+
+    /// Tailwind `border-white/10`, used for every hairline on the site.
+    static let hairline = Color.white.opacity(0.10)
+    /// Tailwind `bg-white/[0.04]`, the fill behind form controls.
+    static let fieldFill = Color.white.opacity(0.04)
+    /// Tailwind `rounded-lg` is 0.5rem.
+    static let cornerRadius: CGFloat = 8
+    static let chartLine = Color.white.opacity(0.22)
+    /// The site's easing: `cubic-bezier(0.22, 1, 0.36, 1)`.
+    static let ease = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.6)
+}</code></pre>
+
+<p>
+  The web app defines exactly four colours on <code>:root</code> in
+  <code>app/globals.css</code>, and <code>Theme</code> carries the same four hex values with the
+  CSS variable quoted above each. The file's comment gives the reason: matching them exactly "is
+  what makes the native app read as the same product as the site." <code>ThemeTests</code>
+  asserts each of the four against its CSS token, so a careless edit fails the build rather than
+  drifting. The <code>Color(hex:)</code> initialiser exists so tokens can be written the way they
+  appear in CSS. Two derived values are documented as departures: <code>chartLine</code> is
+  heavier than <code>hairline</code> because the kundli's rule lines are the content, not a
+  divider, and at 0.10 white "the square all but vanished on an OLED screen in daylight". A
+  <code>Text.eyebrow()</code> extension reproduces the site's eyebrow style at 12pt with 3.6
+  points of tracking, which is 0.3em.
+</p>
+
+<p>
+  <code>Components.swift</code> holds four controls, each a transcription of a Tailwind class
+  list: <code>SancharaField</code> (the site's input, 16pt text because that is the size the web
+  forces on phones so Safari does not zoom, and "the size is the look"),
+  <code>SancharaPrimaryButton</code> (foreground on background, with a spinner that replaces the
+  title while loading and disables the button), <code>SancharaSecondaryButton</code> (a
+  white-at-15-percent border and muted text), and <code>SancharaSecureField</code>, a password
+  field with an eye toggle, because "choosing a password you cannot see is the most common
+  reason a sign-up attempt fails twice."
+</p>
+
+<p>
+  <code>ReadingCard.swift</code> is the third file and the only one that leaves the app: it is
+  compiled into the widget extension and rendered by the Siri snippet, so an eyebrow, a serif
+  headline and a muted body look the same in three places. Its body parameter is named
+  <code>text</code> rather than <code>body</code>, because <code>body</code> is the
+  <code>View</code> requirement. It sets its own colours rather than reading the environment,
+  for the reason given in its comment: the app is dark-only, "and a card that went light inside
+  Siri while the app stayed dark would read as a different product."
+</p>
+
+<h3 id="s14-5"><span class="num">14.5</span><span>Services: the client and the session</span></h3>
+
+<h4>One Supabase client</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Services/Supabase.swift
+enum Supa {
+    static let client = SupabaseClient(
+        supabaseURL: AppConfig.supabaseURL,
+        supabaseKey: AppConfig.supabaseAnonKey
+    )
+
+    /// The current access token, for `Authorization: Bearer` against the
+    /// Sanchara API on Vercel. Returns nil when signed out.
+    static func accessToken() async -&gt; String? {
+        try? await client.auth.session.accessToken
+    }
+}</code></pre>
+
+<p>
+  supabase-swift persists the session in the Keychain by default on Apple platforms, which the
+  comment notes is what the design requires: never <code>UserDefaults</code>. The stores read
+  tables directly through this client (<code>birth_profiles</code>, <code>daily_readings</code>,
+  <code>conversations</code>, <code>messages</code>) under the owner-only RLS policies, and
+  everything that needs a secret or the ephemeris goes through <code>SancharaAPI</code> with the
+  session's access token as a bearer.
+</p>
+
+<h4>SancharaAPI</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Services/SancharaAPI.swift
+enum APIError: LocalizedError {
+    case unauthorized
+    case server(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .unauthorized: "Your session expired. Please sign in again."
+        case .server(let message): message
+        }
+    }
+}
+
+private static func request(_ path: String, method: String) async throws -&gt; URLRequest {
+    var req = URLRequest(url: AppConfig.apiBaseURL.appendingPathComponent(path))
+    req.httpMethod = method
+    guard let token = await Supa.accessToken() else { throw APIError.unauthorized }
+    req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    return req
+}
+
+private static func check(_ response: URLResponse, _ data: Data) throws {
+    guard let http = response as? HTTPURLResponse else { return }
+    switch http.statusCode {
+    case 200..&lt;300: return
+    case 401: throw APIError.unauthorized
+    default:
+        let message = String(data: data, encoding: .utf8) ?? "Something went wrong."
+        throw APIError.server(message)
+    }
+}</code></pre>
+
+<p>
+  The client is an enum of static functions, one per route handler, each a few lines:
+  <code>request</code> builds the URL and attaches the bearer, <code>URLSession.shared</code>
+  performs it, <code>check</code> maps the status. There are two error cases and no more. A 401
+  is <code>unauthorized</code>, which every screen renders as a sign-in prompt; anything else
+  outside 2xx is <code>server(message)</code> carrying the response body verbatim, because the
+  route handlers already write their errors as sentences. A missing token throws before any
+  network call. The route handlers themselves are the same ones the web app calls; the
+  <code>/api/geocode</code> call is the one exception to the bearer rule because that route is
+  public, and the comment on it says so.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Function</th><th>Route</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>saveProfile</code></td><td><code>POST /api/profile</code></td><td>Multipart body built by <code>BirthProfileInput.multipartBody</code>; the optional JPEG travels as a <code>photo</code> part</td></tr>
+<tr><td><code>kundliPDF</code></td><td><code>GET /api/kundli</code></td><td>Returns the PDF bytes</td></tr>
+<tr><td><code>deleteAccount</code></td><td><code>DELETE /api/account</code></td><td>Required by App Store guideline 5.1.1(v)</td></tr>
+<tr><td><code>geocode</code></td><td><code>GET /api/geocode?q=</code></td><td>Public, no token; returns coordinates with the timezone the ephemeris needs</td></tr>
+<tr><td><code>timeline</code>, <code>explainTimeline</code>, <code>scanLifeEvents</code></td><td><code>GET /api/timeline</code>, <code>POST /api/timeline/explain</code>, <code>POST /api/timeline/scan</code></td><td>The two POSTs set a 120-second timeout because one model call covers all twelve periods, or a whole transcript</td></tr>
+<tr><td><code>addLifeEvents</code>, <code>deleteLifeEvent</code></td><td><code>POST</code> and <code>DELETE /api/life-events</code></td><td>Batch add; single delete</td></tr>
+<tr><td><code>registerDevice</code>, <code>unregisterDevice</code></td><td><code>POST</code> and <code>DELETE /api/devices</code></td><td>The APNs token and its environment</td></tr>
+<tr><td><code>chatStream</code></td><td><code>POST /api/chat</code></td><td>An <code>AsyncThrowingStream&lt;ChatEvent, Error&gt;</code>, below</td></tr>
+</tbody></table></div>
+
+<h4>Streaming a reading</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Services/SancharaAPI.swift
+if let id = http.value(forHTTPHeaderField: "x-conversation-id") {
+    continuation.yield(.conversationId(id))
+}
+
+var undecoded = Data()
+var batch = ""
+for try await byte in bytes {
+    undecoded.append(byte)
+    guard let piece = String(data: undecoded, encoding: .utf8) else { continue }
+    undecoded.removeAll(keepingCapacity: true)
+    batch += piece
+    if batch.count &gt;= 24 {
+        continuation.yield(.text(batch))
+        batch = ""
+    }
+}
+if !batch.isEmpty { continuation.yield(.text(batch)) }
+continuation.finish()</code></pre>
+
+<p>
+  <code>/api/chat</code> answers with plain UTF-8 text chunks rather than server-sent events, so
+  the client reads raw bytes with <code>URLSession.shared.bytes(for:)</code>. Two things follow.
+  A chunk boundary can split a multi-byte character, so bytes are held in
+  <code>undecoded</code> until they decode as a whole string. And byte-at-a-time updates would
+  redraw the transcript thousands of times for one reading, so text is coalesced into batches of
+  at least 24 characters before being yielded. The conversation id arrives first, from the
+  <code>x-conversation-id</code> response header, before any text; <code>ChatStore</code> keeps
+  it and sends it back on the next turn so the server appends to the same conversation, exactly
+  as <code>components/Chat.tsx</code> does on the web. The request timeout is 120 seconds because
+  readings can think for a while before the first byte. A non-2xx status is read to the end and
+  thrown as <code>server(body)</code>; a 401 is <code>unauthorized</code>. The stream's
+  <code>onTermination</code> cancels the underlying task, which is what lets a new reading
+  supersede one still streaming without leaking the connection.
+</p>
+
+<h3 id="s14-6"><span class="num">14.6</span><span>Info.plist and the entitlements</span></h3>
+
+<p>
+  <code>mobile/Sanchara/Info.plist</code> is short and every key in it is a decision. It is also
+  declared a second time as <code>info.properties</code> in <code>project.yml</code>, which is the
+  copy with the comments.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Key</th><th>Value</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>UIUserInterfaceStyle</code></td><td><code>Dark</code></td><td>"The app is dark by design, the cosmic theme has no light variant." <code>SancharaApp</code> repeats it with <code>preferredColorScheme(.dark)</code>.</td></tr>
+<tr><td><code>UISupportedInterfaceOrientations</code></td><td>portrait only</td><td>One orientation, one device family (iPhone).</td></tr>
+<tr><td><code>CFBundleURLTypes</code></td><td>scheme <code>sanchara</code>, name <code>com.shivvyas.astra</code></td><td>"<code>sanchara://timeline</code>, how a tap on the period widget lands in the app. Universal Links cover the web; this covers the Home Screen."</td></tr>
+<tr><td><code>UILaunchScreen</code></td><td>colour <code>LaunchBackground</code></td><td>A colour set in the asset catalog, so the launch frame is the same near-black as the first screen.</td></tr>
+<tr><td><code>ITSAppUsesNonExemptEncryption</code></td><td><code>false</code></td><td>Skips the export-compliance question on every TestFlight upload.</td></tr>
+<tr><td><code>CFBundleShortVersionString</code>, <code>CFBundleVersion</code></td><td><code>1.0</code>, <code>1</code></td><td>Placeholders. The TestFlight workflow overwrites both from the tag and the run number.</td></tr>
+</tbody></table></div>
+
+<p>
+  <code>mobile/Sanchara/Sanchara.entitlements</code> holds four capabilities, each with a comment
+  in <code>project.yml</code> pointing at the portal step it needs.
+</p>
+
+<ul>
+  <li><code>aps-environment: development</code>. The comment is a warning: change it to
+    <code>production</code> for TestFlight and App Store builds, because "a token minted under one
+    environment is invalid in the other." The TestFlight workflow makes that edit itself, and
+    <code>ApsEnvironment.current</code> in <code>Services/Push.swift</code> reads the answer back
+    from the embedded provisioning profile at runtime rather than trusting the build
+    configuration, because a Release build run from Xcode still carries the development
+    entitlement. The server is told <code>sandbox</code> unless the profile literally says
+    <code>production</code>.</li>
+  <li><code>com.apple.developer.applesignin: Default</code>. Sign in with Apple; the App ID and
+    Supabase's Apple provider both need enabling, per <code>docs/APPLE_SIGN_IN.md</code>.</li>
+  <li><code>com.apple.developer.associated-domains</code>: <code>applinks:</code> and
+    <code>webcredentials:</code> for the production host. The first makes the magic-link and
+    confirmation emails open the app; the second lets the system password manager offer saved
+    credentials.</li>
+  <li><code>com.apple.security.application-groups: group.com.shivvyas.astra</code>. The cache
+    <a href="#ch10">chapter 10</a> is built on. The extension's own entitlements file contains
+    this key and nothing else.</li>
+</ul>
+
+<h3 id="s14-7"><span class="num">14.7</span><span>The test suite</span></h3>
+
+<p>
+  One test target, <code>SancharaTests</code>, depends on the app and uses
+  <code>@testable import Sanchara</code>. There is no UI test target and no test that needs a
+  network, a session or Apple Intelligence: everything that decides something is a pure function
+  or a value type, and the tests read as lists of the rules in plain English. Fourteen files,
+  95 test methods.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>File</th><th class="num-cell">Tests</th><th>What it pins</th></tr></thead>
+<tbody>
+<tr><td><code>ApsEnvironmentTests</code></td><td class="num-cell">6</td><td>The provisioning-profile parser: development reads as sandbox, production as production, and no plist, no entitlement, an unknown value or a simulator build all fall back to sandbox.</td></tr>
+<tr><td><code>AuthValidationTests</code></td><td class="num-cell">4</td><td>Email validation accepts ordinary addresses and rejects malformed ones; code entry keeps only digits; the Apple sign-in nonce is random and hashed.</td></tr>
+<tr><td><code>CandidateResolverTests</code></td><td class="num-cell">9</td><td>How a proposed timeline moment becomes a pinned one: dated candidates pass through, undated ones need a year and land on 1 January at year precision, and the payloads from older servers still decode.</td></tr>
+<tr><td><code>ChartFactsTests</code></td><td class="num-cell">6</td><td>The on-device table's derived rows, the clean fallback without them, and a sweep for forbidden vocabulary.</td></tr>
+<tr><td><code>DailyReadingTests</code></td><td class="num-cell">4</td><td>The readings inbox groups newest day first with morning above night, and labels today and yesterday as words.</td></tr>
+<tr><td><code>DerivedFactsTests</code></td><td class="num-cell">4</td><td><code>NatalChart</code> decodes with or without a <code>derived</code> block, ignores undeclared keys, and tolerates an absent placement.</td></tr>
+<tr><td><code>KundliSnapshotTests</code></td><td class="num-cell">1</td><td>Renders the kundli to a PNG for inspection and asserts only that something was drawn; a pixel assertion "that fails whenever anyone touches a colour is a test that gets deleted."</td></tr>
+<tr><td><code>KundliTests</code></td><td class="num-cell">12</td><td>Which rashi lands in which house, that the twelve regions tile the square exactly, that planets file under their own house, degrees print as degrees and minutes, every graha has a glyph, and every label anchor sits inside its own house.</td></tr>
+<tr><td><code>OnDeviceRoutingTests</code></td><td class="num-cell">15</td><td>The cheap filter, the house-number parser, the rows the table returns, and that nothing handed to the model names astrology.</td></tr>
+<tr><td><code>PeriodProgressTests</code></td><td class="num-cell">8</td><td>The period widget's fraction and years-left maths, agreement with the timeline's own progress, and the period cache's round trip and clear.</td></tr>
+<tr><td><code>ProfilePhotoTests</code></td><td class="num-cell">4</td><td>Large photos are downscaled and small ones left alone; the multipart body carries a <code>photo</code> part only when one was picked.</td></tr>
+<tr><td><code>SuggestionTests</code></td><td class="num-cell">6</td><td>Three starters per mode, fallback when the on-device model is unavailable, and a settled result when it is.</td></tr>
+<tr><td><code>ThemeTests</code></td><td class="num-cell">4</td><td>The four colour tokens match <code>app/globals.css</code> exactly.</td></tr>
+<tr><td><code>TimelineTests</code></td><td class="num-cell">12</td><td>Band lengths and year labels, progress clamping, which dasha pair a moment fell in, date rendering to the precision given, and that dates parse in UTC rather than the device zone.</td></tr>
+</tbody></table></div>
+
+<p>
+  Two conventions hold across the suite. Test classes that drive a <code>@MainActor</code> type
+  (<code>SuggestionTests</code>, <code>DailyReadingTests</code>) are themselves
+  <code>@MainActor</code>, and the rest are plain <code>XCTestCase</code>s over value types. And
+  tests that depend on the environment skip rather than fail: <code>SuggestionTests</code> uses
+  <code>XCTSkipIf</code> and <code>XCTSkipUnless</code> on
+  <code>SuggestionEngine.isOnDeviceAvailable</code>, so the same file passes on a Mac, on the
+  simulator and on a device with Apple Intelligence, asserting a different thing in each.
+</p>
+
+<h3 id="s14-8"><span class="num">14.8</span><span>CI and TestFlight</span></h3>
+
+<h4>The CI job</h4>
+
+<p>
+  <code>.github/workflows/ci.yml</code> runs on every push to <code>main</code> and every pull
+  request, with a concurrency group per ref so a newer push cancels an older run. It has two jobs;
+  the <code>ios</code> job runs on <code>macos-26</code> with <code>mobile</code> as its working
+  directory and does, in order:
+</p>
+
+<ol>
+  <li>Selects the newest Xcode 26 on the runner with <code>xcode-select</code> and prints its
+    version.</li>
+  <li>Installs XcodeGen with Homebrew.</li>
+  <li>Writes a placeholder <code>.env.local</code> with a fake Supabase URL and anon key, then runs
+    <code>./scripts/make-config.sh</code>. The comment explains: the generated file "is never
+    committed. The simulator build only needs the values to be present, not real."</li>
+  <li>Runs <code>xcodegen generate</code>.</li>
+  <li>Restores <code>mobile/SourcePackages</code> from the Actions cache, keyed on the hash of
+    <code>project.yml</code>, so the Supabase package is not re-cloned on every run.</li>
+  <li>Picks the first available iPhone simulator by name and runs <code>xcodebuild test</code>
+    against it with <code>CODE_SIGNING_ALLOWED=NO</code> and
+    <code>-clonedSourcePackagesDirPath SourcePackages</code>. Output is teed to
+    <code>xcodebuild.log</code> and filtered to errors, warnings from the app's own sources, and
+    the test suite and test case result lines, with <code>set -o pipefail</code> so the filter
+    cannot hide a failure.</li>
+  <li>Uploads the full log as an artifact, but only on failure.</li>
+</ol>
+
+<p>
+  No signing, no secrets, no device. The whole XCTest suite runs unsigned on a simulator, which is
+  possible because nothing in it needs an entitlement to be present: <code>ChartCache</code> falls
+  back to the caches directory when the App Group container is missing, and the tests that need
+  Apple Intelligence skip.
+</p>
+
+<h4>The TestFlight workflow</h4>
+
+<p>
+  <code>.github/workflows/ios-testflight.yml</code> runs on every tag matching <code>v*</code> and
+  by hand from the Actions tab, in a single concurrency group that does not cancel in progress.
+  It needs five repository secrets, checked up front so a missing one fails in the first step
+  with its name: <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code>, which are baked
+  into <code>AppConfig.swift</code> through the same script the CI job uses; and
+  <code>ASC_KEY_ID</code>, <code>ASC_ISSUER_ID</code> and <code>ASC_KEY_P8</code>, an App Store
+  Connect API key with the App Manager role and its <code>.p8</code> contents. The header comment
+  states the consequence: "Signing is automatic: with the API key, Xcode creates or refreshes the
+  distribution certificate and profile itself. No certificates are stored here."
+</p>
+
+<pre><code># .github/workflows/ios-testflight.yml
+- name: Set version and build number
+  run: |
+    BUILD="${GITHUB_RUN_NUMBER}"
+    for plist in Sanchara/Info.plist SancharaWidgets/Info.plist; do
+      if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+        /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${GITHUB_REF_NAME#v}" "$plist"
+      fi
+      /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD}" "$plist"
+    done
+
+- name: Use production push environment
+  run: /usr/libexec/PlistBuddy -c "Set :aps-environment production" Sanchara/Sanchara.entitlements</code></pre>
+
+<p>
+  After the same Xcode, XcodeGen, config and generate steps as CI, the workflow edits three
+  files in place. The marketing version comes from the tag with its <code>v</code> stripped
+  (<code>v0.3.0</code> becomes <code>0.3.0</code>); on a manual run the value in the plist is
+  kept. The build number is the workflow run number, which App Store Connect requires to be
+  unique per version, and it is written to both the app's and the extension's plist because the
+  two must agree. Then <code>aps-environment</code> is switched to <code>production</code> in the
+  entitlements file, because "push tokens minted under the development environment are rejected
+  by production APNs, so store builds must carry the production entitlement." The API key is
+  written to the runner's <code>private_keys</code> folder with mode 600.
+</p>
+
+<p>
+  Two <code>xcodebuild</code> invocations follow. <code>archive</code> builds the
+  <code>Sanchara</code> scheme in Release for <code>generic/platform=iOS</code> into
+  <code>build/Sanchara.xcarchive</code>, with <code>-allowProvisioningUpdates</code> and the three
+  authentication-key flags so Xcode can mint the distribution profile.
+  <code>-exportArchive</code> then reads <code>mobile/ExportOptions.plist</code> and, because that
+  file sets <code>method</code> to <code>app-store-connect</code> and <code>destination</code> to
+  <code>upload</code>, sends the build straight to App Store Connect instead of writing an
+  <code>.ipa</code>. The plist also sets automatic signing, <code>uploadSymbols</code> true so
+  crash logs symbolicate, and <code>manageAppVersionAndBuildNumber</code> false so the numbers the
+  workflow just wrote are the ones that ship; it names the team, which this handbook does not
+  print. Both logs are uploaded as an artifact whether or not the run succeeded.
+</p>
+
+<div class="note"><b>Why the version lives in the tag</b>
+The web app deploys from <code>main</code> on every push, and the changelog and
+<code>package.json</code> carry the version. The iOS build number cannot come from those, because
+two uploads of the same version need different build numbers, and the marketing version should
+not be edited by hand in two plists. Deriving one from the tag and the other from the run number
+means a release is <code>git tag v0.3.0 &amp;&amp; git push --tags</code> and nothing else on the
+iOS side.
+</div>
+
+<h3 id="s14-9"><span class="num">14.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>mobile/project.yml</code>, for the three targets, the entitlements with their comments, and the six files the extension borrows.</li>
+  <li><code>mobile/scripts/make-config.sh</code>, for the three constants and the two variables it refuses to read.</li>
+  <li><code>mobile/Sanchara/Sources/SancharaApp.swift</code> and <code>RootView.swift</code>, for the whole navigation policy in under a hundred lines.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Auth/AuthStore.swift</code>, <code>State</code> and <code>start()</code>, for how the left half of the state machine moves.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Intake/ProfileStore.swift</code>, for the right half and the offline rule.</li>
+  <li><code>mobile/Sanchara/Sources/Design/Theme.swift</code>, then <code>app/globals.css</code> beside it.</li>
+  <li><code>mobile/Sanchara/Sources/Services/SancharaAPI.swift</code>, <code>request</code>, <code>check</code> and <code>chatStream</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Services/Push.swift</code>, <code>ApsEnvironment</code>, for why the push environment is read from the profile.</li>
+  <li><code>.github/workflows/ci.yml</code> and <code>ios-testflight.yml</code>, for the two build paths, then <code>mobile/ExportOptions.plist</code>.</li>
+</ol>
+
+<h4>Check yourself</h4>
+<p class="q">Why is there no <code>Sanchara.xcodeproj</code> in the repository?</p>
+<p class="a">XcodeGen generates it from <code>mobile/project.yml</code>, and both CI and the TestFlight workflow run <code>xcodegen generate</code> themselves. A generated project cannot suffer a <code>pbxproj</code> merge conflict.</p>
+
+<p class="q">Which two environment variables reach the app binary, and which two never do?</p>
+<p class="a"><code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, which the web already ships to browsers and RLS protects. <code>SUPABASE_SERVICE_ROLE_KEY</code> and <code>ANTHROPIC_API_KEY</code> are never read by <code>make-config.sh</code>.</p>
+
+<p class="q">What decides whether a signed-in user sees intake or chat?</p>
+<p class="a"><code>ProfileStore.load()</code>: a <code>birth_profiles</code> row with a non-null <code>chart</code> means <code>.ready</code> and <code>ChatView</code>; none means <code>.needsIntake</code> and <code>IntakeView</code>, whose completion closure calls <code>load()</code> again.</p>
+
+<p class="q">Why does <code>chatStream</code> hold bytes back before yielding text?</p>
+<p class="a">The route streams raw UTF-8 and a chunk boundary can split a multi-byte character; bytes are kept until they decode, then coalesced into batches of at least 24 characters so the transcript is not redrawn per byte.</p>
+
+<p class="q">The entitlements file says <code>aps-environment: development</code>. How does a TestFlight build end up with <code>production</code>?</p>
+<p class="a">The TestFlight workflow edits the file with PlistBuddy before archiving. At runtime <code>ApsEnvironment.current</code> reads the embedded provisioning profile rather than the build configuration, so the server is told the environment the token was actually minted under.</p>
+
+<p class="q">Where does the iOS build number come from?</p>
+<p class="a">The GitHub Actions run number, written into both the app's and the extension's <code>Info.plist</code>; the marketing version comes from the tag with the <code>v</code> stripped. <code>ExportOptions.plist</code> sets <code>manageAppVersionAndBuildNumber</code> to false so App Store Connect keeps them.</p>
+
+<p class="q">Why can the whole XCTest suite run unsigned on a simulator?</p>
+<p class="a">Nothing in it needs an entitlement: <code>ChartCache</code> falls back to the caches directory without the App Group, and the tests that need Apple Intelligence skip instead of failing.</p>
+</div>
+</section>

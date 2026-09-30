@@ -1,0 +1,631 @@
+<section class="chapter" id="ch06" data-hue="chat">
+<p class="chapter-kicker">Chapter six</p>
+<h2><span class="num">6</span><span>Chat</span></h2>
+
+<p class="lede">
+  One question in, one reading out, streamed as plain text while it is written. The server owns
+  the prompt, the model and the transcript; the two clients own nothing but the optimistic bubble
+  and the conversation id they were handed in a response header.
+</p>
+
+<h3 id="s6-1"><span class="num">6.1</span><span>Intent</span></h3>
+
+<p>
+  Chat is the product. Every other feature either feeds it (intake computes the chart it reads
+  from, the timeline gives it the user's life) or is a scheduled version of it (the morning and
+  night readings). A conversation is a sequence of turns in one mode, Vedic, Western or
+  numerology, and the mode is fixed per conversation because it decides which chart, and which
+  system prompt, the whole transcript was read from. A user can hold many conversations; the
+  web lists them in a sidebar, iOS in a sheet, and either client can reopen one and continue it.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. The
+  prompt builders, the model settings, the cache breakpoints and the history budget that the
+  route applies are <a href="#ch03">chapter 3</a>; this chapter takes them as given and follows
+  one turn from a tap to a stored row. The iOS files that answer some questions on the phone
+  without a server call, <code>OnDeviceReasoner</code>, <code>OnDeviceSuggestions</code> and
+  <code>ChartFacts</code>, live in the same folder as the chat feature but belong to
+  <a href="#ch10">chapter 10</a>; here they appear only where <code>ChatStore</code> hands a
+  question to them.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 330" role="img" aria-label="Two clients on the left, the web Chat component and the iOS ChatStore, both post to one route handler in the middle; the route reads the birth profile, conversations and messages tables in Supabase on the right and streams from the Anthropic API below; the iOS client also reads the conversations and messages tables directly to list and reopen past readings.">
+  <defs>
+    <marker id="ch06a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch06b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">CLIENTS</text>
+  <text class="lbl-sm" x="330" y="24">VERCEL</text>
+  <text class="lbl-sm" x="660" y="24">SUPABASE</text>
+
+  <rect class="box" x="20" y="44" width="200" height="50" rx="8"/>
+  <text class="lbl" x="120" y="64" text-anchor="middle">components/Chat.tsx</text>
+  <text class="lbl-sm" x="120" y="82" text-anchor="middle">cookies</text>
+
+  <rect class="box" x="20" y="150" width="200" height="50" rx="8"/>
+  <text class="lbl" x="120" y="170" text-anchor="middle">ChatStore + SancharaAPI</text>
+  <text class="lbl-sm" x="120" y="188" text-anchor="middle">Bearer token</text>
+
+  <rect class="box-hot" x="330" y="90" width="220" height="70" rx="10"/>
+  <text class="lbl" x="440" y="115" text-anchor="middle">POST /api/chat</text>
+  <text class="lbl-hot" x="440" y="135" text-anchor="middle">prompt, stream, persist</text>
+  <text class="lbl-sm" x="440" y="151" text-anchor="middle">runtime nodejs</text>
+
+  <rect class="box-alt" x="330" y="240" width="220" height="50" rx="10"/>
+  <text class="lbl" x="440" y="260" text-anchor="middle">Anthropic API</text>
+  <text class="lbl-sm" x="440" y="278" text-anchor="middle">messages.stream</text>
+
+  <rect class="box" x="660" y="44" width="180" height="40" rx="8"/><text class="lbl" x="750" y="69" text-anchor="middle">birth_profiles</text>
+  <rect class="box" x="660" y="104" width="180" height="40" rx="8"/><text class="lbl" x="750" y="129" text-anchor="middle">conversations</text>
+  <rect class="box" x="660" y="164" width="180" height="40" rx="8"/><text class="lbl" x="750" y="189" text-anchor="middle">messages</text>
+  <rect class="box-alt" x="660" y="224" width="180" height="40" rx="8"/><text class="lbl" x="750" y="249" text-anchor="middle">life_events (read)</text>
+
+  <path class="flow" d="M220 69 L 280 69 L 280 110 L 324 110" marker-end="url(#ch06a)"/>
+  <path class="flow" d="M220 175 L 280 175 L 280 140 L 324 140" marker-end="url(#ch06a)"/>
+  <path class="flow-hot" d="M440 160 L 440 234" marker-end="url(#ch06b)"/>
+  <text class="lbl-hot" x="450" y="205">text deltas back up the same response</text>
+
+  <path class="flow" d="M550 110 L 600 110 L 600 64 L 654 64" marker-end="url(#ch06a)"/>
+  <path class="flow" d="M550 124 L 654 124" marker-end="url(#ch06a)"/>
+  <path class="flow" d="M550 138 L 600 138 L 600 184 L 654 184" marker-end="url(#ch06a)"/>
+  <path class="flow-dash" d="M550 150 L 610 150 L 610 244 L 654 244" marker-end="url(#ch06a)"/>
+
+  <path class="flow-dash" d="M220 190 L 250 190 L 250 310 L 620 310 L 620 204 L 654 204" marker-end="url(#ch06a)"/>
+  <text class="lbl-sm" x="260" y="304">iOS lists and reopens past readings straight from the tables, under RLS</text>
+
+  <line class="wall" x1="300" y1="34" x2="300" y2="290"/>
+</svg>
+<figcaption>
+  One route, two callers, three tables. Both clients send a turn to the same handler and read the
+  same byte stream back. Only iOS reads the conversation tables directly, and only to list and
+  reopen; every write goes through the route.
+</figcaption>
+</figure>
+
+<h3 id="s6-2"><span class="num">6.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">app/api/chat/route.ts                 POST: auth, mode, prompt, stream, persist
+lib/data/chat.ts                      getOrCreateConversation, appendMessage,
+                                      getMessages, listConversations
+lib/data/history.ts                   selectHistory, the resend budget (chapter 3)
+lib/supabase/route.ts                 createRouteSupabase: bearer or cookie client
+supabase/migrations/0001_init.sql     conversations and messages, RLS, indexes
+supabase/migrations/0003_numerology_mode.sql   tradition check gains 'numerology'
+
+app/(app)/layout.tsx                  lists conversations for the sidebar
+app/(app)/app/chat/page.tsx           new chat, or reopen ?c=&lt;id&gt;
+components/Chat.tsx                   the client component: composer, stream, transcript
+components/AppShell.tsx               the sidebar of past readings
+
+mobile/Sanchara/Sources/Features/Chat/
+├── ChatModels.swift                  ChatMode, ChatMessage, Conversation, StoredMessage
+├── ChatStore.swift                   one transcript: send, stream, open, new
+├── ChatView.swift                    the screen, its toolbar and sheets
+├── HistoryView.swift                 past readings as a sheet
+├── MarkdownText.swift                the reading's markdown, block by block
+├── OnDeviceReasoner.swift            chapter 10
+├── OnDeviceSuggestions.swift         chapter 10
+└── ChartFacts.swift                  chapter 10
+mobile/Sanchara/Sources/Services/SancharaAPI.swift   chatStream and the bearer request
+
+lib/astrology/prompt.test.ts          the prompt's contents
+lib/data/history.test.ts              the budget
+lib/data/injection.test.ts            helpers write through the injected client
+app/smoke.test.ts                     the app layout module loads</pre>
+
+<p>
+  Everything that decides something is on the server. The two clients share no code and are
+  written in two languages, but they are the same program: the iOS store's doc comment says it
+  mirrors <code>components/Chat.tsx</code>, the intro prompt is one string copied verbatim, and
+  the mode dot colours in <code>ChatModels.swift</code> are the hex values from the web
+  component. When the two disagree, the web is the reference and the iOS file says so.
+</p>
+
+<h3 id="s6-3"><span class="num">6.3</span><span>Model</span></h3>
+
+<h4>Two tables</h4>
+
+<pre><code>-- supabase/migrations/0001_init.sql
+create table public.conversations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  tradition text not null check (tradition in ('vedic','western')),
+  title text,
+  created_at timestamptz not null default now()
+);
+create index on public.conversations (user_id, created_at desc);
+
+create table public.messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.conversations(id) on delete cascade,
+  role text not null check (role in ('user','assistant')),
+  content text not null,
+  created_at timestamptz not null default now()
+);
+create index on public.messages (conversation_id, created_at);</code></pre>
+
+<p>
+  A conversation is an owner, a mode and a title; a message is a role and a body. There is no
+  <code>updated_at</code>, no token count, no model name and no deep flag on either row. The
+  transcript is the only thing stored, which is what lets any client, and the timeline's moment
+  extraction, read it back without knowing how it was produced. Migration
+  <code>0003_numerology_mode.sql</code> drops and re-adds the tradition check so it accepts
+  <code>'numerology'</code>; the column is still called <code>tradition</code> although the
+  TypeScript type that fills it is <code>ChatMode</code>. The two indexes are exactly the two
+  queries: a user's conversations newest first, and a conversation's messages oldest first.
+</p>
+
+<p>
+  Row Level Security is owner-only on both. <code>"conv self"</code> checks
+  <code>user_id = auth.uid()</code> for every operation. <code>"msg self"</code> has no owner
+  column to check, so it joins: a message is visible or writable only if a conversation row with
+  that id and the caller's <code>user_id</code> exists. Deleting a user cascades to their
+  conversations and from there to their messages, which is what the account deletion route
+  relies on.
+</p>
+
+<h4>The wire shape</h4>
+
+<p>
+  The request body is four fields, typed inline in the route: <code>conversationId</code>
+  (optional; absent starts a new conversation), <code>tradition</code> (a <code>ChatMode</code>),
+  <code>message</code> and <code>deep</code> (optional). The response is
+  <code>text/plain; charset=utf-8</code>, the model's text deltas concatenated with no framing,
+  plus two headers: <code>x-conversation-id</code>, which is the id to send back on the next
+  turn, and <code>cache-control: no-store</code>. There is no SSE, no JSON envelope and no
+  final event; the stream closing is the end of the reading. Both clients read the header first
+  and the bytes second.
+</p>
+
+<h4>The client-side types</h4>
+
+<p>
+  On the web the transcript is <code>Msg[]</code>, a role and a content string. On iOS it is
+  <code>[ChatMessage]</code>, which adds two things: a <code>UUID</code> identity assigned at
+  creation, so SwiftUI keeps a row in place while its content grows during streaming, and a
+  <code>Source</code> of <code>.server</code> or <code>.onDevice</code>. The doc comment on
+  <code>Source</code> is worth reading in full: the source is shown in the transcript, not merely
+  tracked, because the two behave differently in ways a person can feel, and an on-device
+  answer is not saved with the rest of the reading. <code>Conversation</code> and
+  <code>StoredMessage</code> are <code>Decodable</code> views of the two tables, read straight
+  from Supabase; <code>Conversation.mode</code> maps an unknown tradition string to
+  <code>.vedic</code> rather than failing to decode.
+</p>
+
+<h3 id="s6-4"><span class="num">6.4</span><span>The server side</span></h3>
+
+<h4>The route, in order</h4>
+
+<p>
+  <code>app/api/chat/route.ts</code> exports one <code>POST</code> and declares
+  <code>runtime = "nodejs"</code>, because the ephemeris is a WebAssembly module loaded from
+  disk and the streaming SDK wants a full Node runtime. The handler runs in two phases: a
+  preparation phase inside one <code>try</code>, where any failure returns a status and a
+  sentence, and a streaming phase after the response has already begun, where a failure can only
+  be written into the stream.
+</p>
+
+<ol>
+  <li><strong>Auth.</strong> <code>createRouteSupabase(request)</code> returns a bearer client if the request carries <code>Authorization: Bearer</code>, otherwise the cookie client. <code>auth.getUser()</code> with no user is a 401 with the body <code>Unauthorized</code>.</li>
+  <li><strong>Validation.</strong> An empty or whitespace message is a 400 <code>Empty message</code>; a tradition outside <code>vedic</code>, <code>western</code>, <code>numerology</code> is a 400 <code>Invalid mode</code>.</li>
+  <li><strong>The profile.</strong> One select on <code>birth_profiles</code> (RLS returns only the caller's row, so <code>maybeSingle()</code> with no filter is correct). A database error is a 500; a row with no chart is a 400 <code>No chart. Complete intake first.</code>; and <code>ensureCurrentChart</code> recomputes and rewrites a chart whose schema version is behind or which lacks derived facts, so an old profile gets the current prompt without the user doing anything.</li>
+  <li><strong>Today.</strong> Luxon renders the date in <code>profile.timezone</code>, and <code>describeToday</code> coarsens it to a part of day.</li>
+  <li><strong>The prompt.</strong> Numerology builds <code>buildNumerologySystem</code> plus a today block carrying the personal year and month. The two chart modes pick <code>profile.chart[tradition]</code>, compute <code>factsFor</code> (undefined for Western), fetch the day's transit chart and describe it against the natal chart inside a <code>try</code> that degrades to no transit text, build <code>buildChartSystem</code>, append the timeline inside another <code>try</code> that logs and moves on, and build the today block with the deep-dependent word limit.</li>
+  <li><strong>The conversation.</strong> <code>getOrCreateConversation</code> either verifies the given id belongs to this user or inserts a row with the message's first 80 characters as its title.</li>
+  <li><strong>History.</strong> <code>getMessages</code> then <code>selectHistory</code>; the last retained turn gets the cache breakpoint; the new message is pushed on the end; and the new user message is written to <code>messages</code> before the model is called.</li>
+</ol>
+
+<p>
+  Anything thrown in those seven steps is caught once, logged as <code>chat pre-stream error</code>,
+  and answered with a 500 whose body is a sentence a client can show. The "Conversation not
+  found" thrown for a foreign id surfaces this way, as a 500 rather than a 403 or 404; the
+  clients treat any non-2xx the same, so the distinction is not lost on anyone.
+</p>
+
+<h4>The stream</h4>
+
+<pre><code>// app/api/chat/route.ts
+const stream = new ReadableStream({
+  async start(controller) {
+    let full = "";
+    try {
+      const s = anthropic().messages.stream({ /* model, thinking, effort, system, messages */ });
+      for await (const event of s) {
+        if (event.type === "content_block_delta" &amp;&amp; event.delta.type === "text_delta") {
+          full += event.delta.text;
+          controller.enqueue(encoder.encode(event.delta.text));
+        }
+      }
+      const usage = (await s.finalMessage()).usage;
+      console.log(`chat usage conv=${conversationId} model=${model} ...`);
+    } catch (err) {
+      console.error("chat stream error", err);
+      controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded. Please try again.]"));
+    } finally {
+      if (full.trim()) await appendMessage(conversationId, "assistant", full, supabase);
+      controller.close();
+    }
+  },
+});</code></pre>
+
+<p>
+  Only <code>text_delta</code> events are forwarded. Thinking blocks, which both models produce
+  under adaptive thinking, are consumed and never sent, so the client sees the reading and not
+  the reasoning. The accumulator <code>full</code> holds exactly what was streamed, and the
+  <code>finally</code> stores it as the assistant turn only if it is non-blank. Two consequences
+  follow. If the model fails before producing anything, the user turn is stored, the apology
+  line goes down the wire, and no assistant row is written, so the next turn's history ends on a
+  user message and <code>selectHistory</code> passes it through. If the model fails part-way,
+  the partial text is stored and the apology is not, because the apology is enqueued to the
+  client but never appended to <code>full</code>. A conversation therefore never contains the
+  bracketed error text.
+</p>
+
+<h4>The data helpers</h4>
+
+<p>
+  <code>lib/data/chat.ts</code> is four functions, each taking an optional <code>db?: Db</code>
+  and building the cookie client when none is given. <code>getOrCreateConversation</code> is the
+  only one with logic: given an id it selects it with both <code>id</code> and
+  <code>user_id</code> filters and throws if nothing comes back, defence in depth on top of RLS,
+  per its comment; without one it inserts and returns the new id. <code>appendMessage</code> is
+  one insert. <code>getMessages</code> selects role, content and time for one conversation,
+  ascending. <code>listConversations</code> selects id, tradition, title and time for the caller,
+  descending, with no user filter because RLS supplies it.
+</p>
+
+<h3 id="s6-5"><span class="num">6.5</span><span>The clients</span></h3>
+
+<h4>Web: the page</h4>
+
+<p>
+  <code>app/(app)/app/chat/page.tsx</code> is a server component. It loads the birth profile
+  and redirects to <code>/app/intake</code> when there is no chart, so the composer can never be
+  shown to someone the route would reject. It reads <code>?c=</code> from the search params. With
+  an id it loads that conversation's messages and renders <code>Chat</code> with
+  <code>key={c}</code>, the stored messages, and the conversation's own tradition as the initial
+  mode (falling back to Vedic if the row is not in the list). Without one it renders
+  <code>Chat</code> with <code>key="new"</code> and <code>autostart</code> set only when the user
+  has no conversations at all. The <code>key</code> is what makes switching between readings in
+  the sidebar remount the component rather than mutate it. The surrounding
+  <code>app/(app)/layout.tsx</code> calls <code>listConversations</code> and hands the result to
+  <code>AppShell</code>, whose sidebar links each one as <code>/app/chat?c=&lt;id&gt;</code>.
+</p>
+
+<h4>Web: the component</h4>
+
+<p>
+  <code>components/Chat.tsx</code> is a client component holding the mode, the deep flag, the
+  messages, the input and a <code>busy</code> flag in state, and the conversation id in a ref,
+  because it changes during a fetch and must not trigger a render. <code>send(textArg, silent)</code>
+  is the whole feature: append the user bubble (unless silent) and an empty assistant bubble,
+  post the body, take the id from the header, then loop on
+  <code>res.body.getReader()</code> with a <code>TextDecoder</code> in streaming mode and append
+  each chunk to the last message. A non-OK response, a missing body or a thrown fetch all replace
+  the last bubble with "Something went wrong. Please try again." In <code>finally</code>,
+  <code>busy</code> clears and, if this was the first turn of a new conversation,
+  <code>router.refresh()</code> re-runs the layout so the sidebar shows the new reading.
+</p>
+
+<p>
+  The composer is one input and three buttons: a mode pill that cycles Vedic, Western,
+  Numerology; a Deep toggle, hidden below the <code>sm</code> breakpoint; and send, disabled
+  while busy or while the input is blank. Enter sends. Under it is the one line of copy that
+  appears in the same words on iOS: "For guidance and reflection. Not a substitute for
+  professional advice." The empty state shows a greeting with the first name and the composer
+  centred; once there is a message, the transcript scrolls above and the composer pins to the
+  bottom with a safe-area inset. An assistant message renders through <code>ReactMarkdown</code>
+  with <code>remark-gfm</code> inside the <code>prose-reading</code> styles; while it is still
+  empty it shows "Reading your chart…" with a shimmer, and while it is still growing it shows a
+  caret. An effect scrolls to the bottom on every change to <code>messages</code>.
+</p>
+
+<h4>iOS: the store</h4>
+
+<p>
+  <code>ChatStore</code> is <code>@Observable</code> and <code>@MainActor</code>. Its state
+  matches the web component's field for field (messages, input, mode, deep, a streaming flag,
+  an error string, the conversation id) and adds the list of past conversations, a
+  <code>streamTask</code> so a turn can be cancelled, and a <code>chart</code> whose
+  <code>didSet</code> builds an <code>OnDeviceReasoner</code>. <code>send(text, silent:, forceServer:)</code>
+  appends the bubbles, then in a task does one thing the web does not: if the turn is not
+  silent, not forced to the server and the mode is Vedic, it asks the reasoner to route the
+  question, and if the answer comes back <code>.answered</code>, writes it into the assistant
+  bubble with source <code>.onDevice</code> and stops. The comment says why only Vedic: the
+  router reads a Vedic chart, so a Western or numerology question has nothing local to answer
+  from. Everything else goes to <code>SancharaAPI.chatStream</code>, and the loop over its events
+  either records the conversation id or appends text.
+</p>
+
+<p>
+  The other entry points are short. <code>start()</code> loads the conversation list and, for a
+  brand-new account with nothing to show, sends the intro prompt silently; the web does the same
+  through <code>autostart</code>. <code>newReading()</code> cancels any stream and clears the
+  transcript without touching the server, since the previous reading is already stored.
+  <code>open(conversation)</code> cancels, adopts the conversation's id and mode, and reads its
+  messages straight from the <code>messages</code> table through <code>Supa.client</code>.
+  <code>loadConversations()</code> reads the <code>conversations</code> table the same way and
+  keeps the last known list on failure rather than raising an error. <code>expandLastAnswer()</code>
+  removes an on-device answer and resends the same question with <code>forceServer</code>, so a
+  misrouted lookup costs one tap.
+</p>
+
+<h4>iOS: the views</h4>
+
+<p>
+  <code>ChatView</code> is mounted by <code>RootView</code> with the <code>ProfileStore</code>,
+  and owns the store plus the alerts, daily readings and suggestion engines that share its
+  toolbar. Its body is the web layout in SwiftUI: an opening screen with the greeting and the
+  composer when the transcript is empty, otherwise a <code>ScrollViewReader</code> transcript,
+  the suggestion chips, and the composer. Three <code>.task</code> modifiers run on appear: one
+  hands <code>profile.chart</code> to the store and calls <code>start()</code>; one loads the
+  inbox and, only now that the user has a chart, asks for push permission; one warms the
+  timeline cache for the widget. The composer is a vertical-axis <code>TextField</code> of one
+  to four lines, the mode pill, the Deep pill and an arrow button disabled while streaming or
+  blank, followed by the same disclaimer line. An assistant row is <code>ShimmerText</code> while
+  empty, then <code>MarkdownText</code> with a <code>StreamingCaret</code> on the last row while
+  streaming, and, when the source is on-device, a footer that says so and offers "Ask for a full
+  reading". All three motion views take an <code>active</code> flag that is false under Reduce
+  Motion.
+</p>
+
+<p>
+  The toolbar carries history (a clock), the wordmark, new reading, the inbox bell with an
+  unread dot, and an avatar menu. <code>HistoryView</code> is a sheet listing
+  <code>chat.conversations</code> with title, mode dot and time; tapping one calls
+  <code>open</code> and dismisses; New calls <code>newReading</code>. Deep links and push taps
+  are handled here too: an <code>.ask(question)</code> destination, which is how a question
+  Siri declined arrives, starts a new reading and sends with <code>forceServer</code>.
+</p>
+
+<p>
+  <code>MarkdownText</code> exists because <code>AttributedString(markdown:)</code> handles
+  inline syntax but collapses block structure. It splits the text into headings, paragraphs,
+  bullets (with the ordinal kept for numbered items) and rules, gives each the spacing the web's
+  CSS gives it, and parses only the inline runs with Foundation. A parse failure falls back to
+  the plain text.
+</p>
+
+<h4>iOS: the API call</h4>
+
+<p>
+  <code>SancharaAPI.chatStream</code> returns an <code>AsyncThrowingStream&lt;ChatEvent, Error&gt;</code>.
+  The request is built by the shared <code>request(_:method:)</code>, which asks
+  <code>Supa.accessToken()</code> for the current session token and throws
+  <code>.unauthorized</code> without one, so a signed-out client never reaches the network. The
+  body is a <code>ChatRequest</code> with the same four fields as the web, and the timeout is
+  120 seconds because, as the comment says, readings can think for a while before the first
+  byte. It uses <code>URLSession.shared.bytes(for:)</code>. A non-2xx status reads the whole body
+  as the error sentence (401 becomes <code>.unauthorized</code>); a 2xx yields
+  <code>.conversationId</code> from the header, then bytes.
+</p>
+
+<p>
+  The byte loop handles the two problems a raw text stream has. A chunk boundary can split a
+  multi-byte character, so bytes accumulate in <code>undecoded</code> until they decode as UTF-8.
+  And a redraw per byte would repaint the transcript thousands of times for one reading, so
+  decoded text is batched and yielded at 24 characters, with the remainder flushed at the end.
+  <code>onTermination</code> cancels the task, which is how <code>newReading()</code> stops a
+  reading in flight.
+</p>
+
+<h4>What is cached on the device</h4>
+
+<p>
+  For chat, nothing durable. The transcript and the conversation list live in the store's
+  memory and are re-read from Supabase on open. The chart the store hands to the reasoner comes
+  from <code>ProfileStore</code>, which is the same chart <code>ChartCache</code> keeps in the
+  App Group for Siri and the widget; that cache is described in <a href="#ch10">chapter 10</a>.
+  An on-device answer is never written anywhere.
+</p>
+
+<h3 id="s6-6"><span class="num">6.6</span><span>How it works</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 560" role="img" aria-label="A sequence diagram with four lifelines: the iOS app, the chat route, Supabase and the Anthropic API. The app appends two bubbles, skips the on-device router, and posts with a bearer token. The route reads the profile, builds the prompt, creates or verifies the conversation, loads and trims the history, inserts the user message, then streams from the model; each delta is forwarded to the app, and after the stream the assistant message is inserted. The app reloads its conversation list.">
+  <defs>
+    <marker id="ch06c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch06d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box" x="20" y="20" width="160" height="34" rx="8"/><text class="lbl" x="100" y="42" text-anchor="middle">iOS: ChatStore</text>
+  <rect class="box-hot" x="250" y="20" width="160" height="34" rx="8"/><text class="lbl" x="330" y="42" text-anchor="middle">POST /api/chat</text>
+  <rect class="box" x="480" y="20" width="160" height="34" rx="8"/><text class="lbl" x="560" y="42" text-anchor="middle">Supabase</text>
+  <rect class="box-alt" x="690" y="20" width="150" height="34" rx="8"/><text class="lbl" x="765" y="42" text-anchor="middle">Anthropic</text>
+
+  <line class="wall" x1="100" y1="54" x2="100" y2="540"/>
+  <line class="wall" x1="330" y1="54" x2="330" y2="540"/>
+  <line class="wall" x1="560" y1="54" x2="560" y2="540"/>
+  <line class="wall" x1="765" y1="54" x2="765" y2="540"/>
+
+  <text class="lbl-sm" x="20" y="80">1 tap: append user bubble and empty assistant bubble</text>
+  <text class="lbl-sm" x="20" y="98">2 OnDeviceReasoner.route: .escalate (Vedic only)</text>
+
+  <path class="flow" d="M100 120 L 324 120" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="110" y="114">3 JSON body, Authorization: Bearer</text>
+
+  <path class="flow" d="M330 150 L 554 150" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="340" y="144">4 auth.getUser, select birth_profiles</text>
+  <path class="flow-dash" d="M554 170 L 336 170" marker-end="url(#ch06c)"/>
+
+  <text class="lbl-sm" x="340" y="198">5 buildChartSystem + timeline, buildTodaySystem</text>
+
+  <path class="flow" d="M330 220 L 554 220" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="340" y="214">6 getOrCreateConversation</text>
+  <path class="flow" d="M330 250 L 554 250" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="340" y="244">7 getMessages, then selectHistory</text>
+  <path class="flow" d="M330 280 L 554 280" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="340" y="274">8 insert messages (role user)</text>
+
+  <path class="flow-hot" d="M330 320 L 759 320" marker-end="url(#ch06d)"/>
+  <text class="lbl-hot" x="340" y="314">9 messages.stream: system[2], history, new turn</text>
+
+  <path class="flow-dash" d="M336 344 L 106 344" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="110" y="338">10 headers: x-conversation-id</text>
+
+  <path class="flow-hot" d="M759 380 L 336 380" marker-end="url(#ch06d)"/>
+  <text class="lbl-hot" x="340" y="374">11 text_delta, repeated</text>
+  <path class="flow-hot" d="M324 400 L 106 400" marker-end="url(#ch06d)"/>
+  <text class="lbl-hot" x="110" y="394">12 UTF-8 bytes, batched at 24 chars</text>
+
+  <path class="flow-dash" d="M759 430 L 336 430" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="340" y="424">13 finalMessage: usage logged</text>
+
+  <path class="flow" d="M330 460 L 554 460" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="340" y="454">14 insert messages (role assistant), close</text>
+
+  <path class="flow-dash" d="M100 500 L 554 500" marker-end="url(#ch06c)"/>
+  <text class="lbl-sm" x="110" y="494">15 new conversation: reload the list under RLS</text>
+
+  <text class="lbl-sm" x="20" y="530">The web client is steps 1, 3, 10, 12 and 15 with cookies in place of the bearer token and router.refresh() in place of the reload.</text>
+</svg>
+<figcaption>
+  One streamed turn. The user message is stored before the model is called and the assistant
+  message after the stream closes; between them the client sees the id first and then bytes.
+</figcaption>
+</figure>
+
+<h4>A new conversation</h4>
+
+<p>
+  The client sends no <code>conversationId</code>. The route inserts a conversation titled with
+  the first 80 characters of the message, stores the user turn, and starts a stream whose history
+  is that one turn. The response header carries the new id; the web stores it in the ref and
+  iOS in <code>conversationId</code>, and both send it on every later turn. When the stream ends
+  the web calls <code>router.refresh()</code> and iOS calls <code>loadConversations()</code>, so
+  the new reading appears in the list. On this first turn the whole prefix is a cache write; the
+  route's comment notes that a first turn is short enough that missing the cache costs little.
+</p>
+
+<h4>A later turn</h4>
+
+<p>
+  The client sends the id. The route verifies ownership, loads every stored message, trims to the
+  budget, marks the last retained turn as the cache breakpoint, appends and stores the new
+  message, and streams. The mode is whatever the client sends; the row's <code>tradition</code>
+  is not consulted and not updated. Both clients keep the mode with the conversation (the web
+  page passes the row's tradition as the initial mode; iOS's <code>open</code> sets
+  <code>mode = conversation.mode</code>), but nothing on the server prevents a client from
+  continuing a Vedic conversation in numerology, and the stored transcript would then be a mix.
+</p>
+
+<h4>Reopening a past reading</h4>
+
+<p>
+  The web reopens through the URL: the sidebar link sets <code>?c=</code>, the page loads the
+  messages on the server and renders them as <code>initialMessages</code>, and the new
+  <code>key</code> remounts the component. iOS reopens through <code>ChatStore.open</code>, which
+  reads the <code>messages</code> table directly with the Supabase client under RLS, no route
+  involved. Both then continue with the later-turn flow above.
+</p>
+
+<h4>The intro reading</h4>
+
+<p>
+  A brand-new account opens on a reading rather than an empty room. When the user has no
+  conversations, the web mounts with <code>autostart</code> and iOS's <code>start()</code> finds
+  an empty list, and each sends the same string silently: "Welcome me with a short reading for
+  today based on my chart. Two or three short sections." Silent means the prompt itself is not
+  shown as a user bubble, because, as the iOS comment puts it, the question is scaffolding the
+  user never asked. It is stored, though: the route sees an ordinary message and writes it to
+  <code>messages</code>, so reopening that conversation later shows the scaffolding line. On
+  iOS a silent turn also bypasses the on-device router.
+</p>
+
+<h4>Deep</h4>
+
+<p>
+  The toggle sends <code>deep: true</code>. The route switches to <code>DEEP_READING_MODEL</code>,
+  keeps the default thinking effort, raises the length rule to 320 words and the ceiling to
+  3,000 tokens. Nothing about the conversation records that a turn was deep, and the next turn
+  can be standard.
+</p>
+
+<h3 id="s6-7"><span class="num">6.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>Every reading is billed on the server</strong>, and the mechanics are chapter 3: two cache breakpoints, low effort on standard readings, a 6,000 character history budget and a length rule. The measured mid-conversation turn is about $0.008 on Sonnet 5.</li>
+  <li><strong>Two profile reads per turn, not more.</strong> The route selects <code>birth_profiles</code> once and, only when the timeline is loaded, <code>loadTimeline</code> reads what it needs. The transit chart is memoised per day and neighbourhood, so the ephemeris runs once per city per day rather than once per message.</li>
+  <li><strong>Whole history loaded, then trimmed in memory.</strong> <code>getMessages</code> has no limit clause; every turn loads every message of the conversation and <code>selectHistory</code> discards most of it. On a conversation of hundreds of turns this is a larger read than it needs to be, though the index on <code>(conversation_id, created_at)</code> makes it cheap. A limit is the obvious improvement and has not been needed.</li>
+  <li><strong>Time to first byte is thinking time.</strong> With adaptive thinking on, the model reasons before the first <code>text_delta</code>. Both clients show a shimmer rather than nothing, and iOS sets a 120 second request timeout for it.</li>
+  <li><strong>Redraw cost is bounded on iOS.</strong> The 24 character batch in <code>chatStream</code> is the difference between a few hundred transcript updates per reading and several thousand. The web appends per network chunk, which the browser already coalesces.</li>
+  <li><strong>The cheapest turn is one the phone answers.</strong> A Vedic lookup on a device with Apple Intelligence never posts at all. See <a href="#ch10">chapter 10</a> for what qualifies.</li>
+  <li><strong>The intro reading costs a turn per new account</strong>, and it is a first turn, so it is also the one that writes the cache rather than reading it.</li>
+</ul>
+
+<h3 id="s6-8"><span class="num">6.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>No session</td><td>401 <code>Unauthorized</code>. iOS never sends: <code>request</code> throws <code>.unauthorized</code> when there is no access token, and the bubble shows "Your session expired. Please sign in again."</td></tr>
+<tr><td>Blank message</td><td>400 <code>Empty message</code>. Both composers disable send on blank input, so this is a guard against a crafted request, not a UI state</td></tr>
+<tr><td>Unknown mode</td><td>400 <code>Invalid mode</code></td></tr>
+<tr><td>No chart on the profile</td><td>400 <code>No chart. Complete intake first.</code> The web page redirects to intake before the composer renders</td></tr>
+<tr><td>Chart written by an older release</td><td><code>ensureCurrentChart</code> recomputes both charts and rewrites the row before the prompt is built</td></tr>
+<tr><td>Transit computation fails</td><td>Caught; the today block simply has no SKY TODAY section and the reading proceeds</td></tr>
+<tr><td>Timeline load fails</td><td>Logged as <code>chat timeline context skipped</code>; the stable half is sent without it</td></tr>
+<tr><td>Conversation id belongs to someone else</td><td><code>getOrCreateConversation</code> throws; the route answers 500 with a sentence, and nothing is written. RLS would refuse the insert regardless</td></tr>
+<tr><td>Model fails before the first byte</td><td>The user turn is stored, the client receives the bracketed apology, and no assistant row is written</td></tr>
+<tr><td>Model fails mid-stream</td><td>The partial text is stored as the assistant turn; the apology is shown but not stored</td></tr>
+<tr><td>Chunk boundary splits a multi-byte character</td><td>iOS holds bytes in <code>undecoded</code> until they decode; the web's <code>TextDecoder</code> in streaming mode does the same</td></tr>
+<tr><td>User starts a new reading mid-stream (iOS)</td><td><code>newReading</code> cancels the task; <code>onTermination</code> cancels the request; the server still finishes and stores what it produced</td></tr>
+<tr><td>Conversation list fails to load (iOS)</td><td>The last known list stays; no banner, because the transcript is unaffected</td></tr>
+<tr><td>A stored conversation has an unknown tradition</td><td>iOS decodes it as Vedic; the web falls back to Vedic when the row is missing from the list</td></tr>
+<tr><td>Reduce Motion is on</td><td>Glow, shimmer and caret render static</td></tr>
+<tr><td>On-device answer was wrong for the question</td><td>"Ask for a full reading" removes it and resends with <code>forceServer</code></td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<p>
+  The chat feature is covered by the tests of the modules it is built from, not by a test of the
+  route or the views. There is no <code>app/api/chat/route.test.ts</code>, and no Swift test
+  constructs a <code>ChatStore</code> or calls <code>chatStream</code>. What does exist:
+</p>
+
+<ul>
+  <li><code>lib/astrology/prompt.test.ts</code>: everything the route puts in the system blocks, listed in <a href="#s3-7">section 3.7</a>. For chat the load-bearing cases are that the stable half carries no date, sky or length rule, and that a Western chart gets Placidus houses and no Vedic technique.</li>
+  <li><code>lib/data/history.test.ts</code>: the five budget rules, including that a window never begins on an assistant turn, which is what keeps a conversation whose last model call failed valid on the next turn.</li>
+  <li><code>lib/data/injection.test.ts</code>: <code>appendMessage</code> writes <code>{ conversation_id, role, content }</code> through the injected client and never builds the cookie client when one is given. This is the test that stands between an iOS turn and a silent RLS failure.</li>
+  <li><code>app/smoke.test.ts</code>: the app layout module imports and exports a function. It proves the Next.js scaffold loads under Vitest and nothing more.</li>
+  <li>Swift: <code>SuggestionTests</code>, <code>OnDeviceRoutingTests</code> and <code>ChartFactsTests</code> exercise the three on-device files in the Chat folder. They belong to <a href="#ch10">chapter 10</a>; none touches the transcript, the store or the stream.</li>
+</ul>
+
+<div class="note caution"><b>What is not pinned</b>
+The two behaviours in the stream's <code>finally</code>, that a failed first turn stores no
+assistant row and that a partial reading is stored without the apology, are read from the code
+and not from a test. The same is true of the 24 character batch and the UTF-8 hold-back in
+<code>chatStream</code>. They are the first things to cover if the route or the client ever
+changes shape.
+</div>
+
+<h3 id="s6-9"><span class="num">6.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>app/api/chat/route.ts</code>, once straight through. It is the feature; everything else is a client of it.</li>
+  <li><code>lib/data/chat.ts</code>, for the ownership check and the four queries.</li>
+  <li><code>supabase/migrations/0001_init.sql</code>, the two tables and the two policies, then <code>0003_numerology_mode.sql</code>.</li>
+  <li><code>components/Chat.tsx</code>, <code>send</code> first, then the composer.</li>
+  <li><code>app/(app)/app/chat/page.tsx</code>, for <code>key</code> and <code>autostart</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Chat/ChatStore.swift</code>, <code>send</code> first, and the comment on <code>chart</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Services/SancharaAPI.swift</code>, the <code>chatStream</code> section at the end.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Chat/ChatView.swift</code>, the three <code>.task</code> modifiers and <code>onDeviceFooter</code>.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why is the user message stored before the model is called rather than after, alongside the reply?</p>
+<p class="a">So that a failed model call still leaves the question in the transcript. The assistant row is written in <code>finally</code> only if text arrived, and <code>selectHistory</code> tolerates a history that ends on a user turn.</p>
+<p class="q">Why does the response carry the conversation id in a header rather than in the body?</p>
+<p class="a">The body is the reading, streamed as bare text with no framing. A header arrives before the first byte and does not need parsing out of the stream; both clients read it first and then loop on bytes.</p>
+<p class="q">The iOS app reads <code>conversations</code> and <code>messages</code> directly. Why is that safe?</p>
+<p class="a">Both tables are owner-only under RLS, and the Supabase client carries the user's session, so the read can only ever return that user's rows. Writes still go through the route, which is the only code that builds a prompt.</p>
+<p class="q">What happens to the intro reading's prompt text?</p>
+<p class="a">It is hidden in the client (silent) but stored on the server as an ordinary user message, so a reopened first conversation shows it.</p>
+<p class="q">Why does <code>Chat</code> take a <code>key</code> from the page?</p>
+<p class="a">Switching readings must remount the component so its state (messages, mode, the id in the ref) starts from the new conversation rather than carrying the old one's ref forward.</p>
+<p class="q">Why does the route forward only <code>text_delta</code> events?</p>
+<p class="a">Adaptive thinking produces thinking blocks first. The client should see the reading, not the reasoning, and the stored assistant turn should be what the user saw.</p>
+</div>
+</section>

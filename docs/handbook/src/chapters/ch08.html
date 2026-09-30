@@ -1,0 +1,749 @@
+<section class="chapter" id="ch08" data-hue="timeline">
+<p class="chapter-kicker">Chapter eight</p>
+<h2><span class="num">8</span><span>The life timeline</span></h2>
+
+<p class="lede">
+  A person's whole life as Vimshottari divides it, drawn from the stored chart, with the things that
+  actually happened to them pinned into the periods they fell in. The server computes and explains;
+  the phone renders. Nothing reaches the map that the user did not type or confirm.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. The
+  timeline is the largest feature in the app and the only one that stores what the user says about
+  their own life rather than what the ephemeris computes. That fact shapes nearly every decision
+  below: why the tables are owner-only in both directions, why a scan of the chat history proposes
+  and never writes, why an extracted moment carries the sentence it was read from, and why a date
+  the user gave to the year is never rendered to the day.
+</p>
+
+<h3 id="s8-1"><span class="num">8.1</span><span>Intent</span></h3>
+
+<p>
+  A dasha is abstract until something real sits inside it. The chart already knows that a person's
+  Saturn period runs from 2019 to 2038; what makes that a life map rather than a table is that they
+  moved house in 2021 and changed jobs in 2024, and both fell in the Mercury sub-period. The timeline
+  answers "why was that year like that" against their year, not a generic one. It does four things:
+</p>
+
+<ul>
+  <li>Lays out the twelve mahadashas from birth and places every pinned moment in the mahadasha and
+    antardasha it happened in.</li>
+  <li>Writes a plain-language theme and meaning for each period, for someone who has never heard the
+    word dasha, and caches them until the moments inside a period change.</li>
+  <li>Fills itself in from the user's own chat messages, proposing dated moments with the quote that
+    gave them away, each one confirmed or discarded by hand.</li>
+  <li>Tells the chat, so a reading about 2021 knows what 2021 held.</li>
+</ul>
+
+<p>
+  The idea that shaped it is in the comment at the top of <code>app/api/timeline/scan/route.ts</code>:
+  "this is inferred content about someone's own life, and silently filing an AI's guess about a death
+  or a divorce onto their timeline would be a bad thing to be wrong about." Every path onto the map
+  goes through a confirmation the user taps.
+</p>
+
+<h3 id="s8-2"><span class="num">8.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">lib/timeline/
+├── build.ts                 buildTimeline, the types, eventsHashFor, NOW_LORD
+├── load.ts                  loadBirthRow, loadTimeline, loadScanState (server-only)
+├── explain.ts               the meaning prompt, parseExplanations, explainTimeline
+├── extract.ts               the scan prompt, parseExtractedEvents, selectTranscript
+├── describe.ts              describeTimelineForPrompt, the block the chat sees
+└── *.test.ts                build, describe, explain, extract (47 tests)
+
+app/api/
+├── timeline/route.ts        GET: the whole map plus scan state
+├── timeline/explain/route.ts POST: write or rewrite every meaning
+├── timeline/scan/route.ts   POST: propose moments from chat history
+└── life-events/route.ts     POST: pin one or a batch; DELETE: unpin one
+
+supabase/migrations/
+├── 0006_life_events.sql     life_events, life_event_scans
+└── 0007_period_readings.sql period_readings
+
+mobile/Sanchara/Sources/Features/Timeline/
+├── TimelineStore.swift      DashaBand, LifeEvent, CandidateEvent, CandidateResolver,
+│                            TimelinePayload, TimelineDate, TimelineStore, NewLifeEvent
+├── TimelineView.swift       the sheet: NowCard, BandRow, EventRow, the scan offer
+├── AddMomentView.swift      pin one moment by hand
+├── CandidatesView.swift     confirm what the scan found
+└── PeriodExplainerView.swift what a dasha is, in five static paragraphs
+
+mobile/Sanchara/Tests/
+├── TimelineTests.swift
+├── CandidateResolverTests.swift
+└── PeriodProgressTests.swift</pre>
+
+<p>
+  <code>build.ts</code>, <code>describe.ts</code> and the pure halves of <code>explain.ts</code> and
+  <code>extract.ts</code> have no Node-only imports, which is why they are tested without a database
+  or a model. <code>load.ts</code>, <code>explainTimeline</code> and <code>extractLifeEvents</code>
+  are <code>server-only</code> and are the only places that touch Supabase or Claude. The dasha
+  arithmetic lives in <code>lib/astrology/dasha.ts</code>; this chapter only calls its
+  <code>vimshottariTimeline</code>. There is no web page for the timeline as of this date: the four
+  route handlers are the whole web surface, and the iOS app is the only client that draws it.
+</p>
+
+<h3 id="s8-3"><span class="num">8.3</span><span>Model</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 380" role="img" aria-label="Three owner-only tables and the stored chart on the left feed buildTimeline in the middle, which produces one Timeline object read by GET /api/timeline, the iOS store and the chat route; the explain route writes period_readings back; user messages feed extractLifeEvents for the scan route, which records a row in life_event_scans.">
+  <defs>
+    <marker id="ch08a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch08b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">TABLES (RLS: OWNER ONLY)</text>
+  <text class="lbl-sm" x="310" y="24">lib/timeline</text>
+  <text class="lbl-sm" x="640" y="24">ROUTES AND READERS</text>
+
+  <rect class="box-alt" x="20" y="44" width="210" height="40" rx="8"/><text class="lbl" x="125" y="69" text-anchor="middle">birth_profiles.chart</text>
+  <rect class="box-alt" x="20" y="104" width="210" height="40" rx="8"/><text class="lbl" x="125" y="129" text-anchor="middle">life_events</text>
+  <rect class="box-alt" x="20" y="164" width="210" height="40" rx="8"/><text class="lbl" x="125" y="189" text-anchor="middle">period_readings</text>
+  <rect class="box-alt" x="20" y="264" width="210" height="40" rx="8"/><text class="lbl" x="125" y="289" text-anchor="middle">messages (role = user)</text>
+
+  <rect class="box" x="310" y="40" width="220" height="52" rx="8"/>
+  <text class="lbl" x="420" y="62" text-anchor="middle">moonLongitudeFrom</text>
+  <text class="lbl-sm" x="420" y="82" text-anchor="middle">vimshottariTimeline</text>
+
+  <rect class="box-hot" x="310" y="118" width="220" height="72" rx="10"/>
+  <text class="lbl" x="420" y="142" text-anchor="middle">buildTimeline</text>
+  <text class="lbl-hot" x="420" y="162" text-anchor="middle">periods, events, now</text>
+  <text class="lbl-hot" x="420" y="180" text-anchor="middle">needsExplaining</text>
+
+  <rect class="box" x="310" y="210" width="220" height="40" rx="8"/><text class="lbl" x="420" y="235" text-anchor="middle">explainTimeline</text>
+  <rect class="box" x="310" y="264" width="220" height="40" rx="8"/><text class="lbl" x="420" y="289" text-anchor="middle">extractLifeEvents</text>
+
+  <rect class="box" x="640" y="44" width="200" height="52" rx="8"/>
+  <text class="lbl" x="740" y="66" text-anchor="middle">app/api/chat</text>
+  <text class="lbl-sm" x="740" y="86" text-anchor="middle">describeTimelineForPrompt</text>
+  <rect class="box" x="640" y="118" width="200" height="40" rx="8"/><text class="lbl" x="740" y="143" text-anchor="middle">GET /api/timeline</text>
+  <rect class="box" x="640" y="172" width="200" height="40" rx="8"/><text class="lbl" x="740" y="197" text-anchor="middle">TimelineStore (iOS)</text>
+  <rect class="box" x="640" y="210" width="200" height="40" rx="8"/><text class="lbl" x="740" y="235" text-anchor="middle">POST /api/timeline/explain</text>
+  <rect class="box" x="640" y="264" width="200" height="40" rx="8"/><text class="lbl" x="740" y="289" text-anchor="middle">POST /api/timeline/scan</text>
+  <rect class="box-alt" x="640" y="324" width="200" height="40" rx="8"/><text class="lbl" x="740" y="349" text-anchor="middle">life_event_scans</text>
+
+  <path class="flow" d="M230 64 L 304 66" marker-end="url(#ch08a)"/>
+  <path class="flow" d="M420 92 L 420 112" marker-end="url(#ch08a)"/>
+  <path class="flow" d="M230 124 L 304 140" marker-end="url(#ch08a)"/>
+  <path class="flow" d="M230 184 L 304 168" marker-end="url(#ch08a)"/>
+  <path class="flow-hot" d="M530 138 L 634 138" marker-end="url(#ch08b)"/>
+  <path class="flow-dash" d="M530 126 L 634 82" marker-end="url(#ch08a)"/>
+  <path class="flow" d="M740 158 L 740 166" marker-end="url(#ch08a)"/>
+  <path class="flow" d="M420 190 L 420 204" marker-end="url(#ch08a)"/>
+  <text class="lbl-sm" x="430" y="202">when stale</text>
+  <path class="flow" d="M640 230 L 536 230" marker-end="url(#ch08a)"/>
+  <path class="flow-dash" d="M310 230 L 236 190" marker-end="url(#ch08a)"/>
+  <text class="lbl-sm" x="244" y="222">upsert</text>
+  <path class="flow" d="M230 284 L 304 284" marker-end="url(#ch08a)"/>
+  <path class="flow" d="M530 284 L 634 284" marker-end="url(#ch08a)"/>
+  <text class="lbl-sm" x="545" y="276">candidates</text>
+  <path class="flow-dash" d="M740 304 L 740 318" marker-end="url(#ch08a)"/>
+  <line class="wall" x1="600" y1="30" x2="600" y2="370"/>
+</svg>
+<figcaption>
+  The stored chart, the pinned moments and the cached meanings join on the server into one
+  <code>Timeline</code> object. The iOS app and the chat route both read it; only the explain route
+  writes meanings back, and the scan route writes nothing but its own record.
+</figcaption>
+</figure>
+
+<h4>The three tables</h4>
+
+<p>
+  <code>life_events</code> holds what the user pinned. The comment in
+  <code>supabase/migrations/0006_life_events.sql</code> calls it "the one table in the schema holding
+  what the user tells us about their own life rather than what the ephemeris computes, so it is
+  owner-only in both directions": one policy for all operations, with <code>using</code> and
+  <code>with check</code> both on <code>user_id = auth.uid()</code>, and no admin read policy.
+</p>
+
+<pre><code>-- supabase/migrations/0006_life_events.sql
+create table public.life_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  occurred_on date not null,
+  precision text not null default 'day' check (precision in ('day', 'month', 'year')),
+  title text not null check (char_length(title) between 1 and 120),
+  note text check (char_length(note) &lt;= 2000),
+  source text not null default 'manual' check (source in ('manual', 'extracted')),
+  created_at timestamptz not null default now()
+);
+create index on public.life_events (user_id, occurred_on);</code></pre>
+
+<p>
+  <code>occurred_on</code> is a date, not a timestamp, because "people remember 'March 2021', not an
+  hour, and a false hour would imply the chart says more than it can." <code>precision</code> records
+  how much of the date the user knew; a month-precision event is stored on the 1st, a year-precision
+  one on 1 January, and the precision travels with it. <code>source</code> separates a typed moment
+  from a confirmed extraction, "so a bad extraction run can be undone without touching hand-entered
+  events."
+</p>
+
+<p>
+  <code>life_event_scans</code> is one row per user (<code>user_id</code> as primary key,
+  <code>scanned_at</code>, <code>found_count</code>), so the offer to mine the chat history appears
+  once, and again only when the user has said enough new things since.
+</p>
+
+<p>
+  <code>period_readings</code>, from <code>0007_period_readings.sql</code>, holds the written
+  meanings: one row per mahadasha plus one whose <code>lord</code> is the literal <code>now</code>,
+  keyed on <code>(user_id, lord, period_start)</code>. The now row's <code>period_start</code> is the
+  current antardasha's start, "so it goes stale by itself when the sub-period changes."
+  <code>events_hash</code> records which pinned moments the text was written against. The column
+  checks allow 80 and 800 characters; the parser trims to 60 and 600, so the database limit is
+  headroom, never the thing that fails.
+</p>
+
+<h4>The types</h4>
+
+<pre><code>// lib/timeline/build.ts
+export type Timeline = {
+  birthDate: string;
+  today: string;
+  periods: TimelinePeriod[];
+  events: TimelineEvent[];
+  now: TimelineNow | null;
+  /** Any period, or the now summary, needs (re)writing. */
+  needsExplaining: boolean;
+};</code></pre>
+
+<p>
+  <code>TimelinePeriod</code> is a <code>DashaPeriod</code> (lord, ISO start and end, nested
+  antardashas) plus <code>isCurrent</code>, <code>isPast</code>, <code>eventCount</code>,
+  <code>theme</code>, <code>meaning</code> and <code>stale</code>. <code>TimelineEvent</code> carries
+  the stored columns plus the two fields that are "the whole point of the feature":
+  <code>mahadasha</code> and <code>antardasha</code>, the lords running when it happened, or null when
+  the event sits outside the computed span. <code>TimelineNow</code> names the current pair and the
+  antardasha's span. The GET route spreads a <code>ScanState</code> (<code>scanned</code>,
+  <code>messagesSinceScan</code>) over the top.
+</p>
+
+<p>
+  On iOS the same shape is <code>TimelinePayload</code>, decoding into <code>DashaBand</code>,
+  <code>LifeEvent</code> and <code>NowPeriod</code>. Every field that arrived after the first release
+  decodes with <code>decodeIfPresent</code> and a default, "so an app update and an API deploy need not
+  land in the same minute." <code>CandidateEvent</code> is the scan's proposal: an optional
+  <code>occurredOn</code>, a precision that may be <code>unknown</code>, a title, and the
+  <code>evidence</code> quote.
+</p>
+
+<h3 id="s8-4"><span class="num">8.4</span><span>The server side</span></h3>
+
+<h4>Building the map without the ephemeris</h4>
+
+<p>
+  Vimshottari needs one number: the Moon's sidereal longitude at birth. The chart stores each planet
+  as a sign plus a degree within it, so <code>moonLongitudeFrom</code> reassembles
+  <code>signIndex * 30 + degree</code>: "This is what lets the timeline load without re-running the
+  Swiss Ephemeris, which costs a WASM init per process." It returns null for a chart with no Moon or
+  an unrecognised sign, and the caller treats null as "cannot draw."
+</p>
+
+<p>
+  <code>loadTimeline</code> in <code>load.ts</code> reads the birth row, reassembles the Moon, fetches
+  <code>life_events</code> and <code>period_readings</code> in parallel, and hands everything to
+  <code>buildTimeline</code>. <code>today</code> is the UTC date: "A dasha band is years wide, so a
+  few hours of skew cannot move an event into the wrong period, unlike the daily readings, where the
+  local date is the whole point."
+</p>
+
+<p>
+  <code>buildTimeline</code> calls <code>vimshottariTimeline</code> for the raw twelve periods. Each
+  stored event is placed in the period whose <code>[start, end)</code> contains
+  <code>occurred_on</code>, then in the antardasha inside it, and the list is sorted oldest first.
+  Each period gets its event count, its current and past flags, and the stored reading for its
+  <code>(lord, start)</code>; the now summary is looked up under <code>NOW_LORD = "now"</code> and the
+  antardasha start. Then:
+</p>
+
+<pre><code>// lib/timeline/build.ts
+const fresh = !!row &amp;&amp; row.events_hash === eventsHashFor(p, events);
+...
+const needsExplaining = periods.some((p) =&gt; p.stale) || (now !== null &amp;&amp; now.meaning === null);</code></pre>
+
+<p>
+  A period is stale when it has no reading or when the moments inside it changed since the reading
+  was written. The test is the hash:
+</p>
+
+<pre><code>// lib/timeline/build.ts
+export function eventsHashFor(period, events): string {
+  const keys = events
+    .filter((e) =&gt; within(e.occurredOn, period.start, period.end))
+    .map((e) =&gt; `${e.occurredOn}:${e.title.toLowerCase()}`)
+    .sort();
+  if (keys.length === 0) return "0";
+  let h = 2166136261;
+  const text = keys.join("\n");
+  for (let i = 0; i &lt; text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619) &gt;&gt;&gt; 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}</code></pre>
+
+<p>
+  A 32-bit FNV-1a over the sorted <code>date:title</code> keys. Sorting first means the order rows
+  come back from Postgres "can never make a fresh explanation look stale." A small non-cryptographic
+  hash is enough because "this detects change, it does not protect anything," and keeping it pure
+  "keeps this module free of Node-only imports."
+</p>
+
+<h4>Writing the meanings</h4>
+
+<p>
+  <code>explain.ts</code> turns the map into one model call. <code>buildExplainSystem</code> addresses
+  the user by first name, tells the model to "write for someone who has never heard the word dasha
+  and will not be told it," and sets the rules that matter on a life map: past chapters in the past
+  tense, the current one in the present, a future one "as what it tends to bring, never as fate, and
+  never as a warning." When the user has pinned a moment inside a chapter, "name it and say in one
+  clause how it fits the chapter. Never invent a moment they did not give you." Jargon is banned
+  outright: no malefic, benefic, exalted, lord, house, transit, dasha, antardasha.
+</p>
+
+<p>
+  <code>buildExplainTask</code> lists every period as <code>LORD | START | years (state)</code>, the
+  current period's sub-periods, and each pinned moment under its period, ending with a
+  <code>now</code> line. The reply is one line per chapter, <code>LORD | START | THEME | MEANING</code>,
+  plus a final line whose LORD is the word <code>now</code>.
+</p>
+
+<p>
+  <code>parseExplanations</code> is the safety property. It builds a map of every legitimate
+  <code>lord|start</code> key from the computed periods and the now row, and keeps a line only when
+  its key is in that map: "a hallucinated period can never appear on the map." The first line for a
+  key wins, the theme is cut at <code>MAX_THEME = 60</code>, and everything after the third pipe is
+  the meaning, "pipes and all," cut at <code>MAX_MEANING = 600</code>.
+</p>
+
+<p>
+  <code>explainTimeline</code> calls <code>READING_MODEL</code> with <code>max_tokens: 3000</code>,
+  the shared <code>LOW_EFFORT</code> output config, and the system block marked
+  <code>cache_control: { type: "ephemeral", ttl: "1h" }</code>; any error returns an empty array.
+  <code>POST /api/timeline/explain</code> (<code>maxDuration = 90</code>) asks the model only if
+  <code>needsExplaining</code>, then upserts every returned row on
+  <code>user_id,lord,period_start</code>, stamping each period's <code>events_hash</code> and
+  <code>"0"</code> for the now row, whose freshness "is the antardasha start in its key." One stale
+  period rewrites all of them: "the extra output costs less than a second call would." The route
+  reloads and returns the GET shape, so the client replaces its state and never merges.
+</p>
+
+<h4>Mining the history</h4>
+
+<p>
+  <code>selectTranscript</code> decides what the model sees: the user's messages oldest first, each
+  prefixed with the date it was written, whitespace collapsed so one message stays one line, anything
+  under 12 characters dropped, and a hard stop at <code>maxChars = 24_000</code> that ends before a
+  message rather than through it. Oldest first is deliberate: the early "here's my situation"
+  messages are "where most life history gets told."
+</p>
+
+<p>
+  <code>buildExtractionSystem</code> says what counts (a job, a move, a marriage or separation, a
+  birth, a death, an illness, a business begun or closed) and what does not: never an event inferred
+  from a question, a hypothetical, or "something you read in an astrological reading." Relative
+  phrases resolve from the message date ("last March" in a 2025-06 message is 2024-03), ages from the
+  birth date ("when I was 25" is the birth year plus 25), always at the precision given. An event that
+  cannot be dated even to a year is kept with <code>?</code>. The title is in the person's own framing,
+  "'Left the job in Chicago', not 'Career upheaval under Saturn'," and the model must quote the words
+  that told it as EVIDENCE. The reply is <code>DATE | PRECISION | TITLE | EVIDENCE</code>, one per
+  line, or NONE.
+</p>
+
+<p>
+  <code>parseExtractedEvents</code> trusts none of that. Pipe-delimited lines rather than JSON, "for
+  the reason recorded in <code>lib/alerts/compose.ts</code>: the model reliably breaks JSON string
+  escaping and the whole reply is lost, where a malformed line here costs one event." The date is
+  resolved by shape (<code>YYYY-MM-DD</code>, <code>YYYY-MM</code>, <code>YYYY</code>) and checked to
+  be a real calendar day; the PRECISION field is read and discarded, because "a model that writes
+  '2019 | day | ...' does not know the day, whatever it claims in the second field." Anything before
+  birth or after today is dropped, duplicates are removed on lower-cased <code>date:title</code> (title
+  alone for undated events), titles are cut at 120 characters and evidence at 160. Dated candidates
+  return oldest first, then the undated ones.
+</p>
+
+<p>
+  <code>POST /api/timeline/scan</code> (<code>maxDuration = 120</code>) reads only the user's own
+  messages, at most <code>MAX_MESSAGES = 400</code>: "Assistant turns are full of astrological
+  narrative that reads like biography and would extract as fiction." Section 8.6 walks through the
+  rest.
+</p>
+
+<h4>Pinning</h4>
+
+<p>
+  <code>POST /api/life-events</code> takes <code>{ events: [...] }</code>, at most
+  <code>MAX_BATCH = 50</code>, "one confirmation sheet's worth"; a manual add is the same call with one
+  element. The date must match <code>YYYY-MM-DD</code>, must not be before the birth date ("That date
+  is before you were born.") or after today ("The timeline only holds what has happened."), and the
+  title must be non-empty, cut at 120; the note is cut at 2000. Precision falls back to
+  <code>day</code> and source to <code>manual</code>. Dates are checked here as well as in the
+  extractor "because this route is reachable directly, and an event before someone was born would
+  render as a period that does not exist." <code>DELETE</code> filters on both the id and the caller's
+  <code>user_id</code>, belt and braces over RLS.
+</p>
+
+<h4>The block the chat sees</h4>
+
+<p>
+  <code>describeTimelineForPrompt</code> renders the timeline as text, or returns <code>""</code> so the
+  caller can append it unconditionally. In Vedic mode it opens with a <code>Now:</code> line naming
+  the current period and sub-period, then lists up to <code>MAX_MOMENTS = 30</code> moments, most
+  recent first, each with the pair it fell in. Western readings have no dashas, so they get the
+  moments alone, and nothing at all when there are none. <code>app/api/chat/route.ts</code> appends
+  it to <code>stableSystem</code> in the chart branch (Vedic and Western) inside a try/catch that logs
+  "chat timeline context skipped" and carries on. It lives in the cached block because "it only
+  changes when they pin or remove a moment."
+</p>
+
+<h3 id="s8-5"><span class="num">8.5</span><span>The clients</span></h3>
+
+<p>
+  The web app has no timeline screen. Everything below is the iOS feature, reached from the chat
+  toolbar as a sheet (<code>ChatView</code> presents <code>TimelineView()</code>) and from a tap on the
+  period widget, which opens <code>sanchara://timeline</code> and lands as
+  <code>DeepLink.Destination.timeline</code>.
+</p>
+
+<h4>The store</h4>
+
+<p>
+  <code>TimelineStore</code> is an <code>@Observable</code>, main-actor class with four states:
+  <code>loading</code>, <code>ready</code>, <code>needsProfile</code>, <code>failed(String)</code>.
+  <code>load()</code> calls <code>SancharaAPI.timeline()</code>, applies the payload, and then, if
+  <code>needsExplaining</code>, spawns <code>explain()</code> as a separate task, so the bands are on
+  screen before the meanings exist. A failure there is silent, because "the timeline without meanings
+  is still the timeline." A server reply containing "birth details" maps to
+  <code>needsProfile</code>.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/Features/Timeline/TimelineStore.swift
+static let rescanThreshold = 10
+var canOfferScan: Bool { !scanned || messagesSinceScan &gt;= Self.rescanThreshold }
+var isRescan: Bool { scanned }</code></pre>
+
+<p>
+  Never scanned: offer. Scanned, and at least ten user messages since: offer again with different
+  copy. <code>scan()</code> sets <code>scanned = true</code> and <code>messagesSinceScan = 0</code>
+  locally on success, so the offer disappears even when nothing was found. <code>confirm</code>
+  resolves the chosen candidates through <code>CandidateResolver</code>, posts them as one batch,
+  clears the list and reloads. <code>add</code> is the same with one event. <code>remove</code> is
+  optimistic: the row disappears under the finger, the delete is sent, and the reload restores it if
+  the delete failed.
+</p>
+
+<h4>What is cached</h4>
+
+<p>
+  Every applied payload also writes <code>ChartCache.CachedPeriod</code>: the current lord, the running
+  antardasha and its span, the period's <code>theme</code> and the now row's <code>meaning</code>,
+  then calls <code>WidgetRefresh.reloadPeriod()</code>. <code>TimelineStore.warmCache()</code> does the
+  same fetch without a screen, and <code>ChatView</code> runs it once per launch so "the widget fills
+  in without the timeline ever being opened." The widget, the shared <code>PeriodProgress</code>
+  helper and the App Group file are <a href="#ch10">chapter 10</a>'s; the timeline is the one writer
+  of that file's <code>period</code> entry.
+</p>
+
+<h4>The views</h4>
+
+<p>
+  <code>TimelineView</code> is titled "Your life." Bands are laid out "in information proportion, not
+  time proportion: a period is as tall as what happened in it. A 20-year mahadasha with nothing pinned
+  should not dwarf the year the user got married." Time is carried by the year range and the "N
+  years" caption. From the top: the scan offer when <code>canOfferScan</code>; the <code>NowCard</code>
+  when there is a <code>now</code>; one <code>BandRow</code> per period; a footer naming the technique
+  and offering "What are these periods?"
+</p>
+
+<p>
+  <code>NowCard</code> is "the one place the meaning of now is spelled out": the pair, the years, a
+  progress capsule, and the now meaning, or "Writing what this means for you..." while
+  <code>isExplaining</code>. <code>BandRow</code> shows the lord, a NOW pill on the current period, the
+  years, the theme, and the moment count; expanding reveals the meaning and the sub-periods. A
+  <code>stale</code> meaning is shown at 60 percent opacity, "dimmed, and about to be replaced."
+  Future periods sit at 45 percent because they "recede rather than disappear." Each
+  <code>EventRow</code> shows the title, the date at the precision given, the "during" label naming
+  the pair, and a Remove item behind a confirmation dialog.
+</p>
+
+<p>
+  <code>AddMomentView</code> asks for a title, a date bounded from birth to today, a segmented
+  precision ("That day", "That month", "That year") and an optional note, and on save snaps the date
+  to the precision so the server "stores a real date either way; this keeps it from implying a day
+  the user never gave." <code>PeriodExplainerView</code> is five static paragraphs, "static on
+  purpose," so the page explaining the idea can "be trusted the way a caption is trusted."
+</p>
+
+<p>
+  <code>CandidatesView</code> is where proposals become moments, and its doc comment is the policy:
+  "Nothing reaches the timeline without passing through here. These are inferred claims about
+  someone's own life, a wrong one is not a wrong prediction, it is the app telling a person something
+  untrue about their father's death, so every candidate is opt-in rather than opt-out." Each row shows
+  the title, its date or "When was this?", and the evidence quote in italics. Dated candidates arrive
+  pre-ticked ("the work of confirming a good list should be one tap, not twelve"); undated ones show
+  a year menu from the birth year to this year instead. The add button is live only when
+  <code>CandidateResolver.canAdd</code> says so: something is chosen and every chosen undated candidate
+  has a year.
+</p>
+
+<p>
+  <code>TimelineDate</code> pins every formatter to UTC, because "parsing in the device's zone would
+  slide a morning event onto the previous day west of Greenwich," and <code>LifeEvent.dateLabel</code>
+  picks a day, month or year formatter by precision "so a year-precision memory never claims a day
+  it does not have."
+</p>
+
+<h3 id="s8-6"><span class="num">8.6</span><span>How it works</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 420" role="img" aria-label="Sequence of a scan: the iOS store posts to the scan route; the route loads the birth row and the user's own messages from Supabase, sends a bounded transcript to Claude, parses the pipe-delimited reply against the birth date and today, drops candidates already pinned, records the scan, and returns candidates without writing any; the user confirms through a separate life-events call.">
+  <defs>
+    <marker id="ch08c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch08d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box" x="20" y="36" width="180" height="40" rx="8"/><text class="lbl" x="110" y="61" text-anchor="middle">TimelineStore (iOS)</text>
+  <rect class="box-hot" x="250" y="36" width="200" height="40" rx="8"/><text class="lbl" x="350" y="61" text-anchor="middle">POST /api/timeline/scan</text>
+  <rect class="box-alt" x="500" y="36" width="160" height="40" rx="8"/><text class="lbl" x="580" y="61" text-anchor="middle">Supabase</text>
+  <rect class="box" x="710" y="36" width="130" height="40" rx="8"/><text class="lbl" x="775" y="61" text-anchor="middle">Claude</text>
+
+  <path class="flow-dash" d="M110 76 L 110 400"/>
+  <path class="flow-dash" d="M350 76 L 350 400"/>
+  <path class="flow-dash" d="M580 76 L 580 400"/>
+  <path class="flow-dash" d="M775 76 L 775 400"/>
+  <line class="wall" x1="225" y1="30" x2="225" y2="405"/>
+
+  <path class="flow" d="M110 104 L 344 104" marker-end="url(#ch08c)"/>
+  <text class="lbl-sm" x="120" y="98">1 scan()</text>
+  <path class="flow" d="M350 134 L 574 134" marker-end="url(#ch08c)"/>
+  <text class="lbl-sm" x="360" y="128">2 loadBirthRow</text>
+  <path class="flow" d="M350 164 L 574 164" marker-end="url(#ch08c)"/>
+  <text class="lbl-sm" x="360" y="158">3 conversations, then user messages, 400 max</text>
+  <path class="flow-hot" d="M350 194 L 769 194" marker-end="url(#ch08d)"/>
+  <text class="lbl-hot" x="360" y="188">4 selectTranscript: 24,000 chars, oldest first</text>
+  <path class="flow-hot" d="M775 224 L 356 224" marker-end="url(#ch08d)"/>
+  <text class="lbl-hot" x="420" y="218">5 DATE | PRECISION | TITLE | EVIDENCE</text>
+  <rect class="box-hot" x="260" y="240" width="180" height="34" rx="8"/><text class="lbl-hot" x="350" y="262" text-anchor="middle">6 parseExtractedEvents</text>
+  <path class="flow" d="M350 300 L 574 300" marker-end="url(#ch08c)"/>
+  <text class="lbl-sm" x="360" y="294">7 existing life_events: drop matches</text>
+  <path class="flow-dash" d="M350 330 L 574 330" marker-end="url(#ch08c)"/>
+  <text class="lbl-sm" x="360" y="324">8 upsert life_event_scans (user_id)</text>
+  <path class="flow-hot" d="M350 360 L 116 360" marker-end="url(#ch08d)"/>
+  <text class="lbl-hot" x="120" y="354">9 candidates, nothing written</text>
+  <path class="flow" d="M110 390 L 574 390" marker-end="url(#ch08c)"/>
+  <text class="lbl-sm" x="120" y="384">10 confirm: POST /api/life-events, then GET /api/timeline</text>
+</svg>
+<figcaption>
+  A scan reads, proposes and records that it ran. The only write to <code>life_events</code> is the
+  user's own confirmation, one batch, through a different route.
+</figcaption>
+</figure>
+
+<h4>Opening the timeline</h4>
+
+<ol>
+  <li><code>TimelineView.task</code> calls <code>store.load()</code>, which calls
+    <code>GET /api/timeline</code>. The route loads the timeline and the scan state in parallel; a
+    missing chart or an unreadable Moon answers 400 with "Complete your birth details first."</li>
+  <li>The store applies the payload, writes the period cache, and shows the bands. If
+    <code>needsExplaining</code> it starts <code>explain()</code> in the background.</li>
+  <li>On appear, if there is no now card the scroll jumps to the current band: "'where am I now' is
+    the question people arrive with."</li>
+</ol>
+
+<h4>Writing meanings</h4>
+
+<ol>
+  <li><code>explain()</code> calls <code>POST /api/timeline/explain</code>. The route checks
+    <code>needsExplaining</code> itself, so a needless call costs two reads and no model call.</li>
+  <li><code>explainTimeline</code> runs; <code>parseExplanations</code> keeps only lines naming a
+    real period or the now row; the rows are upserted with their hashes.</li>
+  <li>The route returns the GET shape, the store applies it, and the card that said "Writing what
+    this means for you..." shows the now meaning.</li>
+</ol>
+
+<p>
+  Because the now row is keyed on the antardasha start, the day a sub-period turns over the lookup
+  finds no row, <code>now.meaning</code> is null, <code>needsExplaining</code> is true, and the next
+  open rewrites the map with a fresh now line. No cron and no expiry column; the key is the expiry.
+</p>
+
+<h4>Pinning a moment by hand</h4>
+
+<ol>
+  <li>The plus button opens <code>AddMomentView</code>, bounded to the birth date and today the store
+    already holds.</li>
+  <li>Save snaps the date to the chosen precision and posts one <code>NewLifeEvent</code> with
+    <code>source: "manual"</code>; the route validates against the birth row again and inserts.</li>
+  <li>The store reloads. The new moment sits in its band; that band's hash no longer matches its
+    reading, so it is <code>stale</code>, <code>needsExplaining</code> is true, and the reload's
+    <code>explain()</code> rewrites every meaning, this time naming the moment.</li>
+</ol>
+
+<h4>The scan</h4>
+
+<p>Following the numbered arrows in the figure:</p>
+
+<ol>
+  <li>The offer's button calls <code>store.scan()</code>, with a 120-second timeout on the phone and
+    <code>maxDuration = 120</code> on the server.</li>
+  <li>The route loads the birth row; without one it answers 400.</li>
+  <li>It selects the user's conversation ids, then their own messages, oldest first, at most 400. No
+    conversations short-circuits: the scan is recorded with <code>found_count = 0</code> and an empty
+    list returns.</li>
+  <li><code>selectTranscript</code> trims to 24,000 characters; <code>extractLifeEvents</code> sends
+    them at <code>max_tokens: 2000</code>. An empty transcript returns before any call.</li>
+  <li>The model replies with pipe-delimited lines or NONE.</li>
+  <li><code>parseExtractedEvents</code> validates, deduplicates, trims and orders.</li>
+  <li>The route drops any candidate whose lower-cased <code>occurred_on:title</code> is already
+    pinned. An undated candidate "has no date to match on, so a pinned moment with the same name is
+    taken to be the same moment."</li>
+  <li><code>recordScan</code> upserts <code>life_event_scans</code> on <code>user_id</code>; an error
+    here is logged, not raised.</li>
+  <li>The candidates come back with nothing written to <code>life_events</code>; the store's
+    non-empty list presents <code>CandidatesView</code>.</li>
+  <li>The user unticks what is wrong, picks a year for anything undated, and taps add.
+    <code>confirm</code> posts the batch with <code>source: "extracted"</code> to
+    <code>/api/life-events</code> and reloads.</li>
+</ol>
+
+<h4>What makes the scan idempotent</h4>
+
+<p>
+  Pressing the button twice, or a week later, cannot damage the map, for four reasons that stack. The
+  scan route never inserts into <code>life_events</code>; its only write is the one-row-per-user upsert
+  into <code>life_event_scans</code>, which overwrites rather than accumulates. The parser deduplicates
+  within a reply. The route filters against what is already pinned, so "a re-scan after more chatting
+  proposes only what is genuinely new." And the store clears its candidate list after a confirmation
+  or a cancel, so a stale sheet cannot be re-submitted. The one thing not guarded is a user who
+  confirms the same candidate in two separate sheets: <code>life_events</code> has no unique
+  constraint, and the next scan would suppress the candidate, not the duplicate row. That is the
+  user's own action on their own data, and Remove is one long press away.
+</p>
+
+<h4>The chat sees the timeline</h4>
+
+<p>
+  On every chat turn in a chart mode the route calls <code>loadTimeline</code> and appends
+  <code>describeTimelineForPrompt</code> to <code>stableSystem</code>. That block is part of the cached
+  prefix, so "why was 2021 so hard" is answered against a prompt that lists what the user pinned in
+  2021 and which pair it fell in. When a moment is pinned or removed the block changes and the cache
+  misses once; until then it is free. A failure to load is logged and the turn proceeds without it.
+</p>
+
+<h3 id="s8-7"><span class="num">8.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>No ephemeris on the read path.</strong> <code>moonLongitudeFrom</code> reassembles the
+    Moon from the stored chart, so <code>GET /api/timeline</code> is two parallel Postgres reads plus
+    arithmetic. The WASM engine is never initialised for the timeline.</li>
+  <li><strong>One model call per rewrite, not per period.</strong> Twelve periods and the now line
+    come from a single <code>max_tokens: 3000</code> call at low effort, with the system prompt cached
+    for an hour. Rewrites happen only when the hash or the now key changes; opening the timeline ten
+    times a day with nothing new makes zero model calls.</li>
+  <li><strong>The scan is bounded three ways.</strong> 400 messages from the database, 24,000
+    characters to the model, 2,000 output tokens back, and only user turns, which are the shorter
+    half of any transcript.</li>
+  <li><strong>The chat pays two reads per turn.</strong> <code>loadTimeline</code> runs on every chart
+    turn to build the block, which costs input tokens only when it changes.</li>
+  <li><strong>The phone caches one thing.</strong> The period entry for the widget. The map itself is
+    a few kilobytes, fetched on every open, always current.</li>
+  <li><strong>Long timeouts where earned.</strong> Explain and scan carry a 120-second client timeout
+    and 90- and 120-second <code>maxDuration</code> on the server; both run longer than a chat turn.</li>
+</ul>
+
+<h3 id="s8-8"><span class="num">8.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>No chart yet, or a chart with no Moon or an unknown sign</td><td><code>loadTimeline</code> returns null; every route answers 400; the store shows <code>needsProfile</code></td></tr>
+<tr><td>Event dated beyond the computed span</td><td><code>mahadasha</code> and <code>antardasha</code> are null; no "during" label</td></tr>
+<tr><td>Stored precision or source with an unexpected value</td><td>Precision falls back to <code>day</code>, source to <code>manual</code></td></tr>
+<tr><td>Events returned in a different order</td><td>Sorted before rendering and hashing; a fresh reading never looks stale</td></tr>
+<tr><td>Model names a period that does not exist, repeats one, or puts a pipe in a meaning</td><td>Line dropped; first line wins; the pipe is kept</td></tr>
+<tr><td>Theme over 60 or meaning over 600 characters</td><td>Trimmed before the column checks at 80 and 800</td></tr>
+<tr><td>Model call fails during explain</td><td>No upsert, existing rows untouched, <code>needsExplaining</code> stays true; the store tries again on the next open</td></tr>
+<tr><td>Antardasha turns over</td><td>The now row's key no longer matches; the next open rewrites all meanings</td></tr>
+<tr><td>Extracted date before birth or after today, or impossible (2019-02-31)</td><td>Dropped by the parser; the same bounds in <code>/api/life-events</code> answer 400</td></tr>
+<tr><td>Model claims day precision for a year-only date</td><td>The date's shape wins: year precision</td></tr>
+<tr><td>Event the model cannot date</td><td>Kept with a null date, listed after the dated ones; the sheet asks for a year and refuses to add without one</td></tr>
+<tr><td>Older three-field reply</td><td>Title runs to the end, evidence is empty</td></tr>
+<tr><td>Message under 12 characters, or the budget reached mid-message</td><td>Left out whole; nothing is cut in half</td></tr>
+<tr><td>User has no conversations</td><td>Scan recorded with <code>found_count = 0</code>, empty candidates, no model call</td></tr>
+<tr><td>Delete fails on the server</td><td>Row was removed optimistically; the reload restores it</td></tr>
+<tr><td>App talks to a server without the explain fields</td><td>Decoders default; no theme, no now card</td></tr>
+<tr><td>Device west of Greenwich, or clock earlier than the birth date</td><td>All dates are UTC; <code>yearRange</code> clamps to a single year rather than an invalid range</td></tr>
+<tr><td>More than 50 events in one batch</td><td>400 "At most 50 events at a time."</td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<p>Vitest, in <code>lib/timeline/</code>, 47 tests, none needing a database or a model:</p>
+
+<ul>
+  <li><code>build.test.ts</code>: twelve periods for a full life; exactly one current period; an
+    event placed in its mahadasha and antardasha and counted into its period; sorted oldest first
+    regardless of insertion order; null periods beyond the span; the precision and source fallbacks;
+    <code>moonLongitudeFrom</code> reassembling Taurus 15.5 as 45.5 and returning null for a missing
+    Moon or "Ophiuchus".</li>
+  <li><code>describe.test.ts</code>: the Vedic block names the current period and each moment's pair;
+    the Western block has moments but no dasha language, and is empty with none; exactly thirty most
+    recent moments; dates at the precision given.</li>
+  <li><code>explain.test.ts</code>: the hash is stable in any order, is <code>0</code> for an empty
+    period, and ignores moments outside; the parser reads a period line and the now line, drops lines
+    that do not name a real period, keeps pipes in the meaning, trims to 60 and 600, and skips a line
+    missing either; the prompts list every lord and the pinned moment.</li>
+  <li><code>extract.test.ts</code>: NONE; the date shape trusted over a wrong PRECISION field; events
+    outside the person's life and impossible dates dropped; malformed lines skipped without losing
+    good ones; a fourth field read as evidence; an undated event kept after the dated ones;
+    <code>selectTranscript</code> stamping the date, dropping short messages and stopping at the
+    budget; the prompt containing "birth year plus 25" and "write ? for the date".</li>
+</ul>
+
+<p>XCTest, in <code>mobile/Sanchara/Tests/</code>:</p>
+
+<ul>
+  <li><code>TimelineTests</code>: a band's length in whole years; progress clamped outside the period
+    and zero for a zero-length band; the "during" label for a pair, a mahadasha alone, and neither; a
+    date rendered only to the precision given ("a year label must not leak a day or month number");
+    malformed dates parsing to nil rather than today.</li>
+  <li><code>CandidateResolverTests</code>: a dated candidate passes through unchanged; an undated one
+    needs a year and becomes 1 January at year precision; add is blocked until every chosen undated
+    candidate has a year; the year range clamps a clock set before the birth date; the payload decodes
+    with and without the explain fields.</li>
+  <li><code>PeriodProgressTests</code>: the shared fraction at start, midpoint and end, clamped;
+    years remaining never negative; <code>DashaBand.progress</code> agreeing with the helper; the
+    cached period surviving a round trip through <code>ChartCache</code> and removed by
+    <code>clear()</code>.</li>
+</ul>
+
+<h3 id="s8-9"><span class="num">8.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/astrology/dasha.ts</code>, for <code>vimshottariTimeline</code> and why the first period is a balance.</li>
+  <li><code>lib/timeline/build.ts</code>, the join, the now key and <code>eventsHashFor</code>.</li>
+  <li><code>lib/timeline/load.ts</code>, how the Moon is recovered and why today is UTC.</li>
+  <li><code>lib/timeline/explain.ts</code> and <code>app/api/timeline/explain/route.ts</code>, the prompt rules, the parser and the upsert.</li>
+  <li><code>lib/timeline/extract.ts</code> and <code>app/api/timeline/scan/route.ts</code>, the transcript, the parser that trusts nothing, and the duplicate filter.</li>
+  <li><code>app/api/life-events/route.ts</code>, the second validation of every date.</li>
+  <li><code>lib/timeline/describe.ts</code> and the block in <code>app/api/chat/route.ts</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Timeline/TimelineStore.swift</code>, the tolerant decoders, <code>CandidateResolver</code> and the store.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Timeline/CandidatesView.swift</code>, the confirmation policy.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why can the timeline load without the Swiss Ephemeris when every other chart feature needs it?</p>
+<p class="a">Vimshottari needs only the Moon's sidereal longitude at birth, and the stored chart carries the Moon's sign and degree. <code>moonLongitudeFrom</code> reassembles <code>signIndex * 30 + degree</code>, which saves a WASM init per process.</p>
+<p class="q">How does the "where you are now" meaning expire when the sub-period changes, with no expiry column?</p>
+<p class="a">Its row is keyed on the antardasha start. When the sub-period turns over the lookup uses a new start, finds no row, and <code>needsExplaining</code> becomes true.</p>
+<p class="q">Why are the events sorted before hashing?</p>
+<p class="a">Postgres does not promise an order, and a different order would give a different hash for the same moments, making a fresh reading look stale and costing a needless model call.</p>
+<p class="q">Why does the scan route never write to <code>life_events</code>?</p>
+<p class="a">The candidates are an inference about someone's own life, and a wrong one about a death or a divorce would be filed as fact. Every candidate passes through <code>CandidatesView</code>, and only the user's confirmation calls <code>/api/life-events</code>.</p>
+<p class="q">Why is the PRECISION field read and then discarded?</p>
+<p class="a">The date's own shape is the evidence. A model that writes a year and claims day precision does not know the day; trusting the shape keeps the map from drawing a marker it cannot justify.</p>
+</div>
+</section>

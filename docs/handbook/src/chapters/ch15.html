@@ -1,0 +1,588 @@
+<section class="chapter" id="ch15" data-hue="ship">
+<p class="chapter-kicker">Chapter fifteen</p>
+<h2><span class="num">15</span><span>Setup, deployment, and release</span></h2>
+
+<p class="lede">
+  One repository produces two artifacts: a Next.js app that Vercel builds from every push to
+  <code>main</code>, and an iOS archive that GitHub Actions uploads to TestFlight on every version
+  tag. Nothing secret is in git, the production build needs no secrets to compile, and every
+  one-time step that lives outside the repo is written down so it can be done again.
+</p>
+
+<p>
+  This chapter describes the repository on <code>main</code> on 30 September 2026, at version
+  0.3.0. It is the chapter to read before the first <code>npm run dev</code>, before the first
+  deploy to a fresh Vercel project, and before cutting a release. It covers the local setup for
+  the web app and the iOS app, the one-time Supabase and Apple configuration, the Vercel
+  deployment and its two cron schedules, the production checklist that exists because a cron ran
+  for weeks refusing every request, the three GitHub workflows, the release procedure, and the
+  rules about where secrets may live. Where a document under <code>docs/</code> names an account,
+  a project reference or a machine, this chapter does not; the procedure is the same for whoever
+  holds the keys.
+</p>
+
+<h3 id="s15-1"><span class="num">15.1</span><span>The shape of a release</span></h3>
+
+<p>
+  A commit takes two roads out of the repository. Every push to <code>main</code> is built by
+  Vercel's Git integration and becomes the production web app; the same push runs
+  <code>.github/workflows/ci.yml</code>, which typechecks, tests and builds the web app and
+  builds and tests the iOS app on a simulator. A tag of the form <code>v*</code> takes the second
+  road: <code>release.yml</code> publishes a GitHub release from the matching section of
+  <code>CHANGELOG.md</code>, and <code>ios-testflight.yml</code> archives the iOS app with the
+  version from the tag and uploads it to App Store Connect. There is no deploy step in Actions
+  for the web app, and nothing in the repository makes Vercel wait for CI.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 335" role="img" aria-label="A push to main fans out to the CI web job, the CI iOS job and a Vercel build that becomes production; a version tag fans out to the release workflow, which creates a GitHub release, and the TestFlight workflow, which uploads an archive to App Store Connect and TestFlight.">
+  <defs>
+    <marker id="ch15a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch15b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">DEVELOPER</text>
+  <text class="lbl-sm" x="250" y="24">GITHUB ACTIONS</text>
+  <text class="lbl-sm" x="490" y="24">CLOUD</text>
+  <text class="lbl-sm" x="690" y="24">DELIVERED</text>
+
+  <rect class="box" x="20" y="56" width="170" height="40" rx="8"/><text class="lbl" x="105" y="81" text-anchor="middle">git push origin main</text>
+  <rect class="box" x="20" y="212" width="170" height="40" rx="8"/><text class="lbl" x="105" y="237" text-anchor="middle">git push --tags (vX.Y.Z)</text>
+
+  <rect class="box" x="250" y="40" width="180" height="44" rx="8"/><text class="lbl" x="340" y="58" text-anchor="middle">ci.yml: web</text><text class="lbl-sm" x="340" y="76" text-anchor="middle">tsc, vitest, next build</text>
+  <rect class="box" x="250" y="94" width="180" height="44" rx="8"/><text class="lbl" x="340" y="112" text-anchor="middle">ci.yml: iOS</text><text class="lbl-sm" x="340" y="130" text-anchor="middle">xcodegen, simulator tests</text>
+  <rect class="box" x="250" y="190" width="180" height="34" rx="8"/><text class="lbl" x="340" y="212" text-anchor="middle">release.yml</text>
+  <rect class="box-hot" x="250" y="236" width="180" height="50" rx="10"/><text class="lbl" x="340" y="256" text-anchor="middle">ios-testflight.yml</text><text class="lbl-hot" x="340" y="276" text-anchor="middle">archive, aps production</text>
+
+  <rect class="box-hot" x="490" y="116" width="160" height="50" rx="10"/><text class="lbl" x="570" y="136" text-anchor="middle">Vercel build</text><text class="lbl-hot" x="570" y="156" text-anchor="middle">every push to main</text>
+  <rect class="box" x="490" y="190" width="160" height="34" rx="8"/><text class="lbl" x="570" y="212" text-anchor="middle">GitHub release + notes</text>
+  <rect class="box" x="490" y="244" width="160" height="34" rx="8"/><text class="lbl" x="570" y="266" text-anchor="middle">App Store Connect</text>
+
+  <rect class="box" x="690" y="124" width="150" height="34" rx="8"/><text class="lbl" x="765" y="146" text-anchor="middle">Production host</text>
+  <rect class="box" x="690" y="244" width="150" height="34" rx="8"/><text class="lbl" x="765" y="266" text-anchor="middle">TestFlight</text>
+
+  <path class="flow" d="M190 70 L 244 62" marker-end="url(#ch15a)"/>
+  <path class="flow" d="M190 86 L 244 116" marker-end="url(#ch15a)"/>
+  <path class="flow-hot" d="M105 96 L 105 141 L 484 141" marker-end="url(#ch15b)"/>
+  <path class="flow" d="M650 141 L 684 141" marker-end="url(#ch15a)"/>
+  <path class="flow" d="M190 224 L 244 207" marker-end="url(#ch15a)"/>
+  <path class="flow-hot" d="M190 240 L 244 261" marker-end="url(#ch15b)"/>
+  <path class="flow" d="M430 207 L 484 207" marker-end="url(#ch15a)"/>
+  <path class="flow-hot" d="M430 261 L 484 261" marker-end="url(#ch15b)"/>
+  <path class="flow" d="M650 261 L 684 261" marker-end="url(#ch15a)"/>
+
+  <text class="lbl-sm" x="20" y="318">Actions and Vercel both start from the same push. Nothing in the repository makes one wait for the other.</text>
+</svg>
+<figcaption>
+  Two roads out of the repository. The web app ships on a push; the iOS app ships on a tag. The
+  CI jobs prove the commit; they do not deploy it.
+</figcaption>
+</figure>
+
+<h3 id="s15-2"><span class="num">15.2</span><span>Local setup</span></h3>
+
+<h4>The web app</h4>
+
+<p>
+  The README lists the prerequisites: Node.js 24, a Supabase project, an Anthropic API key, and
+  for iOS, Xcode 26, XcodeGen and an Apple Developer account. The web app starts in three
+  commands: <code>npm install</code>, <code>cp .env.example .env.local</code> with the values
+  filled in, and <code>npm run dev</code>, which serves on port 3000. The migrations under
+  <code>supabase/migrations/</code> are applied to the project either with the Supabase CLI
+  (<code>supabase link</code> then <code>supabase db push</code>) or by pasting each file into
+  the SQL editor, lowest number first. There are seven, and the order matters because later files
+  reference tables the earlier ones create:
+</p>
+
+<pre class="tree">supabase/migrations/
+0001_init.sql                admins, profiles, birth_profiles, conversations, messages
+0002_avatar.sql              avatar_url and the avatars bucket
+0003_numerology_mode.sql     the numerology chat mode
+0004_alerts_push.sql         device_tokens, transit_conditions, alerts
+0005_daily_readings.sql      daily_readings, one row per user, date and slot
+0006_life_events.sql         life_events, life_event_scans
+0007_period_readings.sql     period_readings</pre>
+
+<p>
+  <code>.env.example</code> is the complete list of environment variables, and the comments in it
+  are the documentation. The split between required and optional is enforced in
+  <code>lib/env.ts</code>, which is the only place <code>process.env</code> is read:
+</p>
+
+<pre><code>// lib/env.ts
+import "server-only";
+
+function required(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing required env var: ${name}`);
+  return v;
+}
+
+function optional(name: string): string | undefined {
+  const v = process.env[name];
+  return v &amp;&amp; v.length &gt; 0 ? v : undefined;
+}
+
+export const env = {
+  supabaseUrl: () =&gt; required("NEXT_PUBLIC_SUPABASE_URL"),
+  supabaseAnonKey: () =&gt; required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+  supabaseServiceRoleKey: () =&gt; required("SUPABASE_SERVICE_ROLE_KEY"),
+  anthropicApiKey: () =&gt; required("ANTHROPIC_API_KEY"),
+  cronSecret: () =&gt; optional("CRON_SECRET"),
+  apnsKeyId: () =&gt; optional("APNS_KEY_ID"),
+  apnsTeamId: () =&gt; optional("APNS_TEAM_ID"),
+  apnsBundleId: () =&gt; optional("APNS_BUNDLE_ID"),
+  apnsPrivateKey: () =&gt; optional("APNS_PRIVATE_KEY")?.replace(/\\n/g, "\n"),
+};</code></pre>
+
+<p>
+  Two details of this file shape everything downstream. Every entry is a function, not a value,
+  so a variable is read when a request needs it and never at module load or at build time. And
+  the file imports <code>server-only</code>, so the bundler refuses to include it in anything that
+  ships to a browser. Chapter <a href="#ch16">16</a> follows both consequences through the failure
+  modes.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Variable</th><th>Required</th><th>Where it comes from</th><th>What stops without it</th></tr></thead>
+<tbody>
+<tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>yes</td><td>Supabase project settings, API</td><td>Every database and auth call</td></tr>
+<tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>yes</td><td>Same page, the <code>anon</code> key. Designed to ship in clients; Row Level Security is the boundary</td><td>Every database and auth call</td></tr>
+<tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>yes</td><td>Same page, the <code>service_role</code> key. Bypasses RLS</td><td>Admin reads, the cron jobs, device registration, avatar upload, account deletion</td></tr>
+<tr><td><code>ANTHROPIC_API_KEY</code></td><td>yes</td><td>The Anthropic console</td><td>Readings, alerts, extraction, period meanings</td></tr>
+<tr><td><code>CRON_SECRET</code></td><td>no</td><td>Any long random string; Vercel sends it as a bearer token to scheduled routes</td><td>The cron route answers 401 to everyone, including Vercel</td></tr>
+<tr><td><code>APNS_KEY_ID</code></td><td>no</td><td>The ten-character id of the APNs key</td><td>Pushes are skipped; alerts and readings are still written</td></tr>
+<tr><td><code>APNS_TEAM_ID</code></td><td>no</td><td>The Apple Developer team</td><td>Same</td></tr>
+<tr><td><code>APNS_BUNDLE_ID</code></td><td>no</td><td>The app's bundle identifier; <code>.env.example</code> carries it as a default</td><td>Same</td></tr>
+<tr><td><code>APNS_PRIVATE_KEY</code></td><td>no</td><td>The full contents of the <code>.p8</code> file, BEGIN and END lines included; escaped newlines are unescaped by <code>env.ts</code></td><td>Same</td></tr>
+</tbody></table></div>
+
+<p>
+  The two <code>NEXT_PUBLIC_</code> variables are the only ones a browser may see, and they are
+  the only two the iOS app is ever handed. <code>SUPABASE_SERVICE_ROLE_KEY</code> is used by
+  <code>lib/supabase/admin.ts</code>, whose comment reads "Bypasses RLS. Only ever import from
+  server code behind an admin auth check."
+</p>
+
+<h4>The iOS app</h4>
+
+<p>
+  The Xcode project is not committed. <code>mobile/project.yml</code> is the XcodeGen spec, and
+  <code>xcodegen generate</code> must be run after every change to it and after every new source
+  file. Before that, <code>mobile/scripts/make-config.sh</code> writes
+  <code>mobile/Sanchara/Sources/Generated/AppConfig.swift</code> from the repo's
+  <code>.env.local</code>. The script reads exactly two variables, the Supabase URL and the anon
+  key, and its header says why: those are publishable, and the service-role key and the
+  Anthropic key "are never read here and must never reach the app binary." A third value,
+  <code>apiBaseURL</code>, comes from the <code>SANCHARA_API_BASE_URL</code> shell variable if it
+  is set and otherwise defaults to the production API, which is how a debug build is pointed at a
+  local or preview server.
+</p>
+
+<pre><code>cd mobile
+./scripts/make-config.sh       # reads the Supabase URL and anon key from ../.env.local
+xcodegen generate
+open Sanchara.xcodeproj</code></pre>
+
+<p>
+  <code>project.yml</code> declares three targets: the app, the <code>SancharaWidgets</code>
+  extension and a <code>SancharaTests</code> unit-test bundle. It also declares every entitlement:
+  associated domains for Universal Links, <code>aps-environment</code> for push, Sign in with
+  Apple, and the App Group the widget and Siri read the chart from. Each of those needs a matching
+  capability on the App ID in the Apple Developer portal, which is one-time work covered in the
+  next section. The deployment target is iOS 17; the on-device model features are weak-linked
+  behind <code>#if canImport(FoundationModels)</code> and gated at runtime on iOS 26, so the same
+  build runs on both.
+</p>
+
+<h3 id="s15-3"><span class="num">15.3</span><span>Supabase and Apple, once</span></h3>
+
+<p>
+  Four documents under <code>docs/</code> describe configuration that lives in dashboards rather
+  than in git. Each names the project it was written for; the steps do not depend on that. In
+  summary:
+</p>
+
+<ul>
+  <li><strong>Project and keys</strong> (<code>docs/SUPABASE_SETUP.md</code>). Create a project,
+    copy the URL, the anon key and the service-role key into <code>.env.local</code>, enable the
+    Email provider under Authentication, run the migrations, sign up in the app, then make that
+    user an admin with one insert into <code>public.admins</code> using the id from the Users
+    page. The admin area at <code>/admin</code> has its own login and checks this table.</li>
+  <li><strong>Email codes</strong> (<code>docs/EMAIL_OTP.md</code>). Sign-in by email sends a
+    six-digit code, not a link. Supabase decides which to send from the template: a template with
+    only <code>{{ .ConfirmationURL }}</code> sends a link and no code, and the app's code screen
+    then has nothing to accept. Two templates, Magic Link and Confirm signup, must include
+    <code>{{ .Token }}</code>. Both keep the link as well, so the web app and the Universal Link
+    path keep working. On the app side the flow is <code>signInWithOTP</code> then
+    <code>verifyOTP(email:token:type:)</code>, with <code>.email</code> for passwordless and
+    <code>.signup</code> after a password sign-up.</li>
+  <li><strong>Sign in with Apple</strong> (<code>docs/APPLE_SIGN_IN.md</code>). The app signs in
+    natively with <code>signInWithIdToken</code>, so no web redirect is involved and no
+    environment variable is needed. Two switches must be on: the Apple provider in the Supabase
+    project, with the app's bundle identifier in its Client IDs list, and the Sign In with Apple
+    capability on the App ID, which real devices and TestFlight need for signing. The error
+    <code>Issuer https://appleid.apple.com is not enabled</code> means the first switch is off.
+    The document also records a known gap: account deletion does not revoke the Apple token,
+    which Apple's guideline 5.1.1(v) asks for, and lists the three steps closing it would take.</li>
+  <li><strong>Push</strong> (<code>docs/PUSH_ALERTS.md</code>). Apply migrations 0004 and 0005,
+    create an APNs key in the Developer portal (it downloads once), and set
+    <code>CRON_SECRET</code> and the four <code>APNS_*</code> variables in Vercel. The document
+    then explains the twice-daily reading and the dosha sweep, which the alerts chapter covers
+    in full.</li>
+  <li><strong>App Groups</strong> (<code>docs/SIRI_AND_WIDGETS.md</code>). Register the group,
+    enable it on both the app's and the widget's App IDs, and let Xcode regenerate the profiles.
+    Without it "the widget shows its empty state forever and Siri says there is no chart",
+    because the two processes are reading different containers.</li>
+</ul>
+
+<p>
+  Finally, the auth redirect URLs. <code>docs/DEPLOY.md</code> has Supabase's Site URL set to the
+  production domain and <code>/auth/callback</code> on that domain added to the Redirect URLs,
+  with a wildcard pattern for preview deployments if they should authenticate too. The web app's
+  callback route is <code>app/auth/callback/</code>.
+</p>
+
+<div class="note"><b>Order of operations</b>
+Keys first, migrations second, templates and providers third, admin last. The admin insert needs
+a user id, which needs a sign-up, which needs the Email provider and the templates. Everything
+else can be done in any order, and the push and App Group steps can be left until the iOS app
+needs them; the web app and the API run without them.
+</div>
+
+<h3 id="s15-4"><span class="num">15.4</span><span>Vercel and the cron schedules</span></h3>
+
+<p>
+  The web app deploys from <code>main</code> through Vercel's Git integration. The project's
+  environment variables are set for both Production and Preview; <code>docs/DEPLOY.md</code> walks
+  through <code>vercel link</code> and <code>vercel env add</code> for the four required
+  variables, and <code>docs/PUSH_ALERTS.md</code> for the five optional ones. Development is left
+  out of the Vercel store on purpose, because local development reads <code>.env.local</code>.
+  After a variable is added, the running functions do not see it until the next deployment;
+  <code>vercel redeploy --prod</code> is the step people forget.
+</p>
+
+<p>
+  Two settings in <code>next.config.ts</code> matter for the deployment.
+  <code>serverExternalPackages: ["swisseph-wasm"]</code> keeps the ephemeris out of the bundler
+  so its <code>.wasm</code> binary is shipped intact for the server runtime. And a
+  <code>headers()</code> rule serves <code>/.well-known/apple-app-site-association</code> as
+  <code>application/json</code>, because the file has no extension and Next would otherwise
+  serve it as an octet stream, which Apple rejects; without it Universal Links and the
+  <code>webcredentials</code> association silently fail.
+</p>
+
+<p>The schedule is the whole of <code>vercel.json</code>:</p>
+
+<pre><code>{
+  "crons": [
+    { "path": "/api/cron/daily", "schedule": "30 2 * * *" },
+    { "path": "/api/cron/daily", "schedule": "30 15 * * *" }
+  ]
+}</code></pre>
+
+<p>
+  02:30 and 15:30 UTC are 08:00 and 21:00 in India, which is where the first users are. The route
+  handler at <code>app/api/cron/daily/route.ts</code> declares <code>runtime = "nodejs"</code>
+  because the ephemeris is WebAssembly and <code>maxDuration = 300</code> because it runs the
+  model once per user per half-day. It checks <code>Authorization: Bearer</code> against
+  <code>CRON_SECRET</code> and then runs two halves in order: <code>runDuePredictions</code>, the
+  readings, then <code>runDailyAlerts</code>, the dosha sweep. Each user is handled on their own
+  clock: anything before 14:00 local is the morning slot, anything after is the night slot, and
+  the row is stored against the user's local date under a unique index. That is what makes extra
+  runs harmless, and it is why <code>docs/GO_LIVE_CHECKLIST.md</code> says a mixed-timezone user
+  base can move to an hourly schedule at no extra model cost: each hourly run writes only for
+  users whose current slot is still missing. <code>/api/cron/alerts</code> still exists for running
+  the dosha sweep on its own by hand.
+</p>
+
+<h3 id="s15-5"><span class="num">15.5</span><span>The production checklist</span></h3>
+
+<p>
+  <code>docs/GO_LIVE_CHECKLIST.md</code> exists because of a specific failure. In mid-September
+  2026 production had written no daily readings for three weeks and had never sent a dosha
+  alert. The code was deployed and the crons were firing on schedule, but <code>CRON_SECRET</code>
+  was not set, so the route refused every request with a 401, and the four <code>APNS_*</code>
+  variables were not set either. Two migrations the timeline feature depended on had also never
+  been applied to the production database. None of that is visible from a green build, which is
+  the point of the checklist. Its steps, generalised:
+</p>
+
+<ol>
+  <li><strong>Log the Vercel CLI into the right account and link the project.</strong> The CLI
+    remembers one login, and <code>vercel env</code> against the wrong scope fails in confusing
+    ways. <code>vercel env ls production</code> shows what is already set.</li>
+  <li><strong>Set the secrets.</strong> <code>CRON_SECRET</code> from <code>openssl rand -hex
+    32</code>, then <code>APNS_KEY_ID</code>, <code>APNS_TEAM_ID</code>,
+    <code>APNS_BUNDLE_ID</code> and <code>APNS_PRIVATE_KEY</code> (the whole <code>.p8</code>,
+    BEGIN and END lines included). Then <code>vercel redeploy --prod</code>.</li>
+  <li><strong>Apply any migration the deployed code expects, by hand, in order.</strong> Nothing
+    in the pipeline applies migrations. The README says it plainly: after deploying a version that
+    adds a migration, apply it before traffic reaches the new code. The checklist confirms with a
+    query against <code>information_schema.tables</code> for the three timeline tables.</li>
+  <li><strong>Run the cron by hand.</strong> A <code>curl</code> with the bearer secret against
+    <code>/api/cron/daily</code> returns JSON with two objects, <code>predictions</code> and
+    <code>alerts</code>. <code>predictions.written</code> should be at least 1;
+    <code>predictions.skipped</code> counts users whose current slot was already written, which is
+    the normal result of a second run in the same half-day; <code>alerts.pushConfigured</code>
+    says whether the APNs variables were seen. A 401 means the secret is missing or does not
+    match. A query on <code>daily_readings</code> grouped by date and slot confirms today's rows.</li>
+  <li><strong>Check the push environment on each phone.</strong> The app reports
+    <code>sandbox</code> or <code>production</code> from its signing entitlement when it registers,
+    and the server sends to the matching APNs host. Rows in <code>device_tokens</code> written by
+    builds from before that fix may carry the wrong environment; the checklist deletes them by
+    <code>updated_at</code> and has each device reopen the app once.</li>
+  <li><strong>Decide the schedule.</strong> Twice a day at fixed UTC times, or hourly.</li>
+</ol>
+
+<div class="note caution"><b>Two facts a green deployment cannot tell you</b>
+Whether the environment variables the cron and the pushes need are present, and whether the
+database has every table the code will query. The first fails closed and silently (a 401 to a
+scheduled request that nobody is watching). The second fails loudly but only on the code path
+that reaches the missing table. Check both after every deploy that touches either.
+</div>
+
+<h3 id="s15-6"><span class="num">15.6</span><span>Continuous integration</span></h3>
+
+<p>
+  <code>.github/workflows/ci.yml</code> runs on every push to <code>main</code> and every pull
+  request, under a concurrency group keyed on the ref with <code>cancel-in-progress</code>, so a
+  second push to the same branch cancels the run for the first. It has two independent jobs.
+</p>
+
+<h4>The web job</h4>
+
+<p>
+  On <code>ubuntu-latest</code> with Node 24 and the npm cache: <code>npm ci</code>, then
+  <code>npx tsc --noEmit</code>, then <code>npm test</code> (which is <code>vitest run</code>),
+  then <code>npm run build</code>. The build step carries the comment that explains why the job
+  needs no secrets:
+</p>
+
+<pre><code># The build needs no secrets: env vars are read at request time, not at
+# build time, so a missing key fails the route rather than the build.
+- name: Build
+  run: npm run build</code></pre>
+
+<p>
+  This is the consequence of <code>env.ts</code> exposing functions. A <code>next build</code>
+  evaluates every module once to discover routes and pre-render what it can; if
+  <code>env.ts</code> read <code>process.env</code> at the top level, the build would throw on a
+  runner with no variables, and CI would need the production keys just to prove the code
+  compiles. As written, the build succeeds on a bare runner and the first request to a route that
+  needs a missing variable is the thing that fails. The tests, likewise, never need a key: every
+  module that calls the model or the database is stubbed at the boundary, and a single alias in
+  <code>vitest.config.ts</code> points <code>server-only</code> at the package's empty entry so
+  route handlers and <code>lib/env.ts</code> can be imported in a plain Node process.
+</p>
+
+<h4>The iOS job</h4>
+
+<p>
+  On <code>macos-26</code>, working in <code>mobile/</code>: select the newest Xcode 26 on the
+  runner, <code>brew install xcodegen</code>, then write a placeholder <code>.env.local</code> and
+  run <code>make-config.sh</code>. The placeholder is the trick worth knowing. The generated
+  <code>AppConfig.swift</code> is never committed, and a build without it does not compile, so
+  the job writes a <code>.env.local</code> containing a stand-in URL and a stand-in key, both
+  obviously fake. The comment in the workflow says exactly what is being proved: "The simulator
+  build only needs the values to be present, not real." No test in the iOS suite reaches the
+  network, so nothing ever tries to use them.
+</p>
+
+<p>
+  Then <code>xcodegen generate</code>, a cache of <code>mobile/SourcePackages</code> keyed on the
+  hash of <code>project.yml</code> (so the Supabase Swift package is fetched once per dependency
+  change, not per run), and one <code>xcodebuild test</code> against the first available iPhone
+  simulator with <code>CODE_SIGNING_ALLOWED=NO</code>. The output is filtered to errors, warnings
+  in the app's own sources, and test suite lines; the full log is uploaded as an artifact only on
+  failure. The job proves that the spec generates a project, that the app and the widget
+  extension compile, and that the XCTest suite in <code>mobile/Sanchara/Tests/</code> passes.
+  It cannot prove signing, push, or anything that needs an entitlement, which is what the
+  TestFlight workflow is for.
+</p>
+
+<h3 id="s15-7"><span class="num">15.7</span><span>The release and TestFlight workflows</span></h3>
+
+<h4>release.yml</h4>
+
+<p>
+  Runs on a pushed tag matching <code>v*</code> with <code>contents: write</code>. An
+  <code>awk</code> program extracts the section of <code>CHANGELOG.md</code> whose heading is
+  <code>## [X.Y.Z]</code>, stopping at the next version heading or at the link references at the
+  foot of the file. If no section exists the workflow warns and falls back to the commit subjects
+  since the previous tag. Then <code>gh release create</code> publishes the release with the tag
+  as its title and the extracted notes as its body. If the release already exists the job exits
+  cleanly, so re-pushing a tag is safe.
+</p>
+
+<h4>ios-testflight.yml</h4>
+
+<p>
+  Runs on the same tags, or by hand from the Actions tab, under a concurrency group named
+  <code>testflight</code> that does not cancel in-progress runs, because a half-finished upload is
+  worse than a queued one. The job:
+</p>
+
+<ol>
+  <li>Checks that all five repository secrets are set and fails with a named error for each one
+    missing, before any Xcode work starts.</li>
+  <li>Selects Xcode 26, installs XcodeGen, writes <code>.env.local</code> from the
+    <code>SUPABASE_URL</code> and <code>SUPABASE_ANON_KEY</code> secrets, runs
+    <code>make-config.sh</code>, and generates the project. These are the same two publishable
+    values a developer's <code>.env.local</code> holds; the API base URL stays at the production
+    default.</li>
+  <li>Sets the version. On a tag, <code>CFBundleShortVersionString</code> in both the app's and
+    the widget's <code>Info.plist</code> becomes the tag without its <code>v</code>; on a manual
+    run the value in <code>project.yml</code> is kept. <code>CFBundleVersion</code> becomes the
+    workflow run number in both, because App Store Connect requires a unique build number per
+    version.</li>
+  <li>Sets <code>aps-environment</code> to <code>production</code> in
+    <code>Sanchara/Sanchara.entitlements</code> with PlistBuddy. The committed spec says
+    <code>development</code>, which is right for a debug build on a phone, and wrong for
+    TestFlight: "Push tokens minted under the development environment are rejected by production
+    APNs, so store builds must carry the production entitlement."</li>
+  <li>Writes the App Store Connect API key from <code>ASC_KEY_P8</code> to
+    <code>~/private_keys/AuthKey_&lt;id&gt;.p8</code> with mode 600.</li>
+  <li>Archives with <code>-allowProvisioningUpdates</code> and the three authentication key
+    flags. With an API key, Xcode creates or refreshes the distribution certificate and profile
+    itself, which is why no certificate is stored in GitHub.</li>
+  <li>Exports with <code>mobile/ExportOptions.plist</code>, whose method is
+    <code>app-store-connect</code> and whose destination is <code>upload</code>, so the build goes
+    straight to App Store Connect instead of producing an <code>.ipa</code>. Symbols are uploaded;
+    version management is left to the workflow, not to Apple.</li>
+  <li>Uploads the archive and export logs as an artifact whether or not the job succeeded.</li>
+</ol>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Repository secret</th><th>Value</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td><code>SUPABASE_URL</code></td><td>Same as <code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>Baked into <code>AppConfig.swift</code></td></tr>
+<tr><td><code>SUPABASE_ANON_KEY</code></td><td>Same as <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>Baked into <code>AppConfig.swift</code></td></tr>
+<tr><td><code>ASC_KEY_ID</code></td><td>App Store Connect API key id</td><td>Archive and export authentication</td></tr>
+<tr><td><code>ASC_ISSUER_ID</code></td><td>App Store Connect issuer id</td><td>Archive and export authentication</td></tr>
+<tr><td><code>ASC_KEY_P8</code></td><td>Full contents of the downloaded <code>.p8</code></td><td>Written to the runner's <code>private_keys</code> for the archive</td></tr>
+</tbody></table></div>
+
+<p>
+  The README adds that the API key needs the App Manager role and that the app record must
+  already exist in App Store Connect. The team id the export uses is in
+  <code>ExportOptions.plist</code> and <code>project.yml</code>; it is an identifier, not a
+  secret, and it is the same value <code>APNS_TEAM_ID</code> carries on the server.
+</p>
+
+<h3 id="s15-8"><span class="num">15.8</span><span>The release procedure</span></h3>
+
+<p>Releases are tagged from <code>main</code>. The README's "Releasing" section is four steps:</p>
+
+<ol>
+  <li>Make sure CI is green.</li>
+  <li>Add a section to <code>CHANGELOG.md</code> and bump <code>version</code> in
+    <code>package.json</code>.</li>
+  <li>Commit, then <code>git tag -a vX.Y.Z -m "vX.Y.Z"</code>.</li>
+  <li><code>git push origin main --tags</code>.</li>
+</ol>
+
+<p>
+  The push of <code>main</code> deploys the web app through Vercel. The tag triggers both release
+  workflows. Nothing else is needed, and nothing in the workflows reads
+  <code>package.json</code>: the web app's version is informational, the iOS version comes from
+  the tag, and the release notes come from the changelog. Keeping the three in step is a
+  discipline, not an enforcement.
+</p>
+
+<p>
+  <code>CHANGELOG.md</code> follows Keep a Changelog 1.1.0 and the project uses Semantic
+  Versioning; the file says so in its first paragraph. Each version has a heading of the form
+  <code>## [0.3.0] - 2026-09-18</code>, subsections <code>Added</code>, <code>Changed</code> and
+  <code>Fixed</code> as needed, and a link reference at the foot of the file pointing at the
+  GitHub release for that tag. The <code>awk</code> in <code>release.yml</code> depends on exactly
+  this shape: the heading must start <code>## [</code> followed by the bare version, and the link
+  references must be the last thing in the file. Three versions exist: 0.1.0 and 0.2.0 on
+  16 September 2026, and 0.3.0 on 18 September. The entries are written for the person using the
+  app, in bold lead-ins followed by a sentence or two of plain language; the commit history is
+  where the engineering detail lives.
+</p>
+
+<div class="note"><b>Versions on the iOS side</b>
+<code>project.yml</code> pins <code>CFBundleShortVersionString</code> at 1.0 and
+<code>CFBundleVersion</code> at 1 for local builds. Those are placeholders. A tagged workflow run
+overwrites both, and the run number guarantees each upload is distinct. A build archived by hand
+in Xcode would carry 1.0 (1) and would collide with any earlier hand-archived build; upload
+through the workflow instead.
+</div>
+
+<h3 id="s15-9"><span class="num">15.9</span><span>Secrets discipline</span></h3>
+
+<p>
+  The rule in <code>docs/DEPLOY.md</code> is short: locally, secrets live only in
+  <code>.env.local</code>; in the cloud, only in Vercel's encrypted environment store; and no real
+  key or service-role secret is ever committed. The repository enforces the first two with
+  <code>.gitignore</code> and with where values are read.
+</p>
+
+<pre class="tree">.gitignore, the entries that matter here
+.env*                                  every env file ...
+!.env.example                          ... except the documented template
+.vercel                                the CLI's link to a project
+mobile/Sanchara.xcodeproj/             generated by XcodeGen
+mobile/Sanchara/Sources/Generated/     AppConfig.swift, written from .env.local
+mobile/SourcePackages/                 resolved Swift packages
+mobile/build/                          archives and exports
+supabase/.temp/                        the CLI's project reference and versions
+xcuserdata/, *.xcuserstate             per-user Xcode state</pre>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Secret or credential</th><th>Locally</th><th>In production</th><th>Reaches a client?</th></tr></thead>
+<tbody>
+<tr><td>Supabase URL and anon key</td><td><code>.env.local</code>, and <code>AppConfig.swift</code> generated from it</td><td>Vercel env store; GitHub secrets for the TestFlight build</td><td>Yes, by design. The browser bundle and the iOS binary both carry them; RLS is the boundary</td></tr>
+<tr><td>Supabase service-role key</td><td><code>.env.local</code></td><td>Vercel env store</td><td>Never. Read only in <code>lib/supabase/admin.ts</code>, which imports <code>server-only</code>; <code>make-config.sh</code> does not read it</td></tr>
+<tr><td>Anthropic API key</td><td><code>.env.local</code></td><td>Vercel env store</td><td>Never. Read only in <code>lib/anthropic.ts</code>, server-only</td></tr>
+<tr><td><code>CRON_SECRET</code></td><td>Optional in <code>.env.local</code></td><td>Vercel env store; Vercel sends it back on scheduled calls</td><td>Never</td></tr>
+<tr><td>APNs key id, team id, bundle id, <code>.p8</code></td><td>Optional in <code>.env.local</code></td><td>Vercel env store</td><td>Never. Read only in <code>lib/push/apns.ts</code>, server-only. The <code>.p8</code> is also kept offline because Apple lets it download once</td></tr>
+<tr><td>App Store Connect API key</td><td>Not needed</td><td>GitHub secrets; written to the runner for one archive</td><td>Never</td></tr>
+<tr><td>Signing certificates</td><td>Xcode automatic signing</td><td>None stored; Xcode mints them from the API key</td><td>Never</td></tr>
+<tr><td>A user's session</td><td>Cookies (web), Keychain via supabase-swift (iOS)</td><td>Same</td><td>Its own device only; every <code>/api/*</code> call carries it as a cookie or a bearer token</td></tr>
+</tbody></table></div>
+
+<p>
+  Three code-level habits back the table. First, <code>server-only</code> at the top of
+  <code>lib/env.ts</code>, <code>lib/supabase/admin.ts</code>, <code>lib/supabase/route.ts</code>,
+  <code>lib/anthropic.ts</code>, <code>lib/push/apns.ts</code> and every alerts module turns an
+  accidental client import into a build error. Second, the user id in every mutating route comes
+  from the verified session, never from the request body, so a leaked anon key still cannot act
+  as someone else. Third, <code>make-config.sh</code> only knows the names of the two publishable
+  variables; there is no code path by which a server key could be generated into the app.
+</p>
+
+<div class="note good"><b>What a leaked repository exposes</b>
+The bundle identifier, the team id, the production hostname, the App Group name and the URL
+scheme. All are already visible in the shipped app. No key, no token, no project reference.
+</div>
+
+<h3 id="s15-10"><span class="num">15.10</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>.env.example</code>, for every variable and the comment that explains it.</li>
+  <li><code>lib/env.ts</code>, for required versus optional and why each is a function.</li>
+  <li><code>vercel.json</code> and <code>app/api/cron/daily/route.ts</code>, for the schedule and the guard.</li>
+  <li><code>.github/workflows/ci.yml</code>, both jobs; note the two comments about secrets.</li>
+  <li><code>.github/workflows/ios-testflight.yml</code>, top to bottom; it is the whole iOS release.</li>
+  <li><code>.github/workflows/release.yml</code>, for the changelog contract.</li>
+  <li><code>mobile/scripts/make-config.sh</code> and <code>mobile/project.yml</code>, for what the app is handed and which entitlements it claims.</li>
+  <li><code>docs/GO_LIVE_CHECKLIST.md</code>, for the failure that motivated it.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why does <code>npm run build</code> succeed on a CI runner with no environment variables?</p>
+<p class="a">Because <code>lib/env.ts</code> exposes functions that read <code>process.env</code> when called, inside a request. Nothing reads a variable at module load, so the build evaluates every module without touching one.</p>
+<p class="q">What does the iOS CI job write to <code>.env.local</code>, and why is that safe?</p>
+<p class="a">A placeholder URL and a placeholder key. <code>make-config.sh</code> refuses to run without values, the compiler needs the generated file, and no test reaches the network, so the values only need to exist.</p>
+<p class="q">Which two things does the TestFlight workflow change in the checked-out tree before archiving?</p>
+<p class="a">The version and build number in both <code>Info.plist</code> files, and <code>aps-environment</code> in the app's entitlements, from <code>development</code> to <code>production</code>.</p>
+<p class="q">A cron fires on schedule and nothing is written. What are the first two things to check?</p>
+<p class="a">That <code>CRON_SECRET</code> is set in the Production environment and a redeploy happened after it was added, and that every migration the code expects has been applied to the production database.</p>
+<p class="q">Why can the anon key ship in the iOS binary when the service-role key cannot?</p>
+<p class="a">Every table has Row Level Security, so the anon key can only read and write rows the signed-in user owns. The service-role key bypasses RLS entirely; it is read only in server-only modules.</p>
+<p class="q">What in <code>CHANGELOG.md</code> does <code>release.yml</code> depend on?</p>
+<p class="a">A heading of exactly <code>## [X.Y.Z]</code> for the tagged version, and the link references being the last block in the file; the <code>awk</code> stops at either the next version heading or the first reference line.</p>
+</div>
+</section>

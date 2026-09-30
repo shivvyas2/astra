@@ -1,0 +1,247 @@
+<section class="chapter" id="chC" data-hue="ref">
+<p class="chapter-kicker">Appendix C</p>
+<h2><span class="num">C</span><span>Glossary and reading order</span></h2>
+
+<p class="lede">
+  Every astrology term the code uses, every term the project coined, a path through the repository
+  for a first week, and a table that turns "I want to change X" into a file and a chapter.
+</p>
+
+<p>
+  This appendix describes the code on <code>main</code> on 30 September 2026, version 0.3.0. The
+  glossary is in two parts. The first is the astrological vocabulary, defined as the code uses it
+  rather than as a textbook would, with the file where the term is computed or consumed. The second
+  is the project's own vocabulary: words like "slot" and "moment" that mean something specific
+  here. The reading order that follows starts at the chart engine and works outward to the phone,
+  because that is the direction the data flows.
+</p>
+
+<h3 id="sC-1"><span class="num">C.1</span><span>Glossary</span></h3>
+
+<h4>Astrology</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Term</th><th>Meaning here</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>Ayanamsa</td><td>The angular offset between the tropical and sidereal zodiacs. Stored on every Vedic chart as a number of degrees, currently about 24.</td><td><code>swe.get_ayanamsa_ut</code> in <code>lib/astrology/chart.ts</code>; <code>Chart.ayanamsa</code> in <code>types.ts</code></td></tr>
+<tr><td>Lahiri</td><td>The particular ayanamsa the Vedic chart uses, set with <code>SE_SIDM_LAHIRI</code>. The prompt names the tradition as "Vedic (sidereal, Lahiri)".</td><td><code>lib/astrology/chart.ts</code>, <code>prompt.ts</code></td></tr>
+<tr><td>Sidereal</td><td>Positions measured against the fixed stars, so an ayanamsa is subtracted from tropical longitudes. Used for Vedic charts only.</td><td><code>SEFLG_SIDEREAL</code> in <code>chart.ts</code></td></tr>
+<tr><td>Tropical</td><td>Positions measured from the vernal equinox, with no ayanamsa. Used for Western charts.</td><td><code>chart.ts</code>, the default flags</td></tr>
+<tr><td>Ascendant, lagna</td><td>The sign and degree rising on the eastern horizon at birth, from <code>ascmc[0]</code>. Sets house 1 in both traditions. "Lagna" is the Vedic word and appears in the PDF and the phone's routing words.</td><td><code>chart.ts</code>; <code>Chart.ascendant</code></td></tr>
+<tr><td>Whole-sign houses</td><td>House N is the Nth sign counted from the ascendant's sign, so a whole sign is a whole house. Used for Vedic since 0.3.0.</td><td><code>houseFrom</code> in <code>lib/astrology/constants.ts</code></td></tr>
+<tr><td>Placidus</td><td>A house system that divides the sky by time-based cusps, so houses are unequal and a sign can span two. Used for Western; the cusps are stored for both.</td><td><code>houses_ex(..., "P")</code> and <code>houseOf</code> in <code>chart.ts</code></td></tr>
+<tr><td>Nakshatra</td><td>One of 27 lunar mansions of 13 degrees 20 minutes each. Every Vedic planet carries its nakshatra name; the Moon's decides the starting dasha.</td><td><code>NAKSHATRAS</code>, <code>nakshatraOf</code> in <code>constants.ts</code></td></tr>
+<tr><td>Pada</td><td>A quarter of a nakshatra. Named in the first design note but not computed: the chart stores the nakshatra name only.</td><td>Nowhere in the code</td></tr>
+<tr><td>Vimshottari</td><td>The 120-year dasha system: nine lords in a fixed order with fixed years (Ketu 7, Venus 20, Sun 6, Moon 10, Mars 7, Rahu 18, Jupiter 16, Saturn 19, Mercury 17). Which lord starts, and how much of it is left at birth, comes from the Moon's sidereal longitude.</td><td><code>ORDER</code>, <code>startingDashaLord</code> in <code>lib/astrology/dasha.ts</code></td></tr>
+<tr><td>Mahadasha</td><td>A major period ruled by one lord, years long. The chart stores the current one; the timeline lays out all twelve from birth.</td><td><code>computeVimshottari</code>, <code>vimshottariTimeline</code> in <code>dasha.ts</code></td></tr>
+<tr><td>Antardasha</td><td>A sub-period inside a mahadasha, nine per mahadasha in Vimshottari order from the mahadasha's own lord, each a proportional share. Laid out from the mahadasha's virtual start so it aligns to the period, not the birth moment.</td><td><code>antardashaSpans</code> in <code>dasha.ts</code></td></tr>
+<tr><td>Dosha</td><td>An affliction. In the code a <code>Condition</code> with a kind, a signature, a severity and a plain-sentence <code>detail</code>. Natal doshas are fixed at birth; transit afflictions come and go.</td><td><code>lib/astrology/doshas.ts</code></td></tr>
+<tr><td>Mangal dosha</td><td>Mars in house 1, 2, 4, 7, 8 or 12 from the ascendant, derived from the sign rather than the stored house number. Severity caution.</td><td><code>detectNatalDoshas</code></td></tr>
+<tr><td>Kaal Sarp yoga</td><td>All seven classical planets on one side of the Rahu to Ketu axis. Severity warning.</td><td><code>detectNatalDoshas</code></td></tr>
+<tr><td>Grahan dosha</td><td>The Sun or the Moon sharing a sign with Rahu or Ketu. One condition per luminary and node pair.</td><td><code>detectNatalDoshas</code></td></tr>
+<tr><td>Kemadruma yoga</td><td>No planet in the sign before or after the Moon, excluding the Sun and the nodes.</td><td><code>detectNatalDoshas</code></td></tr>
+<tr><td>Pitru dosha</td><td>Rahu or Ketu in the 9th house from the ascendant, derived from the sign. Severity info.</td><td><code>detectNatalDoshas</code></td></tr>
+<tr><td>Shrapit dosha</td><td>Saturn and Rahu in the same sign.</td><td><code>detectNatalDoshas</code></td></tr>
+<tr><td>Sade Sati</td><td>Transiting Saturn in the 12th, 1st or 2nd sign from the natal Moon, called the rising, peak and setting phases. Peak is a warning; the others caution. The phase is part of the signature, so a phase change reads as a new condition.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Shani Dhaiya</td><td>Transiting Saturn in the 4th or 8th from the natal Moon.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Kantaka Shani</td><td>Transiting Saturn in the 4th, 7th or 10th from the ascendant. Severity info.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Node over Moon, node over lagna</td><td>Rahu or Ketu transiting the natal Moon's sign or the ascendant sign.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Angarak transit</td><td>Transiting Mars in the natal Moon's sign.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Ashtama Surya</td><td>The transiting Sun in the 8th from the natal Moon, "for about a month."</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Guru Chandal</td><td>Transiting Jupiter and Rahu in the same sign. A related info condition flags Jupiter in the 6th, 8th or 12th from the Moon.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Retrograde on a sensitive sign</td><td>Saturn, Mars or Mercury retrograde while in the ascendant's or natal Moon's sign; retrogrades elsewhere are ignored.</td><td><code>detectTransitAfflictions</code></td></tr>
+<tr><td>Gochara</td><td>Transits read against the chart: each transiting planet by the house it occupies from the ascendant and from the natal Moon, plus any natal planet it sits on, plus the afflictions above. Vedic only; a Western chart gets positions and conjunctions.</td><td><code>describeGochara</code> in <code>lib/astrology/transits.ts</code></td></tr>
+<tr><td>Dignity</td><td>How strong a planet is by sign: one of <code>exalted</code>, <code>moolatrikona</code>, <code>own</code>, <code>debilitated</code>, <code>neutral</code>, in that precedence. Friendship is deliberately not a dignity.</td><td><code>dignityOf</code> in <code>lib/astrology/derived.ts</code></td></tr>
+<tr><td>Exalted</td><td>In its sign of exaltation, with a deep degree recorded so the prompt can say "within a degree of exact". The nodes are never exalted.</td><td><code>EXALTATION</code> in <code>derived.ts</code></td></tr>
+<tr><td>Debilitated</td><td>In the sign opposite its exaltation.</td><td><code>dignityOf</code></td></tr>
+<tr><td>Moolatrikona</td><td>A degree range inside one sign where a planet is nearly as strong as exalted. Where it shares the exaltation sign (Mercury in Virgo, the Moon in Taurus) the range takes precedence within its bounds.</td><td><code>MOOLATRIKONA</code> in <code>derived.ts</code></td></tr>
+<tr><td>Own sign</td><td>A sign the planet rules. Rahu and Ketu rule nothing.</td><td><code>SIGN_LORD</code>, <code>signsRuledBy</code></td></tr>
+<tr><td>Combust</td><td>Within a planet-specific orb of the Sun by the shorter arc; Mercury and Venus have tighter orbs when retrograde. The Sun and the nodes never combust.</td><td><code>COMBUSTION</code>, <code>isCombust</code></td></tr>
+<tr><td>Aspect, drishti</td><td>Graha drishti: every planet aspects the 7th house from itself; Mars adds the 4th and 8th, Jupiter the 5th and 9th, Saturn the 3rd and 10th; the nodes only the 7th. Rendered as "aspects houses" in the prompt and "linked to sections" on the phone.</td><td><code>SPECIAL_ASPECTS</code>, <code>aspectedHouses</code></td></tr>
+<tr><td>Lord, ruler</td><td>The planet that owns a house's sign. Each <code>HouseFact</code> names its lord, where the lord sits and in what dignity. The running dasha lords' own placements are carried too.</td><td><code>HouseFact</code>, <code>DashaFact</code> in <code>derived.ts</code></td></tr>
+<tr><td>Mulank, bhagyank, namank</td><td>The root number from the birth day, the destiny number from the whole date, and the name number by the Pythagorean mapping, each reduced to one digit.</td><td><code>computeNumerology</code>, <code>computeNameNumber</code> in <code>numerology.ts</code></td></tr>
+<tr><td>Lo Shu grid</td><td>Which digits 1 to 9 the birth date repeats and which it lacks; zeros are not placed.</td><td><code>loShu</code> in <code>numerology.ts</code></td></tr>
+<tr><td>Personal year, personal month</td><td>Birth month plus birth day plus the current year, reduced; the month adds the calendar month to that. They change, so they live in the varying half of the prompt.</td><td><code>personalCycle</code> in <code>numerology.ts</code></td></tr>
+</tbody></table></div>
+
+<h4>Project terms</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Term</th><th>Meaning here</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td>Birth profile</td><td>One row per user: name, birth date and time, place, coordinates, timezone, optional avatar, and the <code>chart</code> JSON holding both traditions. Computed at intake and upgraded on read when stale.</td><td><code>birth_profiles</code> in <code>0001_init.sql</code>; <code>lib/data/birthProfile.ts</code></td></tr>
+<tr><td>Tradition</td><td><code>"vedic"</code> or <code>"western"</code>: which chart is computed and read. A chat runs in a <code>ChatMode</code>, which adds <code>"numerology"</code>.</td><td><code>Tradition</code>, <code>ChatMode</code> in <code>types.ts</code></td></tr>
+<tr><td>Reading</td><td>A streamed answer from Claude to one message, grounded in the chart. Also the daily morning and night readings the cron job writes.</td><td><code>app/api/chat/route.ts</code>; <code>daily_readings</code></td></tr>
+<tr><td>Deep reading</td><td>The same request with <code>deep: true</code>: Opus instead of Sonnet, default effort instead of low, 320 words instead of 160.</td><td><code>WORDS_DEEP</code>, <code>DEEP_READING_MODEL</code></td></tr>
+<tr><td>Slot</td><td>Which of a day's two readings a moment belongs to: <code>"morning"</code> before 14:00 on the user's clock, <code>"night"</code> after. Part of the unique key on <code>daily_readings</code>.</td><td><code>lib/alerts/slots.ts</code></td></tr>
+<tr><td>Condition</td><td>A dosha or transit affliction as a row: <code>kind</code>, <code>signature</code>, <code>label</code>, <code>severity</code>, <code>scope</code> (<code>natal</code> or <code>transit</code>), <code>detail</code>. Open rows have no <code>ended_on</code>; the daily job diffs signatures against them.</td><td><code>Condition</code> in <code>doshas.ts</code>; <code>transit_conditions</code> table</td></tr>
+<tr><td>Alert</td><td>A composed notification written when a notifiable condition starts or ends: title, body, markdown detail, and the kinds involved. Pushed to every registered device.</td><td><code>lib/alerts/run.ts</code>, <code>compose.ts</code>; <code>alerts</code> table</td></tr>
+<tr><td>Moment</td><td>A life event on the timeline: a date with a precision of day, month or year, a title, an optional note, and a source of <code>manual</code> or <code>extracted</code>. Placed into the mahadasha and antardasha running when it happened.</td><td><code>TimelineEvent</code> in <code>lib/timeline/build.ts</code>; <code>life_events</code></td></tr>
+<tr><td>Candidate</td><td>A moment proposed from the user's own chat messages, with the quoted evidence, awaiting confirmation. May be undated. Nothing is saved until confirmed.</td><td><code>CandidateEvent</code> in <code>lib/timeline/extract.ts</code> and <code>TimelineStore.swift</code></td></tr>
+<tr><td>Period reading</td><td>A one-line theme and a short meaning for one mahadasha, or for the literal lord <code>now</code>, written by Claude and stored with a hash of the moments inside the period so it is rewritten only when they change.</td><td><code>period_readings</code>; <code>lib/timeline/explain.ts</code></td></tr>
+<tr><td>Timeline</td><td>The twelve mahadashas from birth with their antardashas, the moments placed in them, the current pair, and whether any period needs explaining.</td><td><code>buildTimeline</code> in <code>lib/timeline/build.ts</code></td></tr>
+<tr><td>Chart cache</td><td>The on-disk JSON in the App Group that holds the chart, birth details, latest reading and current period for the widget and Siri. Written by the app, cleared on sign-out.</td><td><code>mobile/Sanchara/Sources/Services/ChartCache.swift</code></td></tr>
+<tr><td>App Group</td><td>Apple's shared container, <code>group.com.shivvyas.astra</code>, entitled on both the app and the widget extension so two processes read one cache.</td><td><code>mobile/project.yml</code></td></tr>
+<tr><td>Device token</td><td>An APNs token registered by the phone with its push environment, <code>sandbox</code> or <code>production</code>, decided from the signing entitlement. Dead tokens are deleted when Apple reports them.</td><td><code>app/api/devices/route.ts</code>; <code>Push.swift</code></td></tr>
+<tr><td>On-device answer</td><td>A lookup question answered by Apple's on-device model from the cached chart through a tool, with no API call. Anything interpretive escalates to Claude.</td><td><code>OnDeviceReasoner.swift</code>, <code>ChartFacts.swift</code></td></tr>
+<tr><td>Deep link, pending destination</td><td>Where the app should land next: set by an intent or widget into the App Group, or by the <code>sanchara://</code> scheme, and drained on foreground.</td><td><code>DeepLink.swift</code></td></tr>
+</tbody></table></div>
+
+<h3 id="sC-2"><span class="num">C.2</span><span>A reading order through the whole codebase</span></h3>
+
+<p>
+  Twenty-six files, from the chart engine outward. Each takes a few minutes. Read them in order and
+  the rest of the repository will be recognisable: every other file is a caller, a view or a test of
+  one of these.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 200" role="img" aria-label="Five stages left to right: the chart engine, the readings and prompts, the API and data layer, the jobs and timeline, and the phone. An arrow runs through them in reading order, and a boundary separates the server stages from the phone.">
+  <defs>
+    <marker id="chCa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">READ LEFT TO RIGHT, THE WAY THE DATA FLOWS</text>
+
+  <rect class="box-hot" x="20" y="50" width="140" height="70" rx="10"/>
+  <text class="lbl" x="90" y="76" text-anchor="middle">Engine</text>
+  <text class="lbl-hot" x="90" y="96" text-anchor="middle">files 1 to 7</text>
+  <text class="lbl-sm" x="90" y="112" text-anchor="middle">lib/astrology</text>
+
+  <rect class="box" x="190" y="50" width="140" height="70" rx="8"/>
+  <text class="lbl" x="260" y="76" text-anchor="middle">Readings</text>
+  <text class="lbl-sm" x="260" y="96" text-anchor="middle">files 8 to 11</text>
+  <text class="lbl-sm" x="260" y="112" text-anchor="middle">prompt, chat, cost</text>
+
+  <rect class="box" x="360" y="50" width="140" height="70" rx="8"/>
+  <text class="lbl" x="430" y="76" text-anchor="middle">API and data</text>
+  <text class="lbl-sm" x="430" y="96" text-anchor="middle">files 12 to 15</text>
+  <text class="lbl-sm" x="430" y="112" text-anchor="middle">auth, schema, env</text>
+
+  <rect class="box" x="530" y="50" width="140" height="70" rx="8"/>
+  <text class="lbl" x="600" y="76" text-anchor="middle">Jobs and timeline</text>
+  <text class="lbl-sm" x="600" y="96" text-anchor="middle">files 16 to 19</text>
+  <text class="lbl-sm" x="600" y="112" text-anchor="middle">cron, alerts, dashas</text>
+
+  <rect class="box" x="700" y="50" width="140" height="70" rx="8"/>
+  <text class="lbl" x="770" y="76" text-anchor="middle">Phone</text>
+  <text class="lbl-sm" x="770" y="96" text-anchor="middle">files 20 to 26</text>
+  <text class="lbl-sm" x="770" y="112" text-anchor="middle">mobile/</text>
+
+  <path class="flow" d="M160 85 L 184 85" marker-end="url(#chCa)"/>
+  <path class="flow" d="M330 85 L 354 85" marker-end="url(#chCa)"/>
+  <path class="flow" d="M500 85 L 524 85" marker-end="url(#chCa)"/>
+  <path class="flow" d="M670 85 L 694 85" marker-end="url(#chCa)"/>
+
+  <line class="wall" x1="685" y1="36" x2="685" y2="160"/>
+  <text class="lbl-sm" x="20" y="160">Everything left of the line runs on Vercel and holds the secrets. The phone holds the anon key, its own rows, and a cached chart.</text>
+</svg>
+<figcaption>
+  The order below follows this path. The first seven files are pure functions with no I/O and can
+  be read with the tests beside them.
+</figcaption>
+</figure>
+
+<ol>
+  <li><code>lib/astrology/types.ts</code>. The <code>Chart</code> shape everything else consumes. Note <code>schemaVersion</code> and the optional <code>derived</code>.</li>
+  <li><code>lib/astrology/constants.ts</code>. Signs, nakshatras, <code>houseFrom</code>, and <code>CHART_SCHEMA_VERSION</code> with its comment.</li>
+  <li><code>lib/astrology/chart.ts</code>. <code>computeChart</code> end to end: the flags, the two house rules, Ketu from Rahu, the derived block for Vedic only.</li>
+  <li><code>lib/astrology/dasha.ts</code>. Vimshottari from the Moon's longitude; the <code>virtualStart</code> comment explains the 0.1.0 fix.</li>
+  <li><code>lib/astrology/derived.ts</code>. The classical tables and the three things deliberately absent, in the header.</li>
+  <li><code>lib/astrology/doshas.ts</code>. The <code>Condition</code> type and why the signature exists; the natal and transit detectors.</li>
+  <li><code>lib/astrology/transits.ts</code>. The per-day transit cache and <code>describeGochara</code>, with the paragraph on why the old text was generic.</li>
+  <li><code>lib/astrology/prompt.ts</code>. The two halves, the Accuracy rules, and the Western fallback in <code>renderChart</code>.</li>
+  <li><code>lib/anthropic.ts</code>. Model names, adaptive thinking, and the three measured output figures.</li>
+  <li><code>app/api/chat/route.ts</code>. The whole reading path: profile, upgrade, transits, timeline block, history, two cache breakpoints, streaming, the usage log line.</li>
+  <li><code>docs/MODEL_COSTS.md</code>. What a turn costs and the four changes that made it cheaper.</li>
+  <li><code>lib/supabase/route.ts</code>. Bearer or cookie, in thirty lines.</li>
+  <li><code>lib/env.ts</code>. Which variables are required, which are optional, and the <code>server-only</code> import that keeps them there.</li>
+  <li><code>supabase/migrations/0001_init.sql</code>. The five original tables, the <code>is_admin</code> function, and the owner-only policies.</li>
+  <li><code>lib/data/birthProfile.ts</code>. Intake writes both charts; <code>ensureCurrentChart</code> upgrades on read and swallows a failed write on purpose.</li>
+  <li><code>lib/alerts/slots.ts</code> then <code>lib/alerts/predictions.ts</code>. The local-clock rule, the unique index as the safety net, the fallback reading.</li>
+  <li><code>lib/alerts/run.ts</code>. The signature diff, <code>partitionForAlerts</code>, and the comments that forbid filtering the raw sets.</li>
+  <li><code>app/api/cron/daily/route.ts</code> with <code>vercel.json</code>. Two schedules, one secret, two jobs in sequence.</li>
+  <li><code>lib/timeline/build.ts</code>. The life map: periods, moments placed by date, the events hash, the <code>now</code> row.</li>
+  <li><code>mobile/project.yml</code>. Targets, entitlements, the files shared with the widget, and the comment on each.</li>
+  <li><code>mobile/Sanchara/Sources/Services/Supabase.swift</code> then <code>SancharaAPI.swift</code>. The one client, the bearer header, and one method per route.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Intake/ProfileStore.swift</code>. How the chart reaches the phone: read under RLS, cached, usable offline.</li>
+  <li><code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>. Why three processes share one file, and what never goes in it.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Chat/ChartFacts.swift</code> then <code>OnDeviceReasoner.swift</code>. The neutral table and the three load-bearing rules for the on-device model.</li>
+  <li><code>mobile/Sanchara/Sources/Intents/SancharaIntents.swift</code> and <code>DeepLink.swift</code>. What Siri can answer and how a process with no UI tells the app where to land.</li>
+  <li><code>mobile/SancharaWidgets/ReadingWidget.swift</code>. A widget that never fetches, and the twice-daily refresh boundary.</li>
+</ol>
+
+<h3 id="sC-3"><span class="num">C.3</span><span>Where things are</span></h3>
+
+<p>
+  The chapters are numbered 1 to 16. Each row names the file to open first; the chapter says why it
+  is shaped the way it is.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>I want to change</th><th>Open</th><th>Chapter</th></tr></thead>
+<tbody>
+<tr><td>How the system fits together, what runs where</td><td><code>README.md</code>, <code>middleware.ts</code></td><td><a href="#ch01">1, Architecture</a></td></tr>
+<tr><td>Which bodies are computed, the ayanamsa, the house system</td><td><code>lib/astrology/chart.ts</code>, <code>constants.ts</code></td><td><a href="#ch02">2, The chart engine</a></td></tr>
+<tr><td>Dasha arithmetic</td><td><code>lib/astrology/dasha.ts</code></td><td><a href="#ch02">2</a></td></tr>
+<tr><td>A dignity, combustion or aspect rule</td><td><code>lib/astrology/derived.ts</code></td><td><a href="#ch02">2</a></td></tr>
+<tr><td>Add or change a dosha</td><td><code>lib/astrology/doshas.ts</code>; then read <a href="#chB-d10">decision 10</a></td><td><a href="#ch02">2</a>, <a href="#ch09">9</a></td></tr>
+<tr><td>What the model is told, or the output rules</td><td><code>lib/astrology/prompt.ts</code></td><td><a href="#ch03">3, Readings, prompts, and cost</a></td></tr>
+<tr><td>The model, effort, token ceilings, cost</td><td><code>lib/anthropic.ts</code>, <code>app/api/chat/route.ts</code>, <code>docs/MODEL_COSTS.md</code></td><td><a href="#ch03">3</a></td></tr>
+<tr><td>How much history is resent</td><td><code>lib/data/history.ts</code></td><td><a href="#ch03">3</a></td></tr>
+<tr><td>Numerology numbers or the friendship table</td><td><code>lib/astrology/numerology.ts</code></td><td><a href="#ch03">3</a></td></tr>
+<tr><td>Sign-in on the web, magic links, the callback</td><td><code>app/(auth)/actions.ts</code>, <code>app/auth/callback/route.ts</code></td><td><a href="#ch04">4, Identity and access</a></td></tr>
+<tr><td>Bearer auth, cookie sessions, the middleware redirect</td><td><code>lib/supabase/route.ts</code>, <code>lib/supabase/middleware.ts</code></td><td><a href="#ch04">4</a></td></tr>
+<tr><td>Email codes and Apple sign-in on the phone</td><td><code>mobile/Sanchara/Sources/Features/Auth/AuthStore.swift</code>, <code>AppleSignIn.swift</code>, <code>docs/EMAIL_OTP.md</code></td><td><a href="#ch04">4</a>, <a href="#ch14">14</a></td></tr>
+<tr><td>The intake form, geocoding, the timezone</td><td><code>components/IntakeForm.tsx</code>, <code>lib/geo.ts</code>, <code>app/api/profile/route.ts</code></td><td><a href="#ch05">5, Intake and the birth profile</a></td></tr>
+<tr><td>What is stored with the chart, or the on-read upgrade</td><td><code>lib/data/birthProfile.ts</code></td><td><a href="#ch05">5</a></td></tr>
+<tr><td>The chat UI on the web, modes, streaming</td><td><code>components/Chat.tsx</code>, <code>app/api/chat/route.ts</code></td><td><a href="#ch06">6, Chat</a></td></tr>
+<tr><td>Conversations and messages</td><td><code>lib/data/chat.ts</code></td><td><a href="#ch06">6</a></td></tr>
+<tr><td>The kundli PDF</td><td><code>lib/pdf/kundli.ts</code>, <code>app/api/kundli/route.ts</code></td><td><a href="#ch07">7, Kundli</a></td></tr>
+<tr><td>The kundli diagram on the phone</td><td><code>mobile/Sanchara/Sources/Features/Kundli/ChartData.swift</code>, <code>KundliChartView.swift</code></td><td><a href="#ch07">7</a></td></tr>
+<tr><td>How periods and moments are laid out</td><td><code>lib/timeline/build.ts</code>, <code>load.ts</code></td><td><a href="#ch08">8, The life timeline</a></td></tr>
+<tr><td>Moment extraction from chat history</td><td><code>lib/timeline/extract.ts</code>, <code>app/api/timeline/scan/route.ts</code></td><td><a href="#ch08">8</a></td></tr>
+<tr><td>Period themes and meanings</td><td><code>lib/timeline/explain.ts</code>, <code>app/api/timeline/explain/route.ts</code></td><td><a href="#ch08">8</a></td></tr>
+<tr><td>The timeline block the chat sees</td><td><code>lib/timeline/describe.ts</code></td><td><a href="#ch08">8</a>, <a href="#ch06">6</a></td></tr>
+<tr><td>Pinning and unpinning moments</td><td><code>app/api/life-events/route.ts</code>, <code>TimelineStore.swift</code></td><td><a href="#ch08">8</a></td></tr>
+<tr><td>When the daily readings are written, or the slot rule</td><td><code>vercel.json</code>, <code>lib/alerts/slots.ts</code>, <code>lib/alerts/predictions.ts</code></td><td><a href="#ch09">9, Daily readings and dosha alerts</a></td></tr>
+<tr><td>What triggers a push, or the alert copy</td><td><code>lib/alerts/run.ts</code>, <code>lib/alerts/compose.ts</code></td><td><a href="#ch09">9</a></td></tr>
+<tr><td>APNs itself</td><td><code>lib/push/apns.ts</code>, <code>app/api/devices/route.ts</code>, <code>docs/PUSH_ALERTS.md</code></td><td><a href="#ch09">9</a></td></tr>
+<tr><td>What the on-device model may answer</td><td><code>OnDeviceReasoner.swift</code>, <code>ChartFacts.swift</code></td><td><a href="#ch10">10, On-device answers, Siri, and widgets</a></td></tr>
+<tr><td>A Siri phrase or intent</td><td><code>SancharaShortcuts.swift</code>, <code>SancharaIntents.swift</code>, <code>IntentData.swift</code></td><td><a href="#ch10">10</a></td></tr>
+<tr><td>A widget, the control, or what is cached for them</td><td><code>mobile/SancharaWidgets/</code>, <code>ChartCache.swift</code>, <code>WidgetRefresh.swift</code></td><td><a href="#ch10">10</a></td></tr>
+<tr><td>The profile page, avatar, or account deletion</td><td><code>app/(app)/app/profile/page.tsx</code>, <code>ProfileView.swift</code>, <code>app/api/account/route.ts</code></td><td><a href="#ch11">11, Profile, account, and admin</a></td></tr>
+<tr><td>The admin area</td><td><code>app/admin/</code>, <code>lib/admin/guard.ts</code>, <code>lib/admin/data.ts</code></td><td><a href="#ch11">11</a></td></tr>
+<tr><td>The landing page or the signed-in shell</td><td><code>components/marketing/</code>, <code>components/AppShell.tsx</code>, <code>app/globals.css</code></td><td><a href="#ch12">12, The landing page and the web shell</a></td></tr>
+<tr><td>A table, a policy, or a new migration</td><td><code>supabase/migrations/</code></td><td><a href="#ch13">13, The data model</a></td></tr>
+<tr><td>App structure, theme, navigation, the API client</td><td><code>SancharaApp.swift</code>, <code>RootView.swift</code>, <code>Design/Theme.swift</code>, <code>Services/SancharaAPI.swift</code></td><td><a href="#ch14">14, The iOS app</a></td></tr>
+<tr><td>Targets, entitlements, the generated project</td><td><code>mobile/project.yml</code>, <code>mobile/scripts/make-config.sh</code></td><td><a href="#ch14">14</a>, <a href="#ch15">15</a></td></tr>
+<tr><td>Environment variables, deploys, cron secret, TestFlight</td><td><code>.env.example</code>, <code>docs/DEPLOY.md</code>, <code>docs/GO_LIVE_CHECKLIST.md</code>, <code>.github/workflows/</code></td><td><a href="#ch15">15, Setup, deployment, and release</a></td></tr>
+<tr><td>Cutting a release</td><td><code>CHANGELOG.md</code>, <code>package.json</code>, <code>.github/workflows/release.yml</code></td><td><a href="#ch15">15</a></td></tr>
+<tr><td>A failure path: model errors, parse failures, dead tokens, stale charts</td><td><code>compose.ts</code> fallbacks, <code>fallbackPrediction</code>, <code>pushToDevices</code>, <code>ensureCurrentChart</code></td><td><a href="#ch16">16, What breaks, and how it is handled</a></td></tr>
+</tbody></table></div>
+
+<div class="note"><b>Two things with no web page</b>
+The timeline, the readings inbox and the dosha alerts have API routes and tables, and iOS views,
+but no page under <code>app/(app)/app/</code>, which holds only home, intake, chat and profile. A
+web contributor looking for the timeline screen will not find one; the client is the phone.
+</div>
+
+<h3 id="sC-4"><span class="num">C.4</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li>The glossary's astrology table against <code>lib/astrology/doshas.ts</code>, checking each named dosha against its detector.</li>
+  <li>Files 1 to 7 of the reading order with their <code>.test.ts</code> neighbours open; the test names read as the rules.</li>
+  <li>The rest of the reading order, one stage a day.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Which glossary term is named in a design note but computed nowhere?</p>
+<p class="a">Pada. The chart stores only the nakshatra name from <code>nakshatraOf</code>.</p>
+<p class="q">What is the difference between a condition and an alert?</p>
+<p class="a">A condition is a computed fact with a signature, recorded in <code>transit_conditions</code> whether or not anyone is told. An alert is the composed notification written to <code>alerts</code> only when a notifiable condition starts or ends.</p>
+<p class="q">Where does a Siri intent get the chart, and what happens if it is not there?</p>
+<p class="a">From <code>ChartCache</code> in the App Group, via <code>IntentData.chart()</code>. If nothing is cached the intent says so in words rather than throwing, because "an intent that cannot find data says so in words, which is a better outcome than an error Siri reads out as a failure."</p>
+<p class="q">You want to add a Western technique. Which file, and what must you not do?</p>
+<p class="a">A new module beside <code>derived.ts</code>, gated on <code>chart.tradition === "western"</code>. You must not extend <code>deriveFacts</code> or <code>factsFor</code>, which are Vedic by design and return nothing for a tropical chart.</p>
+</div>
+</section>

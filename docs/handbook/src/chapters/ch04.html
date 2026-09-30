@@ -1,0 +1,710 @@
+<section class="chapter" id="ch04" data-hue="auth">
+<p class="chapter-kicker">Chapter four</p>
+<h2><span class="num">4</span><span>Identity and access</span></h2>
+
+<p class="lede">
+  One Supabase project, two ways in, and a single rule under both: <strong>the database decides
+  who may read a row, not the code that asked for it.</strong> The web app carries its session in
+  cookies, the iOS app carries a bearer token, and every table refuses anyone but its owner.
+</p>
+
+<p>
+  This chapter describes identity and access as they are on <code>main</code> on 30 September 2026,
+  version 0.3.0. Nothing here is a framework of its own. Supabase Auth issues the sessions, Postgres
+  Row Level Security enforces ownership, and the application code is a thin set of clients that
+  make sure a request reaches Postgres as the person who sent it. The interesting decisions are
+  about where each key is allowed to be, which paths bypass the rule and why, and how the phone
+  gets a session without ever leaving the app.
+</p>
+
+<h3 id="s4-1"><span class="num">4.1</span><span>Two channels</span></h3>
+
+<p>
+  A browser and a phone reach the same Postgres through different doors. On the web, the session
+  lives in cookies that <code>@supabase/ssr</code> reads and refreshes; a server component, a server
+  action, a route handler and the middleware all build a client from those cookies and Postgres sees
+  the request as that user. On iOS, <code>supabase-swift</code> holds the session in the Keychain and
+  the app does two things with it: it reads a few tables directly over PostgREST, and it calls the
+  same <code>/api/*</code> route handlers the web uses, sending the access token as
+  <code>Authorization: Bearer</code>. A route handler builds a client that forwards that header, and
+  again Postgres sees the request as that user.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 400" role="img" aria-label="A browser sends cookies to Next.js middleware and server code, which build a cookie-backed Supabase client; an iPhone sends a bearer token to the same route handlers, which build a bearer-forwarding client, and also reads Supabase directly; both clients reach Postgres as the user and Row Level Security applies; a separate service-role client behind a trust boundary bypasses RLS and is used only by the admin guard, the cron jobs, avatar upload, device registration and account deletion.">
+  <defs>
+    <marker id="ch04a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch04b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">CLIENT</text>
+  <text class="lbl-sm" x="250" y="24">NEXT.JS ON VERCEL</text>
+  <text class="lbl-sm" x="620" y="24">SUPABASE</text>
+
+  <rect class="box" x="20" y="50" width="150" height="40" rx="8"/><text class="lbl" x="95" y="75" text-anchor="middle">Browser</text>
+  <text class="lbl-sm" x="95" y="106" text-anchor="middle">session in cookies</text>
+
+  <rect class="box" x="20" y="200" width="150" height="40" rx="8"/><text class="lbl" x="95" y="225" text-anchor="middle">iPhone</text>
+  <text class="lbl-sm" x="95" y="256" text-anchor="middle">session in Keychain</text>
+
+  <rect class="box" x="250" y="50" width="200" height="40" rx="8"/><text class="lbl" x="350" y="75" text-anchor="middle">middleware.ts</text>
+  <rect class="box" x="250" y="110" width="200" height="40" rx="8"/><text class="lbl" x="350" y="135" text-anchor="middle">createServerSupabase</text>
+  <rect class="box" x="250" y="200" width="200" height="40" rx="8"/><text class="lbl" x="350" y="225" text-anchor="middle">createRouteSupabase</text>
+  <text class="lbl-sm" x="350" y="256" text-anchor="middle">bearer or cookies</text>
+
+  <rect class="box-hot" x="250" y="310" width="200" height="56" rx="10"/>
+  <text class="lbl" x="350" y="333" text-anchor="middle">createAdminSupabase</text>
+  <text class="lbl-hot" x="350" y="352" text-anchor="middle">service role, bypasses RLS</text>
+
+  <rect class="box" x="620" y="50" width="220" height="40" rx="8"/><text class="lbl" x="730" y="75" text-anchor="middle">Auth</text>
+  <rect class="box-hot" x="620" y="130" width="220" height="90" rx="10"/>
+  <text class="lbl" x="730" y="160" text-anchor="middle">Postgres</text>
+  <text class="lbl-hot" x="730" y="180" text-anchor="middle">Row Level Security</text>
+  <text class="lbl-sm" x="730" y="202" text-anchor="middle">every table owner-only</text>
+  <rect class="box" x="620" y="250" width="220" height="40" rx="8"/><text class="lbl" x="730" y="275" text-anchor="middle">Storage: avatars</text>
+
+  <path class="flow" d="M170 70 L 244 70" marker-end="url(#ch04a)"/>
+  <path class="flow" d="M170 70 L 210 70 L 210 130 L 244 130" marker-end="url(#ch04a)"/>
+  <path class="flow" d="M170 220 L 244 220" marker-end="url(#ch04a)"/>
+  <text class="lbl-sm" x="178" y="212">Bearer</text>
+  <path class="flow-dash" d="M170 230 L 210 230 L 210 300 L 560 300 L 560 175 L 614 175" marker-end="url(#ch04a)"/>
+  <text class="lbl-sm" x="330" y="294">PostgREST, direct</text>
+
+  <path class="flow" d="M450 130 L 560 130 L 560 150 L 614 150" marker-end="url(#ch04a)"/>
+  <path class="flow" d="M450 220 L 560 220 L 560 165 L 614 165" marker-end="url(#ch04a)"/>
+  <text class="lbl-sm" x="470" y="110">as the user</text>
+  <path class="flow" d="M450 70 L 614 70" marker-end="url(#ch04a)"/>
+  <text class="lbl-sm" x="500" y="62">getUser</text>
+
+  <path class="flow-hot" d="M450 338 L 590 338 L 590 195 L 614 195" marker-end="url(#ch04b)"/>
+  <path class="flow-hot" d="M450 350 L 600 350 L 600 270 L 614 270" marker-end="url(#ch04b)"/>
+
+  <line class="wall" x1="230" y1="290" x2="470" y2="290"/>
+  <text class="lbl-sm" x="20" y="330">Below the line: server-only code that</text>
+  <text class="lbl-sm" x="20" y="346">holds SUPABASE_SERVICE_ROLE_KEY.</text>
+  <text class="lbl-sm" x="20" y="362">Nothing above it can import it.</text>
+</svg>
+<figcaption>
+  Cookies on the left top, a bearer token on the left bottom, and both arrive at Postgres as the
+  user so RLS applies. The service-role client is the only path that does not, and it sits behind a
+  wall the bundler enforces.
+</figcaption>
+</figure>
+
+<p>
+  The design follows from one sentence in the README: every table is protected by Row Level
+  Security, so the anon key is safe to ship in the iOS binary. The anon key and the project URL are
+  public by design. What must never ship is <code>SUPABASE_SERVICE_ROLE_KEY</code>, which bypasses
+  RLS, and <code>ANTHROPIC_API_KEY</code>. Both are read only through <code>lib/env.ts</code>, which
+  begins with <code>import "server-only"</code>, and the script that generates the iOS configuration
+  (<code>mobile/scripts/make-config.sh</code>) reads only the two public values and says so in its
+  header.
+</p>
+
+<h3 id="s4-2"><span class="num">4.2</span><span>Files</span></h3>
+
+<pre class="tree">lib/supabase/
+├── client.ts          createBrowserClient. Present, imported by nothing today
+├── server.ts          createServerSupabase: the cookie client for server code
+├── middleware.ts      updateSession: refresh cookies, redirect the signed-out
+├── route.ts           createRouteSupabase: bearer if present, else cookies
+├── route.test.ts      bearerTokenFrom
+└── admin.ts           createAdminSupabase: the service-role client
+middleware.ts          calls updateSession on every path but static assets
+lib/env.ts             every secret is read here and nowhere else
+lib/admin/
+├── guard.ts           isAdminUser, requireAdmin
+└── data.ts            admin reads (chapter 11)
+app/(auth)/
+├── actions.ts         authenticate, sendMagicLink, resendConfirmation, signOut
+├── login/page.tsx     the one smart form
+├── signup/page.tsx    the same form with a different title
+├── check-email/page.tsx
+└── layout.tsx
+app/auth/callback/route.ts   exchanges the code in a link for a session
+app/admin/login/page.tsx     a separate form, a separate action
+app/admin/actions.ts         adminSignIn, adminSignOut
+components/AuthForm.tsx      email, password, primary button, magic link button
+public/.well-known/apple-app-site-association
+docs/EMAIL_OTP.md            the email templates that make codes work
+docs/APPLE_SIGN_IN.md        provider and capability setup
+supabase/migrations/         every policy, 0001 to 0007
+mobile/Sanchara/Sources/
+├── Services/Supabase.swift              Supa.client, Supa.accessToken()
+├── Services/SancharaAPI.swift           puts the bearer on every request
+├── Features/Auth/AuthStore.swift        the state machine
+├── Features/Auth/AuthView.swift         AuthView and VerifyCodeView
+├── Features/Auth/AppleSignIn.swift      nonce, hash, remembered name, the button
+└── RootView.swift                       routes on auth state; receives Universal Links
+mobile/project.yml                       entitlements: applinks, webcredentials, applesignin
+mobile/Sanchara/Tests/AuthValidationTests.swift</pre>
+
+<h3 id="s4-3"><span class="num">4.3</span><span>Session on the web</span></h3>
+
+<p>
+  <code>createServerSupabase</code> in <code>lib/supabase/server.ts</code> wraps
+  <code>createServerClient</code> from <code>@supabase/ssr</code> with the Next.js cookie store. Its
+  <code>setAll</code> is wrapped in a try block with a comment that explains the whole arrangement:
+  when the client is created from a Server Component, cookies cannot be written, so the write is
+  ignored and the middleware is what refreshes them. That is why the root <code>middleware.ts</code>
+  exists at all.
+</p>
+
+<pre><code>// lib/supabase/middleware.ts
+const { data: { user } } = await supabase.auth.getUser();
+
+const path = request.nextUrl.pathname;
+const isProtectedApp = path.startsWith("/app");
+const isProtectedAdmin = path.startsWith("/admin") &amp;&amp; path !== "/admin/login";
+if ((isProtectedApp || isProtectedAdmin) &amp;&amp; !user) {
+  const url = request.nextUrl.clone();
+  url.pathname = isProtectedAdmin ? "/admin/login" : "/login";
+  return NextResponse.redirect(url);
+}
+return response;</code></pre>
+
+<p>
+  <code>updateSession</code> does two jobs on every request. It calls <code>getUser</code>, which
+  verifies the token with Supabase Auth rather than trusting the cookie's contents, and in doing so
+  refreshes an expiring session and writes the new cookies onto the response. Then it redirects
+  anyone signed out away from <code>/app</code> and <code>/admin</code>, sending the two areas to their
+  own login pages. The matcher in the root file excludes <code>_next/static</code>,
+  <code>_next/image</code>, <code>favicon.ico</code>, <code>images/</code> and <code>.well-known/</code>,
+  so static assets and the Apple association file are served without a session lookup.
+</p>
+
+<h4>One form, two outcomes</h4>
+
+<p>
+  The login and signup pages render the same <code>AuthForm</code> with the same
+  <code>authenticate</code> action; only the title differs. The action is the web's "smart" sign-in,
+  and its comment states the intent: an existing account with the right password logs in, a new
+  email creates an account, and an existing email with the wrong password is told so.
+</p>
+
+<ol>
+  <li>Try <code>signInWithPassword</code>. A session means a returning user; redirect to <code>/app</code>.</li>
+  <li>If the error message contains "not confirmed", the account exists but the address was never
+    confirmed; redirect to <code>/check-email</code> with the address in the query string.</li>
+  <li>Otherwise call <code>signUp</code> with <code>emailRedirectTo</code> set to
+    <code>&lt;origin&gt;/auth/callback</code>. If Supabase answers that the address is already
+    registered, the first step failed because of the password, and the form shows "Incorrect
+    password for this account. Try again, or use a magic link."</li>
+  <li>A new account with a session (email confirmation switched off in the project) goes to
+    <code>/app</code>; without one it goes to <code>/check-email</code>.</li>
+</ol>
+
+<p>
+  The order matters. Trying sign-in first makes the common case one round trip, and using the
+  sign-up error to distinguish "wrong password" from "new person" means the form never has to ask
+  which the visitor is. The cost is that the message strings from Supabase are matched by substring
+  ("already registered", "already exists", "already been registered"), which is fragile by nature
+  and is the reason the iOS app chose a different shape (<a href="#s4-4">4.4</a>).
+</p>
+
+<p>
+  <code>sendMagicLink</code> calls <code>signInWithOtp</code> with the same redirect and bounces back
+  to <code>/login?sent=1</code>. <code>resendConfirmation</code> calls <code>auth.resend</code> with
+  type <code>signup</code>. <code>signOut</code> signs out and redirects to <code>/login</code>; the
+  form that calls it lives in <code>components/AppShell.tsx</code> at the bottom of the sidebar.
+</p>
+
+<h4>The callback</h4>
+
+<pre><code>// app/auth/callback/route.ts
+const code = searchParams.get("code");
+if (code) {
+  const supabase = await createServerSupabase();
+  await supabase.auth.exchangeCodeForSession(code);
+}
+return NextResponse.redirect(`${origin}/app`);</code></pre>
+
+<p>
+  Every link Supabase sends (confirmation, magic link, the admin's one-time link) resolves to this
+  route with a <code>code</code>. The route exchanges it for a session, which writes the cookies,
+  and redirects to <code>/app</code> unconditionally. If the code was missing or the exchange failed,
+  the redirect still happens and the middleware bounces the visitor to <code>/login</code>. There is
+  no error page for a bad link on the web; the login page is the error page.
+</p>
+
+<p>
+  <code>lib/supabase/client.ts</code> exports a <code>createBrowserClient</code> wrapper for client
+  components. No file imports it today. Every read on the web goes through server components and
+  server actions, so the browser never holds a Supabase client. Keep that in mind before reaching
+  for it: adding a browser client would mean the anon key and the session start being used from
+  JavaScript, which is safe under RLS but is a second channel to reason about.
+</p>
+
+<h3 id="s4-4"><span class="num">4.4</span><span>Session on the phone</span></h3>
+
+<p>
+  <code>Supa.client</code> in <code>mobile/Sanchara/Sources/Services/Supabase.swift</code> is the app's
+  single <code>SupabaseClient</code>, built from the generated <code>AppConfig</code>. The file's
+  comment records the requirement that made <code>supabase-swift</code> the right choice: it
+  persists the session in the Keychain by default, never in <code>UserDefaults</code>.
+  <code>Supa.accessToken()</code> returns the current access token or nil, and that is the whole
+  bridge to the API.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/Services/SancharaAPI.swift
+private static func request(_ path: String, method: String) async throws -&gt; URLRequest {
+    var req = URLRequest(url: AppConfig.apiBaseURL.appendingPathComponent(path))
+    req.httpMethod = method
+    guard let token = await Supa.accessToken() else { throw APIError.unauthorized }
+    req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    return req
+}</code></pre>
+
+<p>
+  Every call in <code>SancharaAPI</code> goes through this function except <code>geocode</code>,
+  whose comment says why: the route is public, so it carries no token. A 401 from any route maps to
+  <code>APIError.unauthorized</code>, whose description is "Your session expired. Please sign in
+  again."
+</p>
+
+<h4>The bearer channel on the server</h4>
+
+<pre><code>// lib/supabase/route.ts
+export async function createRouteSupabase(request: Request): Promise&lt;Db&gt; {
+  const token = bearerTokenFrom(request);
+  if (!token) return createServerSupabase();
+
+  return createClient(env.supabaseUrl(), env.supabaseAnonKey(), {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}</code></pre>
+
+<p>
+  This is the file that lets one set of route handlers serve both clients. <code>bearerTokenFrom</code>
+  reads the <code>Authorization</code> header, accepts the scheme case-insensitively, and returns
+  null for a missing header, a different scheme, or an empty token. With a token, the handler gets a
+  plain <code>supabase-js</code> client that forwards the header on every request, so RLS evaluates
+  as that user; the client neither persists nor refreshes anything, because the phone owns the
+  session. Without a token, the handler falls through to the cookie client and the web behaves as it
+  always did. The exported <code>Db</code> type is <code>SupabaseClient</code>, and the comment notes
+  that both clients are instances of it, which is what lets <code>lib/data/birthProfile.ts</code>
+  accept either.
+</p>
+
+<p>
+  Nine route handlers use <code>createRouteSupabase</code>: account, chat, devices, kundli,
+  life-events, profile, timeline, timeline/explain and timeline/scan. Each begins the same way,
+  <code>getUser</code> then a 401 when there is no user, and the user id used afterwards always comes
+  from that verified session, never from the body.
+</p>
+
+<h4>Direct reads</h4>
+
+<p>
+  Not everything on the phone goes through Vercel. <code>ProfileStore</code> reads
+  <code>birth_profiles</code> straight from Supabase with <code>Supa.client.from(...)</code>, and the
+  alerts and daily-reading stores do the same for their tables. There is no user id in those
+  queries. The <code>birth self</code> policy already restricts the result to the caller's own row,
+  so the query is simply "select from birth_profiles where chart is not null, limit 1". That is the
+  practical meaning of RLS as the boundary: the client does not filter by owner because it cannot
+  see anyone else's rows to begin with.
+</p>
+
+<h4>The state machine</h4>
+
+<p>
+  <code>AuthStore</code> is an <code>@Observable</code> class on the main actor with four states:
+  <code>loading</code>, <code>signedOut</code>, <code>signedIn</code>, and
+  <code>awaitingCode(email:purpose:)</code>. <code>start()</code> sets the initial state from whether
+  a session exists, then listens to <code>authStateChanges</code>: <code>signedIn</code> and
+  <code>tokenRefreshed</code> with a session mean signed in, <code>signedOut</code> means signed out.
+  <code>RootView</code> switches on the state and shows <code>LoadingScreen</code>,
+  <code>AuthView</code>, <code>VerifyCodeView</code> or <code>SignedInView</code>.
+</p>
+
+<p>
+  The store's header comment explains the one deliberate divergence from the web. Sign-in and
+  sign-up are separate paths: "a person who mistypes a password should be told that, not silently
+  pushed into creating a second account." <code>AuthView</code> has a two-segment picker, and a
+  device that has never signed in opens on "Create account" (<code>AuthStore.hasSignedInBefore</code>,
+  a <code>UserDefaults</code> flag under a key that keeps the pre-rename prefix so that returning
+  users are not shown the first-run screen). <code>signIn</code> maps "not confirmed" to
+  <code>awaitingCode</code> with purpose <code>confirmSignUp</code>; <code>signUp</code> maps "already
+  registered" to an error and sets <code>shouldSwitchToSignIn</code>, which the view watches to flip
+  the picker with the email still filled in. Both validate the address and the password length
+  (<code>minimumPasswordLength = 6</code>, Supabase's default) before spending a round trip.
+</p>
+
+<p>
+  <code>signOut</code> does three things in a fixed order: unregister the push token while the
+  bearer token is still valid, sign out, then <code>ChartCache.shared.clear()</code>. The comment
+  says why the third step exists: the chart, the birth details and the last reading live on disk in
+  the App Group, and without clearing them the widget would keep showing them to whoever signs in
+  next.
+</p>
+
+<h3 id="s4-5"><span class="num">4.5</span><span>Email code</span></h3>
+
+<p>
+  On the phone, the passwordless path sends a six-digit code rather than a link.
+  <code>docs/EMAIL_OTP.md</code> gives the reason and the one setting it depends on. The reason: a
+  code is typed into the app that is already open, with no hop out to a mail client and no Universal
+  Link that a browser might swallow. The setting: Supabase decides link-versus-code by what the email
+  template contains. A template with only <code>{{ .ConfirmationURL }}</code> sends a link and no
+  code, and the app's code screen would have nothing to accept. Both the "Magic Link" and "Confirm
+  signup" templates therefore include <code>{{ .Token }}</code> and keep the link as well, so the
+  same email serves the phone (type the code) and the web (tap the link).
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 420" role="img" aria-label="Sequence: AuthView asks AuthStore to send a code; the store calls signInWithOTP on Supabase Auth, which emails a six-digit code; the store moves to awaitingCode and RootView shows VerifyCodeView; the person types six digits, the view normalises them and calls verifyCode; the store calls verifyOTP; Supabase returns a session that supabase-swift stores in the Keychain; the store moves to signedIn and SancharaAPI starts sending the bearer token.">
+  <defs>
+    <marker id="ch04c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch04d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box" x="20" y="20" width="150" height="34" rx="8"/><text class="lbl" x="95" y="42" text-anchor="middle">AuthView</text>
+  <rect class="box" x="230" y="20" width="150" height="34" rx="8"/><text class="lbl" x="305" y="42" text-anchor="middle">AuthStore</text>
+  <rect class="box" x="440" y="20" width="150" height="34" rx="8"/><text class="lbl" x="515" y="42" text-anchor="middle">Supabase Auth</text>
+  <rect class="box-alt" x="650" y="20" width="190" height="34" rx="8"/><text class="lbl" x="745" y="42" text-anchor="middle">Mail app</text>
+
+  <line class="wall" x1="95" y1="54" x2="95" y2="400"/>
+  <line class="wall" x1="305" y1="54" x2="305" y2="400"/>
+  <line class="wall" x1="515" y1="54" x2="515" y2="400"/>
+  <line class="wall" x1="745" y1="54" x2="745" y2="400"/>
+
+  <path class="flow" d="M95 84 L 299 84" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="110" y="78">1 sendEmailCode(email)</text>
+  <path class="flow" d="M305 118 L 509 118" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="320" y="112">2 signInWithOTP(email, redirectTo)</text>
+  <path class="flow" d="M515 152 L 739 152" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="530" y="146">3 email with {{ .Token }} and a link</text>
+  <path class="flow-dash" d="M299 186 L 101 186" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="110" y="180">4 state = awaitingCode(email, .signIn)</text>
+  <text class="lbl-sm" x="110" y="204">RootView shows VerifyCodeView</text>
+
+  <path class="flow-dash" d="M739 238 L 101 238" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="110" y="232">5 iOS offers the code above the keyboard (.oneTimeCode)</text>
+
+  <path class="flow" d="M95 272 L 299 272" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="110" y="266">6 six digits typed: normalizedCode, verifyCode</text>
+  <path class="flow-hot" d="M305 306 L 509 306" marker-end="url(#ch04d)"/>
+  <text class="lbl-hot" x="320" y="300">7 verifyOTP(email, token, type: .email)</text>
+  <path class="flow-hot" d="M509 340 L 311 340" marker-end="url(#ch04d)"/>
+  <text class="lbl-hot" x="320" y="334">8 session, stored in the Keychain</text>
+  <path class="flow-dash" d="M299 374 L 101 374" marker-end="url(#ch04c)"/>
+  <text class="lbl-sm" x="110" y="368">9 state = signedIn; SancharaAPI now sends Bearer</text>
+</svg>
+<figcaption>
+  The code never touches Vercel. Supabase Auth issues it, the phone verifies it with Supabase Auth,
+  and the session that comes back is what every later API call carries as a bearer token.
+</figcaption>
+</figure>
+
+<p>Three details in <code>AuthStore</code> decide how this feels in practice.</p>
+
+<ul>
+  <li><strong>Which code was sent decides how it is verified.</strong> <code>CodePurpose</code> has two
+    cases. <code>signIn</code> verifies with <code>EmailOTPType.email</code>; <code>confirmSignUp</code>,
+    reached when a password sign-up needs its address confirmed, verifies with <code>.signup</code>.
+    <code>resendCode</code> re-sends through the matching path: <code>signInWithOTP</code> for the first,
+    <code>auth.resend(type: .signup)</code> for the second.</li>
+  <li><strong>Digits only.</strong> <code>normalizedCode</code> keeps the numeric characters and takes the
+    first six, because people paste codes with spaces and mail clients wrap them in punctuation.
+    <code>VerifyCodeView</code> applies it on every change, and once six digits are present it submits
+    on its own; the comment calls a separate button "ceremony". The field is marked
+    <code>.textContentType(.oneTimeCode)</code>, so iOS offers the code from the email above the
+    keyboard.</li>
+  <li><strong>The link still works.</strong> <code>sendEmailCode</code> passes <code>redirectTo</code>
+    pointing at <code>auth/callback</code> on the API host, so anyone who taps the link instead of
+    typing the code lands back in the app through a Universal Link (<a href="#s4-6">4.6</a>).</li>
+</ul>
+
+<p>
+  A failed verification whose message contains "expired" or "invalid" is reported as "That code
+  didn't work. It may have expired, send a new one." Codes expire after an hour by default. The
+  screen also offers "Use a different email", which simply calls <code>signOut</code> to return to
+  <code>signedOut</code>.
+</p>
+
+<p>
+  The web has no code screen. Its magic-link button calls the same <code>signInWithOtp</code> and so
+  receives the same email, but the only thing it can do with it is follow the link to
+  <code>/auth/callback</code>. The code in that email is for the phone.
+</p>
+
+<h3 id="s4-6"><span class="num">4.6</span><span>Sign in with Apple and Universal Links</span></h3>
+
+<h4>Apple</h4>
+
+<p>
+  Sign in with Apple is fully native. Apple returns an identity token and Supabase verifies it
+  directly through <code>signInWithIdToken</code>; there is no web sheet, no redirect, no password
+  and no confirmation email. The header of <code>AppleSignIn.swift</code> calls it the fastest way onto
+  Sanchara, and <code>docs/APPLE_SIGN_IN.md</code> records the two one-time steps it needs: the Apple
+  provider enabled in the Supabase project with the bundle id <code>com.shivvyas.astra</code> as a
+  client id, and the Sign In with Apple capability on the App ID. The entitlement
+  <code>com.apple.developer.applesignin</code> is already in <code>mobile/project.yml</code>. For the
+  native flow no Services ID, secret key or key id is needed; those exist only for Apple's web OAuth,
+  which the site does not offer.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/Features/Auth/AppleSignIn.swift
+SignInWithAppleButton(.continue) { request in
+    let nonce = AppleSignIn.randomNonce()
+    rawNonce = nonce
+    request.requestedScopes = [.fullName, .email]
+    request.nonce = AppleSignIn.sha256(nonce)
+} onCompletion: { result in
+    let nonce = rawNonce
+    Task { await auth.completeAppleSignIn(result: result, rawNonce: nonce) }
+}</code></pre>
+
+<p>
+  The nonce is the part worth understanding. <code>randomNonce</code> draws 32 characters from a
+  64-character alphabet using <code>SecRandomCopyBytes</code>, rejecting any byte of 252 or above so
+  the modulo does not bias the distribution. Its SHA-256 goes to Apple, which signs it into the
+  identity token; the raw value goes to Supabase, which hashes it and compares. The comment states
+  what this buys: a captured token cannot be replayed against the project, because the replayer does
+  not hold the raw nonce that produced its hash.
+</p>
+
+<p>
+  <code>completeAppleSignIn</code> treats a cancelled sheet (<code>ASAuthorizationError.canceled</code>)
+  as a normal action and reports nothing. On success it extracts the identity token, calls
+  <code>signInWithIdToken(credentials: .init(provider: .apple, idToken:, nonce:))</code>, and then
+  keeps <code>credential.fullName</code> if Apple sent one. Apple sends the name only on the very
+  first authorization for this App ID, ever, so <code>AppleSignIn.remember</code> stores it in
+  <code>UserDefaults</code> and the intake screen (<a href="#ch05">chapter 5</a>) pre-fills the
+  first and last name from it. The keys keep their pre-rename prefix on purpose: the bundle id did
+  not change, existing installs upgrade in place, and a renamed key would lose a name Apple will
+  never send again.
+</p>
+
+<div class="note caution"><b>Known gap</b>
+Apple's guideline 5.1.1(v) asks apps that offer Sign in with Apple to revoke the Apple token when a
+person deletes their account. <code>DELETE /api/account</code> deletes the Supabase user and
+everything that cascades from it, but it does not call Apple's revoke endpoint.
+<code>docs/APPLE_SIGN_IN.md</code> lists the three steps to close this (a Services ID and key to mint
+a client secret, capturing the authorization code at sign-in, and posting the refresh token to the
+revoke endpoint before the Supabase user is removed) and says it is worth doing before the first
+App Store submission that includes Apple sign-in. As of 0.3.0 it is open.
+</div>
+
+<h4>Universal Links</h4>
+
+<p>
+  Every email Supabase sends carries a link that resolves to <code>/auth/callback</code> on the
+  production host. On a phone with the app installed, that URL should open the app, not Safari.
+  Two files make that happen. The entitlements in <code>mobile/project.yml</code> declare
+  <code>applinks:astra.shivvyas.com</code> and <code>webcredentials:astra.shivvyas.com</code>. And
+  the site serves <code>public/.well-known/apple-app-site-association</code>, which names the app
+  as the team id joined to <code>com.shivvyas.astra</code>, and claims exactly two paths:
+  <code>/auth/callback</code> and <code>/auth/callback?*</code>. The <code>webcredentials</code>
+  entry is what lets the iOS password autofill offer credentials saved for the site to the app.
+</p>
+
+<p>
+  When iOS hands the URL to the app, <code>RootView.onOpenURL</code> receives it. Two kinds of URL
+  arrive there, and the comment is explicit: Supabase's auth callback and the app's own
+  <code>sanchara://</code> scheme from a widget tap. <code>DeepLink.isDeepLink</code> checks the
+  scheme; a deep link goes to <code>DeepLink.shared.handle</code>, anything else goes to
+  <code>AuthStore.handle(url:)</code>, which calls <code>Supa.client.auth.session(from: url)</code> and
+  moves to <code>signedIn</code>. Handing a widget URL to the auth store would produce "That link
+  has expired", which is the failure the check prevents. Without the app installed, the same URL
+  reaches the web route in <a href="#s4-3">4.3</a> and the person is signed in on the web instead.
+</p>
+
+<h3 id="s4-7"><span class="num">4.7</span><span>Row Level Security</span></h3>
+
+<p>
+  RLS is the boundary. The clients above exist only to make sure a request reaches Postgres with
+  the right identity; what that identity may then see is decided entirely by the policies in
+  <code>supabase/migrations/</code>. Every table has <code>enable row level security</code>, and every
+  policy is written in terms of <code>auth.uid()</code>. Here is all of them.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Policy</th><th>Commands</th><th>Rule</th><th>Migration</th></tr></thead>
+<tbody>
+<tr><td><code>profiles</code></td><td>profiles self</td><td>all</td><td><code>id = auth.uid()</code></td><td>0001</td></tr>
+<tr><td><code>birth_profiles</code></td><td>birth self</td><td>all</td><td><code>user_id = auth.uid()</code></td><td>0001</td></tr>
+<tr><td><code>conversations</code></td><td>conv self</td><td>all</td><td><code>user_id = auth.uid()</code></td><td>0001</td></tr>
+<tr><td><code>messages</code></td><td>msg self</td><td>all</td><td>a <code>conversations</code> row exists with this <code>conversation_id</code> and <code>user_id = auth.uid()</code></td><td>0001</td></tr>
+<tr><td><code>admins</code></td><td>admins read self-or-admin</td><td>select only</td><td><code>user_id = auth.uid() or public.is_admin()</code></td><td>0001</td></tr>
+<tr><td><code>device_tokens</code></td><td>device tokens self</td><td>all</td><td><code>user_id = auth.uid()</code></td><td>0004</td></tr>
+<tr><td><code>transit_conditions</code></td><td>conditions self read</td><td>select only</td><td><code>user_id = auth.uid()</code></td><td>0004</td></tr>
+<tr><td><code>alerts</code></td><td>alerts self read; alerts self update</td><td>select; update</td><td><code>user_id = auth.uid()</code></td><td>0004</td></tr>
+<tr><td><code>daily_readings</code></td><td>daily readings self read; daily readings self update</td><td>select; update</td><td><code>user_id = auth.uid()</code></td><td>0005</td></tr>
+<tr><td><code>life_events</code></td><td>life events self</td><td>all</td><td><code>user_id = auth.uid()</code></td><td>0006</td></tr>
+<tr><td><code>life_event_scans</code></td><td>life event scans self</td><td>all</td><td><code>user_id = auth.uid()</code></td><td>0006</td></tr>
+<tr><td><code>period_readings</code></td><td>period readings self</td><td>all</td><td><code>user_id = auth.uid()</code></td><td>0007</td></tr>
+</tbody></table></div>
+
+<p>
+  Every <code>for all</code> policy carries both <code>using</code> and <code>with check</code> with
+  the same predicate, so a user can neither read another person's row nor insert a row that claims
+  another owner. The three tables with select-only or select-and-update policies are the ones the
+  scheduled jobs write: <code>transit_conditions</code>, <code>alerts</code> and
+  <code>daily_readings</code>. The comments in 0004 and 0005 say it directly: the daily job writes
+  them with the service-role client, and the policies exist so the app can read its own rows and
+  mark them read. A user cannot insert an alert. <code>admins</code> has no insert, update or delete
+  policy at all; the comment on the table reads "presence in this table = admin. No self-service
+  path". The only way in is the SQL statement in <code>docs/SUPABASE_SETUP.md</code>, run by hand.
+</p>
+
+<p>
+  Two functions complete the picture. <code>public.is_admin()</code> is <code>security definer</code>
+  and checks for the caller's row in <code>admins</code>; it is used by the admins policy so an admin
+  can see the whole list. <code>public.handle_new_user()</code> runs on <code>after insert on
+  auth.users</code> and creates the <code>profiles</code> row, taking a display name from the
+  sign-up metadata or the part of the email before the <code>@</code>. Every table with a
+  <code>user_id</code> references <code>auth.users(id) on delete cascade</code>, which is what makes
+  account deletion one call (<a href="#ch11">chapter 11</a>).
+</p>
+
+<h4>Where the service-role key is allowed</h4>
+
+<pre><code>// lib/supabase/admin.ts
+import "server-only";
+// Bypasses RLS. Only ever import from server code behind an admin auth check.
+export function createAdminSupabase() {
+  return createClient(env.supabaseUrl(), env.supabaseServiceRoleKey(), {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}</code></pre>
+
+<p>
+  <code>import "server-only"</code> makes the bundler fail if a client component ever imports this
+  file, so the key cannot leak into a browser bundle by accident. Beyond that the rule is
+  convention, and the convention is narrow. These are the only production files that call
+  <code>createAdminSupabase</code>, and each has a reason RLS cannot serve.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>File</th><th>Uses the service role to</th><th>Why RLS cannot do it</th></tr></thead>
+<tbody>
+<tr><td><code>lib/admin/guard.ts</code></td><td>look up the caller in <code>admins</code></td><td>The guard runs before any admin session is proven; reading through the caller's own client would work for their own row but the guard is also the place that must never be wrong</td></tr>
+<tr><td><code>lib/admin/data.ts</code></td><td>list users, read birth profiles and transcripts</td><td>Admin reads cross owners by definition; the 0001 comment says admin reads happen via the service-role client</td></tr>
+<tr><td><code>app/admin/actions.ts</code></td><td><code>auth.admin.generateLink</code> for a one-time login link</td><td>Minting a link for another user is an Auth admin API</td></tr>
+<tr><td><code>app/(app)/app/intake/actions.ts</code>, <code>app/api/profile/route.ts</code></td><td>upload the avatar to the <code>avatars</code> bucket</td><td>No storage policy is defined for users; the upload path is <code>&lt;user id&gt;/avatar.&lt;ext&gt;</code> and the user id comes from the verified session</td></tr>
+<tr><td><code>app/api/account/route.ts</code></td><td><code>auth.admin.deleteUser</code></td><td>Deleting an auth user is an Auth admin API; the id is the caller's own</td></tr>
+<tr><td><code>app/api/devices/route.ts</code></td><td>upsert and delete <code>device_tokens</code></td><td>The comment explains: a device handed from one account to another must change owner, and the owner-only policy would correctly refuse that update</td></tr>
+<tr><td><code>lib/alerts/run.ts</code>, <code>lib/alerts/predictions.ts</code></td><td>write conditions, alerts and daily readings for every user</td><td>The cron job has no user session; it is authenticated by <code>CRON_SECRET</code> instead</td></tr>
+</tbody></table></div>
+
+<p>
+  Note what every entry has in common: the row being written is still scoped to a user id that came
+  from <code>getUser</code> on the caller's own client, or the code is a scheduled job with no caller
+  at all. The admin client is never used to act on a user id taken from a request body.
+</p>
+
+<h3 id="s4-8"><span class="num">4.8</span><span>The admin boundary</span></h3>
+
+<p>
+  The admin area at <code>/admin</code> has its own login page, its own sign-in action, and a guard
+  on every page. Being an admin is not a role or a claim; it is a row in <code>admins</code>. Three
+  layers check it.
+</p>
+
+<ol>
+  <li><strong>The middleware</strong> redirects any signed-out request under <code>/admin</code>,
+    except <code>/admin/login</code> itself, to <code>/admin/login</code>. This proves a session exists,
+    not that it is an admin's.</li>
+  <li><strong><code>adminSignIn</code></strong> in <code>app/admin/actions.ts</code> calls
+    <code>signInWithPassword</code> with the cookie client, then <code>isAdminUser</code>. A valid
+    account that is not in <code>admins</code> is signed out again immediately and sent back with
+    "Not authorized". There is no sign-up on this form, no magic link, and no way to become an
+    admin from it.</li>
+  <li><strong><code>requireAdmin</code></strong> in <code>lib/admin/guard.ts</code> is the first line of
+    every admin page and every admin action. It reads the user from the cookie client, redirects to
+    <code>/admin/login</code> if there is none, and redirects with "Not authorized" if
+    <code>isAdminUser</code> is false. The layering means a person removed from <code>admins</code>
+    while signed in loses access on their next request, not at their next login.</li>
+</ol>
+
+<pre><code>// lib/admin/guard.ts
+export async function requireAdmin() {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/admin/login");
+  if (!(await isAdminUser(user.id))) redirect("/admin/login?error=Not+authorized");
+  return user;
+}</code></pre>
+
+<p>
+  The admin session is an ordinary Supabase session in the same cookies as the app's. What separates
+  the two areas is the guard, the separate login page, and the layout: <code>app/admin/layout.tsx</code>
+  is a passthrough with <code>force-dynamic</code>, and each authenticated page wraps itself in
+  <code>AdminShell</code> so the sidebar never appears on the login screen. What an admin can read and
+  do once inside is <a href="#ch11">chapter 11</a>'s subject; the short version is that the admin
+  reads users, birth details and transcripts, can send a password reset and mint a one-time login
+  link, and writes nothing to a user's data.
+</p>
+
+<div class="note"><b>Two things to keep straight</b>
+The web's user login accepts a magic link; the admin login does not. And <code>is_admin()</code> in
+SQL and <code>isAdminUser</code> in TypeScript answer the same question by different routes: the SQL
+function runs inside a policy as security definer, the TypeScript function runs on the server with the
+service-role client. Change one without the other and the admins list becomes visible to the wrong
+people or the guard starts lying.
+</div>
+
+<h3 id="s4-9"><span class="num">4.9</span><span>Tests</span></h3>
+
+<p>
+  Identity is the part of a system where a test is cheapest to write and most expensive to lack, and
+  the coverage here is narrow but exact. Nothing in it needs a network or a Supabase project.
+</p>
+
+<ul>
+  <li><code>lib/supabase/route.test.ts</code> pins <code>bearerTokenFrom</code> with five cases: a
+    token is extracted from a Bearer header; a lowercase scheme is accepted; a missing header returns
+    null; a <code>Basic</code> scheme returns null; a Bearer scheme with an empty token returns null.
+    The last two are what keep a malformed header from falling through to the cookie client with a
+    garbage token attached.</li>
+  <li><code>mobile/Sanchara/Tests/AuthValidationTests.swift</code> covers the pure functions on
+    <code>AuthStore</code> and <code>AppleSignIn</code>. <code>testAcceptsOrdinaryAddresses</code> and
+    <code>testRejectsMalformedAddresses</code> pin <code>emailLooksValid</code> (no leading
+    <code>@</code>, a dot in the domain, no leading or trailing dot, no spaces).
+    <code>testCodeNormalisationKeepsOnlyDigits</code> pins <code>normalizedCode</code> against
+    "123 456", "Code: 123-456.", a ten-digit paste that must be cut to six, and letters.
+    <code>testAppleNonceIsRandomAndHashed</code> pins the 32-character nonce, that two nonces differ,
+    and that the SHA-256 hex is 64 characters and stable.</li>
+  <li>The route handler tests for account, devices and profile each begin with a case that a
+    request with no user gets a 401 and touches nothing, which is the bearer channel's contract
+    exercised from the other side. <a href="#ch11">Chapter 11</a> lists them.</li>
+</ul>
+
+<p>
+  What is not tested: the middleware redirect, the smart sign-in's error-string matching, the
+  callback route, and <code>requireAdmin</code>. All four depend on a live Auth server or on Next.js
+  request plumbing, and none has a test today. The error-string matching in
+  <code>app/(auth)/actions.ts</code> is the one most likely to break silently if Supabase rewords a
+  message, and would be the first to cover.
+</p>
+
+<h3 id="s4-10"><span class="num">4.10</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>supabase/migrations/0001_init.sql</code>, for the tables, the trigger, <code>is_admin()</code> and the first five policies. Everything else in this chapter exists to satisfy these.</li>
+  <li><code>lib/supabase/route.ts</code>, forty lines, and its test. This is the whole bearer channel.</li>
+  <li><code>lib/supabase/middleware.ts</code> and the root <code>middleware.ts</code>, for cookie refresh and the two redirects.</li>
+  <li><code>app/(auth)/actions.ts</code>, for the smart form, then <code>app/auth/callback/route.ts</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Auth/AuthStore.swift</code>, top to bottom. The comments carry the reasoning.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Auth/AppleSignIn.swift</code>, for the nonce and the remembered name.</li>
+  <li><code>docs/EMAIL_OTP.md</code>, for the template setting that decides link or code.</li>
+  <li><code>lib/supabase/admin.ts</code> and <code>lib/admin/guard.ts</code>, then grep for <code>createAdminSupabase</code> and check each caller against the table in <a href="#s4-7">4.7</a>.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why can the anon key ship inside the iOS binary?</p>
+<p class="a">Because it grants nothing by itself. Every table has RLS enabled and every policy is written against <code>auth.uid()</code>, so a request with the anon key and no session sees no rows, and a request with a session sees only its owner's rows.</p>
+<p class="q">What does <code>createRouteSupabase</code> do when the header is <code>Authorization: Bearer</code> with nothing after it?</p>
+<p class="a"><code>bearerTokenFrom</code> returns null for an empty token, so the handler falls through to the cookie client. On a phone that means <code>getUser</code> finds no user and the route answers 401.</p>
+<p class="q">Why does the iOS app separate sign-in from sign-up when the web merges them?</p>
+<p class="a">The web's merged form tells a wrong password from a new address by matching Supabase's error strings after a sign-up attempt. On the phone the store's comment says a person who mistypes a password should be told that, not pushed toward a second account, so the screen picks the path and the store never guesses.</p>
+<p class="q">Which tables can a user read but never insert into, and who inserts?</p>
+<p class="a"><code>transit_conditions</code>, <code>alerts</code> and <code>daily_readings</code>. The scheduled jobs in <code>lib/alerts/</code> write them with the service-role client; the user can only select, and update <code>read_at</code> on the last two.</p>
+<p class="q">Why does <code>randomNonce</code> reject bytes of 252 and above?</p>
+<p class="a">The alphabet has 64 characters and 256 is a multiple of 64, but the loop discards bytes at or above 252 so that a future change to the alphabet size cannot bias the modulo; the comment says every character must be equally likely.</p>
+<p class="q">Why does <code>RootView.onOpenURL</code> check the URL scheme before handing it to the auth store?</p>
+<p class="a">A widget tap opens the app with a <code>sanchara://</code> URL. Passing that to <code>session(from:)</code> would fail and show "That link has expired" for something that was never a link.</p>
+<p class="q">How does someone become an admin?</p>
+<p class="a">Only by a row inserted into <code>public.admins</code> by hand in the SQL editor. The table has a select policy and no write policy, and no code path inserts into it.</p>
+</div>
+</section>

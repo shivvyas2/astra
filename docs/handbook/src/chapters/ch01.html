@@ -1,0 +1,714 @@
+<section class="chapter" id="ch01" data-hue="system">
+<p class="chapter-kicker">Chapter one</p>
+<h2><span class="num">1</span><span>Architecture</span></h2>
+
+<p class="lede">
+  Sanchara is built on one bet: <strong>the chart is computed, and only the reading is
+  interpreted.</strong> The Swiss Ephemeris runs inside a Next.js route handler and produces every
+  position, house, nakshatra, dasha and dosha as a number. Claude is handed those numbers and asked
+  what they mean. Two clients, a web app and a native iOS app, call the same route handlers, share
+  one Supabase project, and are told apart only by how they prove who they are.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. It is
+  the map for everything that follows: where the boundaries are, which side of each boundary a
+  piece of code sits on, and why. The product was called Astra during development, and the
+  repository, the bundle identifier <code>com.shivvyas.astra</code> and the production host still
+  carry that name. Where the code and this handbook disagree, the code is right and this handbook
+  is a bug.
+</p>
+
+<h3 id="s1-1"><span class="num">1.1</span><span>System context</span></h3>
+
+<p>
+  There is one server, and it is the Next.js app deployed on Vercel. A web browser reaches it as
+  pages and as <code>/api/*</code> route handlers; the iOS app reaches only the route handlers. The
+  server talks to four outside parties: the Anthropic API for readings, Supabase for identity and
+  every table, Apple Push Notification service for alerts, and Open-Meteo for birthplace
+  geocoding. The Swiss Ephemeris is not an outside party. It is a WebAssembly module, loaded once
+  per server process, that runs in the same function as the route handler that called it. Vercel
+  Cron is the fifth caller, and it calls the same server twice a day.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 460" role="img" aria-label="Clients on the left (web browser, iOS app, and the widgets and Siri that read only the App Group cache) call the Next.js route handlers on Vercel in the middle, which run the Swiss Ephemeris in-process and reach the Anthropic API, Open-Meteo, Supabase and APNs on the right. Vercel Cron calls the same handlers. The iOS app also reads Supabase directly with the anon key, and APNs pushes back to the phone. A dashed red line between clients and server marks where secrets begin.">
+  <defs>
+    <marker id="ch01a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch01b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">CLIENTS</text>
+  <text class="lbl-sm" x="300" y="24">ON VERCEL</text>
+  <text class="lbl-sm" x="640" y="24">SERVICES</text>
+
+  <rect class="box" x="20" y="40" width="160" height="34" rx="8"/><text class="lbl" x="100" y="62" text-anchor="middle">Web browser</text>
+  <rect class="box" x="20" y="90" width="160" height="34" rx="8"/><text class="lbl" x="100" y="112" text-anchor="middle">iOS app</text>
+  <rect class="box-alt" x="20" y="190" width="120" height="34" rx="8"/><text class="lbl" x="80" y="212" text-anchor="middle">Widgets, Siri</text>
+  <text class="lbl-sm" x="80" y="240" text-anchor="middle">App Group only</text>
+  <path class="flow-dash" d="M80 124 L 80 184" marker-end="url(#ch01a)"/><text class="lbl-sm" x="88" y="160">ChartCache</text>
+
+  <rect class="box-hot" x="300" y="60" width="220" height="100" rx="10"/>
+  <text class="lbl" x="410" y="90" text-anchor="middle">Next.js 15 route handlers</text>
+  <text class="lbl-hot" x="410" y="112" text-anchor="middle">Swiss Ephemeris WASM, in-process</text>
+  <text class="lbl-sm" x="410" y="136" text-anchor="middle">pages, server actions, /api/*</text>
+
+  <rect class="box-alt" x="300" y="230" width="220" height="34" rx="8"/><text class="lbl" x="410" y="252" text-anchor="middle">Vercel Cron, 02:30 and 15:30 UTC</text>
+  <path class="flow" d="M410 230 L 410 166" marker-end="url(#ch01a)"/><text class="lbl-sm" x="418" y="205">GET /api/cron/daily</text>
+
+  <rect class="box" x="640" y="40" width="200" height="34" rx="8"/><text class="lbl" x="740" y="62" text-anchor="middle">Anthropic API</text>
+  <rect class="box" x="640" y="90" width="200" height="34" rx="8"/><text class="lbl" x="740" y="112" text-anchor="middle">Open-Meteo geocoding</text>
+  <rect class="box" x="640" y="150" width="200" height="80" rx="10"/>
+  <text class="lbl" x="740" y="178" text-anchor="middle">Supabase</text>
+  <text class="lbl-sm" x="740" y="198" text-anchor="middle">Postgres with RLS, Auth</text>
+  <text class="lbl-sm" x="740" y="216" text-anchor="middle">Storage (avatars)</text>
+  <rect class="box" x="640" y="300" width="200" height="34" rx="8"/><text class="lbl" x="740" y="322" text-anchor="middle">APNs</text>
+
+  <path class="flow" d="M180 57 L 240 57 L 240 80 L 294 80" marker-end="url(#ch01a)"/><text class="lbl-sm" x="186" y="50">cookies</text>
+  <path class="flow-hot" d="M180 100 L 294 100" marker-end="url(#ch01b)"/><text class="lbl-sm" x="196" y="94">Bearer JWT</text>
+  <path class="flow-dash" d="M634 327 L 210 327 L 210 118 L 186 118" marker-end="url(#ch01a)"/><text class="lbl-sm" x="420" y="344">push, only when something changed</text>
+  <path class="flow" d="M160 124 L 160 400 L 740 400 L 740 236" marker-end="url(#ch01a)"/><text class="lbl-sm" x="300" y="392">PostgREST and Auth with the anon key; RLS decides what is visible</text>
+
+  <path class="flow" d="M520 80 L 580 80 L 580 57 L 634 57" marker-end="url(#ch01a)"/>
+  <path class="flow" d="M520 107 L 634 107" marker-end="url(#ch01a)"/>
+  <path class="flow" d="M520 134 L 580 134 L 580 190 L 634 190" marker-end="url(#ch01a)"/>
+  <path class="flow" d="M500 160 L 500 200 L 560 200 L 560 317 L 634 317" marker-end="url(#ch01a)"/>
+
+  <line class="wall" x1="245" y1="30" x2="245" y2="420"/>
+  <text class="lbl-sm" x="20" y="440">Left of the red line: the anon key and a session. Right of it: every secret.</text>
+</svg>
+<figcaption>
+  One server, two clients, four services. The server reaches Supabase either as the caller (the
+  cookie or the bearer token is forwarded, so Row Level Security applies) or as the service role
+  (cron, admin reads, and three writes RLS would refuse). The widgets and Siri never cross the
+  network at all; they read what the app cached in the App Group.
+</figcaption>
+</figure>
+
+<p>Each party, how it is reached, and what proves the request is allowed:</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Party</th><th>Reached from</th><th>With</th><th>Where in the code</th></tr></thead>
+<tbody>
+<tr><td>Anthropic API</td><td>Route handlers and cron only</td><td><code>ANTHROPIC_API_KEY</code></td><td><code>lib/anthropic.ts</code></td></tr>
+<tr><td>Swiss Ephemeris</td><td>In-process, lazily initialised once per server process</td><td>Nothing; it is a WASM module in <code>node_modules</code></td><td><code>lib/astrology/chart.ts</code></td></tr>
+<tr><td>Supabase Postgres</td><td>Server as the caller; iOS app directly over PostgREST</td><td>Anon key plus the user's JWT, or the service-role key</td><td><code>lib/supabase/</code>, <code>mobile/Sanchara/Sources/Services/Supabase.swift</code></td></tr>
+<tr><td>Supabase Auth</td><td>Browser via server actions; iOS app directly</td><td>Anon key</td><td><code>app/(auth)/actions.ts</code>, <code>Features/Auth/AuthStore.swift</code></td></tr>
+<tr><td>Supabase Storage</td><td>Server, admin client, <code>avatars</code> bucket</td><td>Service-role key</td><td><code>app/api/profile/route.ts</code>, <code>app/(app)/app/intake/actions.ts</code></td></tr>
+<tr><td>APNs</td><td>Cron, over HTTP/2</td><td>A provider token signed with the <code>.p8</code> key</td><td><code>lib/push/apns.ts</code></td></tr>
+<tr><td>Open-Meteo</td><td><code>GET /api/geocode</code>, which is public</td><td>Nothing</td><td><code>lib/geo.ts</code></td></tr>
+<tr><td>Vercel Cron</td><td>Calls the server</td><td><code>Authorization: Bearer $CRON_SECRET</code></td><td><code>vercel.json</code>, <code>app/api/cron/daily/route.ts</code></td></tr>
+</tbody></table></div>
+
+<h3 id="s1-2"><span class="num">1.2</span><span>The one bet</span></h3>
+
+<p>
+  The README states it in a sentence: "Nothing about the chart is guessed." Every other decision
+  in the system follows from taking that literally. A language model asked for a birth chart will
+  produce one, and it will be plausible and wrong. So the model is never asked. The chart is
+  computed by <code>computeChart</code> in <code>lib/astrology/chart.ts</code>, which converts the
+  local birth time to Universal Time with luxon, asks the ephemeris for a Julian day, and reads
+  eight bodies with <code>calc_ut</code>. Ketu is Rahu plus 180 degrees. For the Vedic chart the
+  ephemeris is put into sidereal mode with the Lahiri ayanamsa and houses are whole-sign from the
+  ascendant; for the Western chart it stays tropical and houses are Placidus. Vimshottari dasha
+  periods come from the Moon's sidereal longitude. All of this is deterministic and unit tested.
+</p>
+
+<pre><code>// lib/astrology/chart.ts
+// Lazily initialize the WASM module once per server process.
+let swePromise: Promise&lt;InstanceType&lt;typeof SwissEph&gt;&gt; | null = null;
+async function getSwe(): Promise&lt;InstanceType&lt;typeof SwissEph&gt;&gt; {
+  if (!swePromise) {
+    swePromise = (async () =&gt; {
+      const swe = new SwissEph();
+      await swe.initSwissEph();
+      return swe;
+    })();
+  }
+  return swePromise;
+}</code></pre>
+
+<p>
+  The result is stored, not recomputed per request. <code>saveBirthProfile</code> in
+  <code>lib/data/birthProfile.ts</code> computes both traditions and writes them as one
+  <code>jsonb</code> value, <code>{ vedic, western }</code>, into
+  <code>birth_profiles.chart</code>. Every reader of that column goes through
+  <code>ensureCurrentChart</code>, which checks <code>schemaVersion</code> against
+  <code>CHART_SCHEMA_VERSION</code> (currently 2) and recomputes a stale chart on read. There is
+  no migration job for charts: a chart written under an older house system corrects itself the
+  first time its owner opens the app, and both traditions are rewritten together so a profile is
+  never half upgraded.
+</p>
+
+<p>
+  Only then does the model appear. <code>app/api/chat/route.ts</code> loads the stored chart,
+  derives facts from it (lords, aspects, dignity, combustion, from
+  <code>lib/astrology/derived.ts</code>), computes today's transits, and builds a system prompt in
+  <code>lib/astrology/prompt.ts</code> that is entirely made of computed values. Claude reads that
+  prompt and writes prose. The models are named in one place:
+</p>
+
+<pre><code>// lib/anthropic.ts
+export const READING_MODEL = "claude-sonnet-5";
+export const DEEP_READING_MODEL = "claude-opus-4-8";
+
+export const LOW_EFFORT: { readonly output_config: { readonly effort: "low" } } = {
+  output_config: { effort: "low" },
+};</code></pre>
+
+<p>
+  The comment above <code>LOW_EFFORT</code> records a measurement on one Vedic reading of the same
+  chart and question: 1,452 output tokens at default effort, 719 at low, 328 with thinking off,
+  and all three cited the same real placements. Routine readings therefore run at low effort;
+  a deep reading keeps the default and upgrades to the larger model. The point for this chapter
+  is the direction of dependency. The prompt depends on the chart. The chart never depends on
+  the prompt.
+</p>
+
+<div class="note"><b>What the bet rules out</b>
+No route ever sends a birth date to the model and asks for positions. No client ever computes a
+chart; the iOS app decodes the stored <code>jsonb</code> into <code>NatalChart</code> and draws it.
+When the phone answers a question without the network, it answers by looking a value up in that
+decoded chart, never by reasoning about the sky. See <a href="#s1-7">1.7</a>.
+</div>
+
+<h3 id="s1-3"><span class="num">1.3</span><span>Module map</span></h3>
+
+<p>
+  Three trees hold the code: <code>lib/</code> for everything the server does,
+  <code>app/</code> for the Next.js routes that expose it, and <code>mobile/</code> for the iOS
+  app. <code>tsconfig.json</code> excludes <code>mobile</code>, so the TypeScript and the Swift
+  never see each other; the phone reaches the server only over HTTPS.
+</p>
+
+<pre class="tree">lib/
+  astrology/      chart, dasha, derived, doshas, transits, numerology, prompt, constants, types
+  timeline/       build, describe, explain, extract, load
+  alerts/         run, predictions, compose, slots
+  data/           birthProfile, chat, history
+  supabase/       client, server, middleware, route, admin
+  pdf/            kundli
+  push/           apns
+  admin/          guard, data
+  anthropic.ts    model names, effort, the client
+  env.ts          server-only environment access
+  geo.ts          Open-Meteo geocoding and tz-lookup
+app/
+  page.tsx        landing page, redirects a signed-in user to /app
+  (auth)/         login, signup, check-email, and the server actions
+  (app)/app/      home, intake, chat, profile
+  admin/          isolated admin area with its own login
+  auth/callback/  Supabase code exchange
+  api/            twelve route handlers, listed in 1.4
+mobile/
+  project.yml                 XcodeGen spec: three targets
+  scripts/make-config.sh      writes the generated AppConfig.swift
+  Sanchara/Sources/
+    SancharaApp.swift, RootView.swift
+    Design/                   Theme, Components, ReadingCard
+    Features/                 Auth, Intake, Chat, Kundli, Timeline, Alerts, Profile
+    Intents/                  App Intents, entities, shortcuts, deep links
+    Services/                 SancharaAPI, Supabase, Push, ChartCache, WidgetRefresh
+  SancharaWidgets/            ReadingWidget, PeriodWidget, ReadingControl</pre>
+
+<p>
+  Nothing enforces the import rules between <code>lib/</code> folders except the imports
+  themselves, so the rules below were read off the code rather than off a manifest. They hold
+  today, and the diagram is the shape they make.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 380" role="img" aria-label="Module graph in four tiers. The app directory imports the feature modules lib/data, lib/timeline, lib/alerts, lib/pdf and lib/admin. Those five sit on a bus above the leaf modules lib/astrology, lib/supabase, lib/anthropic and lib/push, any of which they may import; lib/supabase, lib/anthropic and lib/push import lib/env at the bottom. lib/astrology imports nothing in lib. Client components import only types from lib, plus resolveTimezone from lib/geo. The mobile tree imports nothing here.">
+  <defs><marker id="ch01c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker></defs>
+
+  <rect class="box-hot" x="40" y="20" width="300" height="40" rx="8"/><text class="lbl" x="190" y="45" text-anchor="middle">app/  pages, server actions, /api routes</text>
+  <rect class="box-hot" x="380" y="20" width="200" height="40" rx="8"/><text class="lbl" x="480" y="45" text-anchor="middle">components/  "use client"</text>
+  <rect class="box-alt" x="620" y="20" width="220" height="40" rx="8"/><text class="lbl" x="730" y="45" text-anchor="middle">mobile/  Swift, separate compiler</text>
+  <text class="lbl-sm" x="730" y="78" text-anchor="middle">HTTPS to /api/* only</text>
+
+  <rect class="box" x="40" y="130" width="110" height="40" rx="8"/><text class="lbl" x="95" y="155" text-anchor="middle">lib/data</text>
+  <rect class="box" x="170" y="130" width="120" height="40" rx="8"/><text class="lbl" x="230" y="155" text-anchor="middle">lib/timeline</text>
+  <rect class="box" x="310" y="130" width="110" height="40" rx="8"/><text class="lbl" x="365" y="155" text-anchor="middle">lib/alerts</text>
+  <rect class="box" x="440" y="130" width="100" height="40" rx="8"/><text class="lbl" x="490" y="155" text-anchor="middle">lib/pdf</text>
+  <rect class="box" x="560" y="130" width="110" height="40" rx="8"/><text class="lbl" x="615" y="155" text-anchor="middle">lib/admin</text>
+
+  <path class="flow" d="M95 60 L 95 124" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M230 60 L 230 124" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M330 60 L 330 90 L 365 90 L 365 124" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M335 60 L 335 100 L 490 100 L 490 124" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M338 60 L 338 110 L 615 110 L 615 124" marker-end="url(#ch01c)"/>
+
+  <path class="flow-dash" d="M480 60 L 480 90 L 750 90 L 750 234" marker-end="url(#ch01c)"/><text class="lbl-sm" x="560" y="84">resolveTimezone, and types only</text>
+
+  <path class="flow" d="M40 205 L 680 205"/>
+  <path class="flow" d="M95 170 L 95 205"/>
+  <path class="flow" d="M230 170 L 230 205"/>
+  <path class="flow" d="M365 170 L 365 205"/>
+  <path class="flow" d="M490 170 L 490 205"/>
+  <path class="flow" d="M615 170 L 615 205"/>
+  <path class="flow" d="M110 205 L 110 234" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M290 205 L 290 234" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M470 205 L 470 234" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M620 205 L 620 234" marker-end="url(#ch01c)"/>
+
+  <rect class="box" x="40" y="240" width="140" height="40" rx="8"/><text class="lbl" x="110" y="258" text-anchor="middle">lib/supabase</text><text class="lbl-sm" x="110" y="273" text-anchor="middle">five clients</text>
+  <rect class="box" x="200" y="240" width="180" height="40" rx="8"/><text class="lbl" x="290" y="258" text-anchor="middle">lib/astrology</text><text class="lbl-sm" x="290" y="273" text-anchor="middle">imports nothing in lib</text>
+  <rect class="box" x="400" y="240" width="140" height="40" rx="8"/><text class="lbl" x="470" y="258" text-anchor="middle">lib/anthropic.ts</text><text class="lbl-sm" x="470" y="273" text-anchor="middle">server-only</text>
+  <rect class="box" x="570" y="240" width="100" height="40" rx="8"/><text class="lbl" x="620" y="258" text-anchor="middle">lib/push</text><text class="lbl-sm" x="620" y="273" text-anchor="middle">server-only</text>
+  <rect class="box-alt" x="700" y="240" width="100" height="40" rx="8"/><text class="lbl" x="750" y="258" text-anchor="middle">lib/geo.ts</text><text class="lbl-sm" x="750" y="273" text-anchor="middle">both sides</text>
+
+  <rect class="box-alt" x="40" y="320" width="140" height="34" rx="8"/><text class="lbl" x="110" y="342" text-anchor="middle">lib/env.ts</text>
+  <path class="flow" d="M110 280 L 110 314" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M470 280 L 470 296 L 150 296 L 150 314" marker-end="url(#ch01c)"/>
+  <path class="flow" d="M620 280 L 620 306 L 165 306 L 165 314" marker-end="url(#ch01c)"/>
+
+  <text class="lbl-sm" x="40" y="372">Arrows read "imports". The bus means any module above it may import any module below it; nothing imports sideways within a row.</text>
+</svg>
+<figcaption>
+  Four tiers. The feature modules in the second row never import one another; each reaches down to
+  the engine, a Supabase client, the model client or the push client. The leaf row imports only
+  <code>lib/env.ts</code>, and <code>lib/astrology</code> imports nothing from <code>lib</code>
+  at all, which is what makes it testable with no environment and no network.
+</figcaption>
+</figure>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Module</th><th>Owns</th><th>Imports from <code>lib</code></th><th>Runs where</th></tr></thead>
+<tbody>
+<tr><td><code>astrology/</code></td><td>The engine: chart, dasha, derived facts, doshas, transits, numerology, the prompt builders, constants and types</td><td>Only itself; externally luxon and swisseph-wasm</td><td>Server. Pure functions apart from the WASM call in <code>chart.ts</code></td></tr>
+<tr><td><code>timeline/</code></td><td>The dasha life map, the plain-language meaning per period, extraction of moments from chat history</td><td><code>astrology</code>, <code>anthropic</code>, <code>supabase/route</code></td><td>Server. <code>explain</code>, <code>extract</code>, <code>load</code> are <span class="tag">server-only</span>; <code>build</code> and <code>describe</code> are pure</td></tr>
+<tr><td><code>alerts/</code></td><td>The twice-daily reading, the dosha sweep, the copy the model writes, the local-time slot rule</td><td><code>astrology</code>, <code>anthropic</code>, <code>supabase/admin</code>, <code>push</code></td><td>Server, cron only. <code>slots.ts</code> is pure</td></tr>
+<tr><td><code>data/</code></td><td>Reads and writes of <code>birth_profiles</code>, conversations and messages; the history window a reading sees</td><td><code>astrology</code>, <code>supabase/server</code>, <code>supabase/route</code></td><td>Server</td></tr>
+<tr><td><code>supabase/</code></td><td>Five clients: browser, server (cookies), middleware, route (bearer or cookies), admin (service role)</td><td><code>env</code></td><td><code>client.ts</code> is <code>"use client"</code>; <code>route.ts</code> and <code>admin.ts</code> are <span class="tag">server-only</span></td></tr>
+<tr><td><code>pdf/</code></td><td>The kundli PDF, drawn with pdf-lib</td><td><code>astrology/constants</code>, <code>astrology/types</code></td><td>Server, <span class="tag">server-only</span></td></tr>
+<tr><td><code>push/</code></td><td>The APNs client: provider token, HTTP/2 sessions, dead-token detection</td><td><code>env</code></td><td>Server, <span class="tag">server-only</span></td></tr>
+<tr><td><code>admin/</code></td><td><code>requireAdmin</code> and the admin queries</td><td><code>supabase/server</code>, <code>supabase/admin</code></td><td>Server, <span class="tag">server-only</span></td></tr>
+<tr><td><code>anthropic.ts</code></td><td>Model names, the effort setting, one cached client</td><td><code>env</code></td><td>Server, <span class="tag">server-only</span></td></tr>
+<tr><td><code>env.ts</code></td><td>Every environment variable, as a function that throws when a required one is missing</td><td>nothing</td><td>Server, <span class="tag">server-only</span></td></tr>
+<tr><td><code>geo.ts</code></td><td>Open-Meteo search and <code>resolveTimezone</code></td><td>nothing</td><td>Both. <code>IntakeForm</code> calls <code>resolveTimezone</code> in the browser</td></tr>
+</tbody></table></div>
+
+<p>
+  The <code>server-only</code> package is the one mechanical guard. Fourteen files import it, and
+  a client component that pulls any of them in fails the build rather than shipping a secret.
+  Client components are few and shallow: <code>Chat.tsx</code>, <code>AppShell.tsx</code>,
+  <code>IntakeForm.tsx</code>, <code>PlaceAutocomplete.tsx</code>, <code>AdminShell.tsx</code>
+  and the marketing pieces. Between them they import exactly two things from <code>lib</code>:
+  the <code>ChatMode</code> and <code>GeoResult</code> types, and the <code>resolveTimezone</code>
+  function. Everything else a page needs is fetched by a server component or a server action.
+</p>
+
+<h4>The iOS side</h4>
+
+<p>
+  <code>mobile/project.yml</code> declares three targets and is the whole rule book for the phone.
+  The Xcode project it generates is ignored by git. The app target depends on the
+  <code>supabase-swift</code> package and on the widget target. The widget target is the
+  interesting one, because its source list is not a folder but six named files:
+</p>
+
+<pre><code># mobile/project.yml
+SancharaWidgets:
+  type: app-extension
+  sources:
+    - path: SancharaWidgets
+    # Compiled into the extension as well as the app.
+    - path: Sanchara/Sources/Design/Theme.swift
+    - path: Sanchara/Sources/Design/ReadingCard.swift
+    - path: Sanchara/Sources/Services/ChartCache.swift
+    - path: Sanchara/Sources/Features/Kundli/ChartData.swift
+    - path: Sanchara/Sources/Features/Intake/BirthProfileDetails.swift
+    - path: Sanchara/Sources/Intents/OpenKundliIntent.swift</code></pre>
+
+<p>
+  The comment on that list says each file is dependency-free on purpose, because pulling in
+  anything that imports Supabase would drag the whole client into a process that has no session
+  to use it with. Those six files import only SwiftUI, Foundation and AppIntents. That is the iOS
+  equivalent of the <code>server-only</code> marker: the widget extension is a process with no session, so the
+  only code that may compile into it is code that needs none. Everything under
+  <code>Features/</code> and <code>Services/</code> that talks to Supabase or to the API stays in
+  the app target. The test target holds fourteen XCTest files and depends on the app.
+</p>
+
+<h3 id="s1-4"><span class="num">1.4</span><span>Two clients, one API</span></h3>
+
+<p>
+  The web app and the iOS app do not use the server the same way, and the difference is worth
+  stating plainly because it decides where a feature's code lives.
+</p>
+
+<p>
+  <strong>The web app mostly does not call <code>/api</code>.</strong> Its pages are React server
+  components that import <code>lib/data</code> directly and render with the result; its writes are
+  server actions (<code>authenticate</code>, <code>sendMagicLink</code>, <code>saveIntake</code>,
+  <code>signOut</code>) that a browser form posts to. The browser itself touches three routes:
+  <code>POST /api/chat</code> from <code>Chat.tsx</code>, because a streaming reading needs a
+  response body that grows; <code>GET /api/kundli</code> as a plain link, because it returns a
+  PDF; and <code>GET /api/geocode</code> from <code>PlaceAutocomplete.tsx</code> as the user types
+  a birthplace.
+</p>
+
+<p>
+  <strong>The iOS app has no server components and no server actions</strong>, so everything it
+  cannot do itself goes through <code>SancharaAPI</code> in
+  <code>mobile/Sanchara/Sources/Services/SancharaAPI.swift</code>. Its own header comment says why
+  the API exists from the phone's point of view: it "holds everything that cannot ship in a client
+  binary: the Anthropic key, the Swiss Ephemeris, and PDF generation." What the phone can do
+  itself, it does directly against Supabase with the anon key and the user's session: it reads
+  <code>birth_profiles</code>, <code>conversations</code>, <code>messages</code>,
+  <code>alerts</code> and <code>daily_readings</code> over PostgREST and marks alerts and readings
+  as read, which the RLS policies in migrations 0004 and 0005 allow.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Route</th><th>Method</th><th>Called by</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>/api/chat</code></td><td>POST</td><td>Browser, iOS</td><td>Streams a reading as plain UTF-8 text; the conversation id travels in an <code>x-conversation-id</code> header</td></tr>
+<tr><td><code>/api/kundli</code></td><td>GET</td><td>Browser, iOS</td><td>The kundli PDF</td></tr>
+<tr><td><code>/api/profile</code></td><td>POST</td><td>iOS</td><td>Birth-detail intake; the web uses the <code>saveIntake</code> server action for the same work</td></tr>
+<tr><td><code>/api/geocode</code></td><td>GET</td><td>Browser, iOS</td><td>Birthplace search with the timezone attached; public, no token</td></tr>
+<tr><td><code>/api/timeline</code></td><td>GET</td><td>iOS</td><td>The dasha life map with pinned moments and per-period meanings</td></tr>
+<tr><td><code>/api/timeline/explain</code></td><td>POST</td><td>iOS</td><td>Writes the meaning of every period in one model call; <code>maxDuration</code> 90</td></tr>
+<tr><td><code>/api/timeline/scan</code></td><td>POST</td><td>iOS</td><td>Proposes moments from the user's own messages; writes nothing; <code>maxDuration</code> 120</td></tr>
+<tr><td><code>/api/life-events</code></td><td>POST, DELETE</td><td>iOS</td><td>Pins and unpins moments, up to 50 in one call</td></tr>
+<tr><td><code>/api/devices</code></td><td>POST, DELETE</td><td>iOS</td><td>APNs token registration, upserted on the token</td></tr>
+<tr><td><code>/api/account</code></td><td>DELETE</td><td>iOS</td><td>Deletes the calling user; App Store guideline 5.1.1(v)</td></tr>
+<tr><td><code>/api/cron/daily</code></td><td>GET</td><td>Vercel Cron</td><td>Readings then the dosha sweep; <code>maxDuration</code> 300</td></tr>
+<tr><td><code>/api/cron/alerts</code></td><td>GET</td><td>Not in <code>vercel.json</code></td><td>The dosha sweep alone, behind the same secret; <code>.env.example</code> still names it</td></tr>
+</tbody></table></div>
+
+<p>
+  Every route except <code>geocode</code> and the two cron routes opens the same way: resolve a
+  Supabase client for the caller, ask it for the user, and return 401 when there is none. The user
+  id then comes from that verified session and never from the request body. Every route that runs
+  the ephemeris or the model declares <code>runtime = "nodejs"</code>, and
+  <code>next.config.ts</code> lists <code>swisseph-wasm</code> in <code>serverExternalPackages</code>,
+  keeping it external so that Next bundles the <code>.wasm</code> binary for the server runtime.
+</p>
+
+<h3 id="s1-5"><span class="num">1.5</span><span>Two auth channels</span></h3>
+
+<p>
+  Both clients sign in with Supabase Auth, but they carry the session differently, and
+  <code>lib/supabase/</code> exists mainly to make that difference invisible to route handlers.
+</p>
+
+<h4>Web: cookies</h4>
+
+<p>
+  The browser gets a session through a server action. Password sign-in, sign-up, the magic link
+  and the confirmation resend all live in <code>app/(auth)/actions.ts</code>; the email links land
+  on <code>app/auth/callback/route.ts</code>, which calls <code>exchangeCodeForSession</code> and
+  redirects to <code>/app</code>. From then on the session is a set of cookies that
+  <code>@supabase/ssr</code> manages, and two pieces of code keep them fresh.
+  <code>middleware.ts</code> runs <code>updateSession</code> from
+  <code>lib/supabase/middleware.ts</code> on every request that is not a static asset, a Next
+  internal or the <code>.well-known</code> folder. That function calls <code>auth.getUser()</code>,
+  which refreshes the cookies as a side effect, and then redirects an anonymous request for
+  <code>/app</code> to <code>/login</code> and for <code>/admin</code> (other than
+  <code>/admin/login</code>) to <code>/admin/login</code>.
+</p>
+
+<p>
+  <code>lib/supabase/server.ts</code> is the client server components and actions use. Its
+  <code>setAll</code> is wrapped in a try block whose comment explains the design: a server
+  component cannot set cookies, so the write is ignored there, and the middleware is what
+  actually refreshes them. Reading the two files together is the fastest way to understand the
+  web session.
+</p>
+
+<h4>iOS: a bearer token</h4>
+
+<p>
+  The phone never sees a cookie. <code>supabase-swift</code> signs in directly, with a password,
+  with a six-digit emailed code (<code>signInWithOTP</code> then <code>verifyOTP</code>), or with
+  Sign in with Apple, where Supabase verifies Apple's identity token through
+  <code>signInWithIdToken</code> and the nonce the app generated. The session persists in the
+  Keychain, which <code>Supa</code> in <code>Services/Supabase.swift</code> notes is the library's
+  default on Apple platforms. When the app calls the API it reads the current access token and
+  puts it in an <code>Authorization: Bearer</code> header.
+</p>
+
+<pre><code>// lib/supabase/route.ts
+export async function createRouteSupabase(request: Request): Promise&lt;Db&gt; {
+  const token = bearerTokenFrom(request);
+  if (!token) return createServerSupabase();
+
+  return createClient(env.supabaseUrl(), env.supabaseAnonKey(), {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}</code></pre>
+
+<p>
+  This is the seam. A route handler calls <code>createRouteSupabase(request)</code> and gets back
+  a <code>Db</code>, which is just <code>SupabaseClient</code>; the comment above the type notes
+  that both the cookie client and the bearer client are instances of it, so every function in
+  <code>lib/data</code> and <code>lib/timeline</code> accepts either. With a bearer header the
+  client forwards the JWT on every PostgREST call and Row Level Security evaluates as that user.
+  Without one it falls through to the cookie client and the web is unchanged.
+  <code>bearerTokenFrom</code> is small enough to be fully specified by five tests in
+  <code>lib/supabase/route.test.ts</code>: it accepts a lowercase scheme, and returns null for a
+  missing header, a non-bearer scheme, or an empty token.
+</p>
+
+<h4>Why the anon key ships in the binary</h4>
+
+<p>
+  <code>mobile/scripts/make-config.sh</code> reads exactly two values from <code>.env.local</code>,
+  <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, and writes
+  them into a generated, git-ignored <code>AppConfig.swift</code> along with the API base URL. Its
+  header states the rule: these are "designed to ship in clients (RLS is the security boundary,
+  not secrecy)", and the service-role and Anthropic keys "are never read here and must never reach
+  the app binary." The anon key is safe to publish because it grants nothing by itself. Every
+  one of the eleven tables in <code>supabase/migrations/</code> has
+  <code>enable row level security</code>, and every policy is keyed on <code>auth.uid()</code>, so
+  an anon-key request without a valid user JWT can read no rows, and one with a JWT can read only
+  that user's rows. The same key is in every web page's JavaScript
+  through <code>lib/supabase/client.ts</code>. Nothing about the phone is special.
+</p>
+
+<pre><code>-- supabase/migrations/0001_init.sql
+create policy "birth self" on public.birth_profiles
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());</code></pre>
+
+<h4>Admin: a third door, same key</h4>
+
+<p>
+  The admin area at <code>/admin</code> has its own login page but not its own auth system. A user
+  is an admin if a row for them exists in <code>admins</code>, a table with no insert policy and
+  therefore no self-service path; <code>requireAdmin</code> in <code>lib/admin/guard.ts</code>
+  checks it with the service-role client and redirects otherwise. Admin pages then read other
+  users' transcripts with that same client, which bypasses RLS, and this is the only place a page
+  does so.
+</p>
+
+<h3 id="s1-6"><span class="num">1.6</span><span>The privacy boundary</span></h3>
+
+<p>
+  The boundary in the system-context diagram is a red dashed line between the clients and Vercel.
+  In code it is <code>lib/env.ts</code>. The file begins with <code>import "server-only"</code>,
+  and every variable is a function, not a constant, so a missing required value throws at the
+  moment it is used rather than at import.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Variable</th><th>Leaves the server?</th><th>Read by</th></tr></thead>
+<tbody>
+<tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>Yes, by design: browser bundle and iOS binary</td><td><code>lib/supabase/client.ts</code>, <code>make-config.sh</code>, and the server clients</td></tr>
+<tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Never</td><td><code>lib/supabase/admin.ts</code> only</td></tr>
+<tr><td><code>ANTHROPIC_API_KEY</code></td><td>Never</td><td><code>lib/anthropic.ts</code> only</td></tr>
+<tr><td><code>CRON_SECRET</code></td><td>Never; Vercel sends it, the cron routes compare it</td><td><code>app/api/cron/*/route.ts</code></td></tr>
+<tr><td><code>APNS_KEY_ID</code>, <code>APNS_TEAM_ID</code>, <code>APNS_BUNDLE_ID</code>, <code>APNS_PRIVATE_KEY</code></td><td>Never; optional, and pushes are skipped when absent</td><td><code>lib/push/apns.ts</code></td></tr>
+</tbody></table></div>
+
+<p>
+  The service-role client deserves its own rule, and <code>lib/supabase/admin.ts</code> states it
+  in one line: "Bypasses RLS. Only ever import from server code behind an admin auth check." In
+  practice it is imported from exactly the places that need to act as nobody in particular: the
+  two cron modules, the admin queries, and three writes that RLS would correctly refuse. Avatar
+  upload writes to the <code>avatars</code> bucket with it. Account deletion calls
+  <code>auth.admin.deleteUser</code> with it, for the user id taken from the caller's own session.
+  And device registration upserts <code>device_tokens</code> with it because, as the route's
+  comment explains, a phone handed from one account to another has to change owner, and the
+  owner-only policy would refuse that update. In each case the decision of <em>who</em> was made
+  by the caller's own client first.
+</p>
+
+<p>
+  What crosses the boundary in the other direction is also bounded. The model receives a first
+  name, the computed chart and derived facts, the numerology numbers, today's transits, the
+  timeline description, and the conversation. The extraction route sends only the user's own
+  messages, never the assistant's, and writes nothing until the user confirms; its comment calls
+  filing an inferred death or divorce onto someone's timeline "a bad thing to be wrong about."
+  <code>life_events</code> is the one table holding what a person said about their own life
+  rather than what the ephemeris computed, and migration 0006 gives it no admin read policy for
+  that reason.
+</p>
+
+<div class="note caution"><b>What is not enforced</b>
+The <code>server-only</code> marker is on fourteen files, but not on
+<code>lib/supabase/server.ts</code> or <code>lib/data/*</code>. They are safe today because they
+import <code>next/headers</code> or a server-only module and would fail in a client bundle anyway.
+A new file in <code>lib/data</code> that imported neither would not be caught. Add the marker
+when you add the file.
+</div>
+
+<h3 id="s1-7"><span class="num">1.7</span><span>What lives on the phone</span></h3>
+
+<p>
+  Sanchara is not a local-first app; the server holds the truth and the phone reads it. But one
+  piece is deliberately local, and it exists because three
+  processes on the phone need the chart and only one of them can sign in.
+  <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code> opens with that argument: the app,
+  the App Intents extension Siri runs, and the widget timeline provider all need the data, and
+  neither of the last two can hold a Supabase session or wait on a network round trip. So the app
+  writes and the others only read.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/Services/ChartCache.swift
+static let appGroup = "group.com.shivvyas.astra"
+
+private func write&lt;T: Encodable&gt;(_ value: T, to name: String) {
+    queue.async {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        try? data.write(to: self.url(name), options: [.atomic, .completeFileProtection])
+    }
+}</code></pre>
+
+<p>
+  The cache is four JSON files in the App Group container, <code>chart</code>,
+  <code>details</code>, <code>reading</code> and <code>period</code>, plus one short string in the
+  App Group's <code>UserDefaults</code> suite, <code>pendingDestination</code>, which an intent or
+  a Control Center button writes milliseconds before the app launches and the app drains once.
+  Writes are atomic and use complete file protection; reads and writes go through one serial
+  queue. If the container is missing, which happens in a simulator build without provisioning,
+  the cache falls back to the caches directory and simply stops sharing with the widget.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>File</th><th>Written by</th><th>Read by</th></tr></thead>
+<tbody>
+<tr><td><code>chart</code></td><td><code>ProfileStore.loadChart</code> after every successful fetch of <code>birth_profiles.chart</code></td><td><code>ProfileStore.load</code> on launch, the kundli, <code>OnDeviceReasoner</code>, the intents' entities, <code>PeriodWidget</code> as a fallback for dates</td></tr>
+<tr><td><code>details</code></td><td><code>ProfileStore.load</code></td><td><code>IntentData.details()</code>, for the intents</td></tr>
+<tr><td><code>reading</code></td><td><code>DailyStore</code> and <code>IntentData</code> when a reading is fetched</td><td><code>ReadingWidget</code>, <code>TodaysReadingIntent</code>, while <code>isFresh</code> (today, or under 24 hours old)</td></tr>
+<tr><td><code>period</code></td><td><code>TimelineStore</code> after each timeline load</td><td><code>PeriodWidget</code></td></tr>
+<tr><td><code>pendingDestination</code></td><td><code>OpenKundliIntent</code>, <code>DeepLink</code></td><td><code>DeepLink.drain</code> on launch and every return to the foreground</td></tr>
+</tbody></table></div>
+
+<p>
+  Two consequences follow. First, the app launches offline. <code>ProfileStore.load</code> reads
+  the cached chart and details before it fetches, and if the fetch fails but both are present it
+  sets the state to <code>ready</code> anyway; only a device that has never loaded a chart sees the
+  failure screen. The chart is about 4 KB and changes only when birth details are re-saved, so a
+  stale cache is almost never wrong. Second, the widgets never fetch. <code>ReadingWidget</code>
+  asks to be rebuilt at the next six o'clock, morning or evening, because that is when a new
+  reading can exist; <code>PeriodWidget</code> asks for midnight, because a mahadasha changes about
+  once a year but the progress bar should move by a day. <code>WidgetRefresh</code> nudges
+  WidgetKit when the app itself has just received a new reading or a new period meaning, and only
+  then, because reloads are rate-limited.
+</p>
+
+<p>
+  The cache holds nothing secret, no token and no session, but a birth chart is personal, so
+  <code>AuthStore.signOut</code> unregisters the push token, signs out, and then calls
+  <code>ChartCache.shared.clear()</code>. The comment there says why: the files would otherwise
+  outlive the session, and the widget would go on showing the previous person's chart to whoever
+  signs in next.
+</p>
+
+<div class="rail" data-hue="system">
+<h4>On-device answers</h4>
+<p>
+  The cached chart is also what makes <code>OnDeviceReasoner</code> possible. Questions that are
+  lookups, where a planet sits, what is in the seventh house, which dasha is running, are routed
+  to Apple's on-device model with the chart exposed as a tool, and only interpretive questions
+  escalate to <code>/api/chat</code>. That is the bet from <a href="#s1-2">1.2</a> applied on the
+  phone: the model looks a value up in a computed table; it is never asked to produce the table.
+</p>
+</div>
+
+<h3 id="s1-8"><span class="num">1.8</span><span>Time and the twice-daily job</span></h3>
+
+<p>
+  <code>vercel.json</code> schedules <code>/api/cron/daily</code> twice, at 02:30 and 15:30 UTC.
+  Vercel sends <code>Authorization: Bearer $CRON_SECRET</code> with each call, and the route
+  refuses everything when the secret is unset rather than expose a job that spends model tokens
+  to anyone who finds the path. It then runs two functions in order,
+  <code>runDuePredictions</code> and <code>runDailyAlerts</code>, each over up to 500 profiles that
+  have a chart, and returns both summaries as JSON. <code>maxDuration</code> is 300 seconds.
+</p>
+
+<p>
+  The route's own comment carries the design: "Both halves are decided per user rather than per
+  run." The schedule is in UTC, but nothing about a user's reading is. Each user's
+  <code>timezone</code> column, captured at intake from their birthplace, sets a local clock, and
+  from that clock <code>lib/alerts/slots.ts</code> picks the slot:
+</p>
+
+<pre><code>// lib/alerts/slots.ts
+export const NIGHT_STARTS_AT_HOUR = 14;
+
+export function slotForHour(localHour: number): Slot {
+  return localHour &lt; NIGHT_STARTS_AT_HOUR ? "morning" : "night";
+}
+
+/** Whether this user still needs the reading for the slot they are currently in. */
+export function isSlotDue(localHour: number, alreadyWritten: Slot[]): Slot | null {
+  const slot = slotForHour(localHour);
+  return alreadyWritten.includes(slot) ? null : slot;
+}</code></pre>
+
+<p>
+  The stored <code>for_date</code> is the user's local date, so "my reading for the 26th" means
+  their 26th. And <code>daily_readings</code> carries <code>unique (user_id, for_date, slot)</code>,
+  which migration 0005 describes as "what makes the job safe to run more often than expected, or
+  twice by accident." <code>writeDueReading</code> reads the slots already written for today,
+  returns early when the current one exists, and if two runs race past that check the insert
+  fails with Postgres error <code>23505</code>, which the code treats as "already done" rather than
+  as an error. That is the whole idempotency argument for the readings: extra runs find nothing to
+  do, and a race costs one wasted model call, never a duplicate row or a duplicate push.
+</p>
+
+<p>
+  The dosha sweep is idempotent for a different reason. <code>runAlertsForUser</code> recomputes
+  today's sky at the user's birthplace with the same <code>computeChart</code> the chat uses,
+  detects the conditions it forms against the natal chart, and diffs them against the open rows in
+  <code>transit_conditions</code>, where a row is open while <code>ended_on</code> is null. What
+  is in the new set and not the old has started; what is in the old and not the new has ended;
+  what is in both is ignored, which is what stops a standing Sade Sati from becoming a daily nag.
+  A partial unique index, <code>transit_conditions_open_signature</code> on
+  <code>(user_id, signature) where ended_on is null</code>, guarantees one open row per condition
+  however often the sweep runs. Only <code>caution</code> and <code>warning</code> severities
+  reach a lock screen, at most six per alert, and a natal condition is never announced after a
+  user's first sweep, because a natal condition cannot start or end and a change in one is an
+  artifact of the computation changing. <code>deriveHadNatalRows</code> fails closed on a count
+  error for exactly that reason, and its comment names the bug it prevents: pushing "Mangal Dosha
+  has begun" to someone whose chart has not changed since birth.
+</p>
+
+<p>
+  Pushes go out through <code>ApnsClient</code>, which keeps one HTTP/2 session per environment
+  for the life of a run and reuses a provider token for 45 minutes. A token Apple reports as
+  unregistered is deleted from <code>device_tokens</code> on the spot, since Apple only says a
+  token is dead when you use it. When APNs is not configured the readings and alerts are still
+  written; the phone reads them from the tables and the widget from the cache, and only the
+  notification is missing.
+</p>
+
+<div class="note good"><b>The cost shape</b>
+Each reading's system prompt has two parts. The chart block is identical for a user on every run
+and is sent with a one-hour cache marker, so a morning and night reading that land within the
+hour share it; the today block changes daily and is not cached. The readings run on
+<code>READING_MODEL</code> at low effort. The alert copy in <code>lib/alerts/compose.ts</code> runs
+on <code>DEEP_READING_MODEL</code>, also at low effort.
+</div>
+
+<h3 id="s1-9"><span class="num">1.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/env.ts</code>, for the boundary. Twenty lines, and every secret in the system is one of its functions.</li>
+  <li><code>lib/supabase/route.ts</code>, then <code>server.ts</code> and <code>middleware.ts</code>, for the two auth channels meeting in one <code>Db</code> type.</li>
+  <li><code>app/api/chat/route.ts</code>, for the bet in practice: watch what is computed before the model is called.</li>
+  <li><code>lib/astrology/chart.ts</code>, for the engine, and <code>lib/data/birthProfile.ts</code>, for where its output lives and how it upgrades itself.</li>
+  <li><code>mobile/project.yml</code>, for the three targets and the six files the widget may compile.</li>
+  <li><code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>, then <code>SancharaAPI.swift</code> and <code>Supabase.swift</code>, for what the phone keeps, what it asks the server for, and what it reads directly.</li>
+  <li><code>lib/alerts/slots.ts</code>, <code>predictions.ts</code> and <code>run.ts</code>, with migrations 0004 and 0005 open beside them, for the two idempotency arguments.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why is the anon key safe to ship in the iOS binary?</p>
+<p class="a">Because every table has Row Level Security with an owner-only policy, so the key grants nothing without a user's JWT and only that user's rows with one. The same key is in every web page.</p>
+<p class="q">How does a route handler tell a web caller from an iOS caller?</p>
+<p class="a">It does not need to. <code>createRouteSupabase</code> builds a bearer client when an <code>Authorization: Bearer</code> header is present and falls through to the cookie client otherwise; both are a <code>SupabaseClient</code>.</p>
+<p class="q">Name the three writes that use the service-role client on behalf of a signed-in user, and what they have in common.</p>
+<p class="a">Avatar upload to Storage, account deletion, and device-token registration. In each the user id comes from the caller's verified session first; the admin client only performs a write RLS would refuse.</p>
+<p class="q">Which files may the widget extension compile, and what do they have in common?</p>
+<p class="a">The six named in <code>project.yml</code>: <code>Theme</code>, <code>ReadingCard</code>, <code>ChartCache</code>, <code>ChartData</code>, <code>BirthProfileDetails</code> and <code>OpenKundliIntent</code>. None imports Supabase or the API client, because the extension has no session.</p>
+<p class="q">The cron runs at 02:30 and 15:30 UTC. Why does a user in any timezone still get a morning and a night reading?</p>
+<p class="a">The slot is chosen from the user's local hour (before 14:00 is morning), the date stored is their local date, and the unique index on <code>(user_id, for_date, slot)</code> means a run that finds the slot written does nothing.</p>
+<p class="q">What makes the dosha sweep safe to run twice in a day?</p>
+<p class="a">It diffs today's conditions against the open rows in <code>transit_conditions</code>; a second run finds the same set open, so nothing has started or ended, and no alert is written. The partial unique index enforces one open row per signature.</p>
+<p class="q">Where does a stale chart get fixed, and why is there no migration for it?</p>
+<p class="a">In <code>ensureCurrentChart</code>, on read. Both traditions are recomputed and rewritten the first time the owner uses the app after a schema change, so no backfill job has to touch every row.</p>
+</div>
+</section>

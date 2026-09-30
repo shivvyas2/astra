@@ -1,0 +1,694 @@
+<section class="chapter" id="ch16" data-hue="safety">
+<p class="chapter-kicker">Chapter sixteen</p>
+<h2><span class="num">16</span><span>What breaks, and how it is handled</span></h2>
+
+<p class="lede">
+  A catalogue of the ways the system fails, and for each one the code that meets it. The
+  organising rule is that a failure should cost the user the least thing it can: a push rather
+  than a reading, a reading rather than a chart, a chart upgrade rather than a request, and never
+  a wrong number presented as a right one.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. Every
+  item below was read from the file it names, and every test named exists in the repository under
+  that name. Where a failure mode has no test, the item says "untested" rather than implying one.
+  Items are grouped by the layer they belong to: configuration, authentication, the model, place
+  and time, stored data, push, the device, untrusted text, and deletion. A table at the end puts
+  the whole catalogue on one page.
+</p>
+
+<h3 id="s16-1"><span class="num">16.1</span><span>Where the guards sit</span></h3>
+
+<p>
+  Three kinds of request enter the system and each passes a fixed sequence of guards. A user
+  request, from the web app or the iOS app, reaches a route handler, which builds a Supabase
+  client for the caller (reading two environment variables as it does so), asks that client who
+  the user is, validates the body, and only then touches the database and the external services.
+  A scheduled request from Vercel Cron passes one guard, the cron secret, and then runs under the
+  service-role client with its own guards against repetition. A request on the phone from a
+  widget, a Siri intent or the chat's local router never leaves the device unless the on-device
+  path cannot answer, in which case it becomes the first kind.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 325" role="img" aria-label="Three lanes. A user request passes env.ts, then getUser, then input validation, then the data layer under RLS, then the model and ephemeris. A scheduled job passes the CRON_SECRET check, then the admin client, then the unique index and signature diff, then the model fallback, then the push configuration check. On the device, a widget or Siri reads the ChartCache and an on-device reasoner escalates to the chat route when it cannot answer.">
+  <defs>
+    <marker id="ch16a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch16b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">USER REQUEST</text>
+  <rect class="box" x="20" y="36" width="125" height="44" rx="8"/><text class="lbl" x="82" y="54" text-anchor="middle">web or iOS</text><text class="lbl-sm" x="82" y="72" text-anchor="middle">cookie or bearer</text>
+  <rect class="box-alt" x="155" y="36" width="125" height="44" rx="8"/><text class="lbl" x="217" y="54" text-anchor="middle">env.ts</text><text class="lbl-sm" x="217" y="72" text-anchor="middle">throws: 500</text>
+  <rect class="box-hot" x="290" y="36" width="125" height="44" rx="8"/><text class="lbl" x="352" y="54" text-anchor="middle">auth.getUser</text><text class="lbl-hot" x="352" y="72" text-anchor="middle">no user: 401</text>
+  <rect class="box" x="425" y="36" width="125" height="44" rx="8"/><text class="lbl" x="487" y="54" text-anchor="middle">validate body</text><text class="lbl-sm" x="487" y="72" text-anchor="middle">bad input: 400</text>
+  <rect class="box" x="560" y="36" width="125" height="44" rx="8"/><text class="lbl" x="622" y="54" text-anchor="middle">lib/data + RLS</text><text class="lbl-sm" x="622" y="72" text-anchor="middle">chart upgrade on read</text>
+  <rect class="box" x="695" y="36" width="145" height="44" rx="8"/><text class="lbl" x="767" y="54" text-anchor="middle">model, ephemeris</text><text class="lbl-sm" x="767" y="72" text-anchor="middle">degrade, never invent</text>
+  <path class="flow" d="M145 58 L 149 58" marker-end="url(#ch16a)"/>
+  <path class="flow" d="M280 58 L 284 58" marker-end="url(#ch16a)"/>
+  <path class="flow-hot" d="M415 58 L 419 58" marker-end="url(#ch16b)"/>
+  <path class="flow" d="M550 58 L 554 58" marker-end="url(#ch16a)"/>
+  <path class="flow" d="M685 58 L 689 58" marker-end="url(#ch16a)"/>
+
+  <text class="lbl-sm" x="20" y="124">SCHEDULED JOB</text>
+  <rect class="box" x="20" y="136" width="125" height="44" rx="8"/><text class="lbl" x="82" y="154" text-anchor="middle">Vercel Cron</text><text class="lbl-sm" x="82" y="172" text-anchor="middle">02:30, 15:30 UTC</text>
+  <rect class="box-hot" x="155" y="136" width="125" height="44" rx="8"/><text class="lbl" x="217" y="154" text-anchor="middle">CRON_SECRET</text><text class="lbl-hot" x="217" y="172" text-anchor="middle">unset or wrong: 401</text>
+  <rect class="box-alt" x="290" y="136" width="125" height="44" rx="8"/><text class="lbl" x="352" y="154" text-anchor="middle">admin client</text><text class="lbl-sm" x="352" y="172" text-anchor="middle">service role, no RLS</text>
+  <rect class="box" x="425" y="136" width="125" height="44" rx="8"/><text class="lbl" x="487" y="154" text-anchor="middle">slot + signature</text><text class="lbl-sm" x="487" y="172" text-anchor="middle">repeat run: nothing</text>
+  <rect class="box" x="560" y="136" width="125" height="44" rx="8"/><text class="lbl" x="622" y="154" text-anchor="middle">compose</text><text class="lbl-sm" x="622" y="172" text-anchor="middle">model fails: fallback</text>
+  <rect class="box" x="695" y="136" width="145" height="44" rx="8"/><text class="lbl" x="767" y="154" text-anchor="middle">isPushConfigured</text><text class="lbl-sm" x="767" y="172" text-anchor="middle">absent: write, no push</text>
+  <path class="flow" d="M145 158 L 149 158" marker-end="url(#ch16a)"/>
+  <path class="flow-hot" d="M280 158 L 284 158" marker-end="url(#ch16b)"/>
+  <path class="flow" d="M415 158 L 419 158" marker-end="url(#ch16a)"/>
+  <path class="flow" d="M550 158 L 554 158" marker-end="url(#ch16a)"/>
+  <path class="flow" d="M685 158 L 689 158" marker-end="url(#ch16a)"/>
+
+  <line class="wall" x1="150" y1="30" x2="150" y2="200"/>
+  <text class="lbl-sm" x="20" y="214">left of the line: nothing is trusted</text>
+
+  <text class="lbl-sm" x="20" y="240">ON THE DEVICE</text>
+  <rect class="box" x="20" y="252" width="125" height="44" rx="8"/><text class="lbl" x="82" y="270" text-anchor="middle">widget, Siri, chat</text><text class="lbl-sm" x="82" y="288" text-anchor="middle">no session needed</text>
+  <rect class="box" x="155" y="252" width="190" height="44" rx="8"/><text class="lbl" x="250" y="270" text-anchor="middle">ChartCache (App Group)</text><text class="lbl-sm" x="250" y="288" text-anchor="middle">nil: empty state</text>
+  <rect class="box-alt" x="425" y="252" width="190" height="44" rx="8"/><text class="lbl" x="520" y="270" text-anchor="middle">OnDeviceReasoner</text><text class="lbl-sm" x="520" y="288" text-anchor="middle">unavailable: escalate</text>
+  <rect class="box" x="695" y="252" width="145" height="44" rx="8"/><text class="lbl" x="767" y="270" text-anchor="middle">POST /api/chat</text><text class="lbl-sm" x="767" y="288" text-anchor="middle">the user lane above</text>
+  <path class="flow" d="M145 274 L 149 274" marker-end="url(#ch16a)"/>
+  <path class="flow" d="M345 274 L 419 274" marker-end="url(#ch16a)"/>
+  <path class="flow-dash" d="M615 274 L 689 274" marker-end="url(#ch16a)"/>
+  <text class="lbl-sm" x="20" y="318">Each guard answers before the next runs. Right of the model box a failure degrades the reply, not the request.</text>
+</svg>
+<figcaption>
+  The three lanes and the guard at each step. The hot boxes are the ones that turn a request
+  away; every box to their right handles a failure by giving less rather than by giving up.
+</figcaption>
+</figure>
+
+<h3 id="s16-2"><span class="num">16.2</span><span>Configuration</span></h3>
+
+<h4>A required environment variable is missing</h4>
+
+<p>
+  <strong>Symptom.</strong> The build succeeds and the deployment is green; the first request to a
+  route that needs the variable returns a 500, and the function log carries
+  <code>Missing required env var: NAME</code>.
+</p>
+
+<p>
+  <strong>Handling.</strong> <code>lib/env.ts</code> exposes one function per variable.
+  <code>required()</code> reads <code>process.env</code> when called and throws with the name;
+  <code>optional()</code> returns <code>undefined</code> for an absent or empty value. Because the
+  read happens inside a request, a missing key fails that request rather than the build, which is
+  the property <code>.github/workflows/ci.yml</code> relies on when it runs <code>next build</code>
+  with no secrets at all (section <a href="#s15-6">15.6</a>). The variable is first touched
+  where a client is built: <code>createRouteSupabase</code> reads the URL and anon key,
+  <code>createAdminSupabase</code> the service-role key, <code>anthropic()</code> the model key.
+  In a route handler that throw happens before the handler's own <code>try</code>, so Next.js
+  turns it into a 500. The file also imports <code>server-only</code>, which makes any import from
+  client code a build error rather than a leak; the same alias in <code>vitest.config.ts</code> is
+  what lets tests import it.
+</p>
+
+<p><strong>Test.</strong> Untested. Nothing exercises <code>required()</code> against an empty environment.</p>
+
+<h4>The cron route is called without CRON_SECRET</h4>
+
+<p>
+  <strong>Symptom.</strong> The schedule fires, nothing is written, and the invocation log shows
+  a 401. <code>docs/GO_LIVE_CHECKLIST.md</code> records production in exactly this state for
+  three weeks.
+</p>
+
+<p>
+  <strong>Handling.</strong> Both <code>app/api/cron/daily/route.ts</code> and
+  <code>app/api/cron/alerts/route.ts</code> begin the same way:
+</p>
+
+<pre><code>const secret = env.cronSecret();
+if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+  return new Response("Unauthorized", { status: 401 });
+}</code></pre>
+
+<p>
+  An unset secret and a wrong secret are the same case. The alerts route's comment gives the
+  reason: with no secret the route "refuses everything rather than exposing a job that spends
+  model tokens to anyone who finds the path." Failing closed is deliberate; the cost is that a
+  forgotten variable is silent until someone looks at the logs or the tables, which is what the
+  checklist's <code>curl</code> step exists to do.
+</p>
+
+<p><strong>Test.</strong> Untested. There is no <code>route.test.ts</code> under either cron directory.</p>
+
+<h4>APNs credentials are absent</h4>
+
+<p>
+  <strong>Symptom.</strong> Locally, or on a deployment before the four <code>APNS_*</code>
+  variables were set: readings and alerts appear in the app's inbox but no notification arrives.
+  The cron's JSON reports <code>alerts.pushConfigured: false</code> and
+  <code>pushesSent: 0</code>.
+</p>
+
+<p>
+  <strong>Handling.</strong> <code>isPushConfigured()</code> in <code>lib/push/apns.ts</code>
+  requires all four values. Both jobs write their rows first and call <code>pushToDevices</code>
+  last, and that function returns 0 before it reads any device row when push is not configured.
+  Should <code>ApnsClient.send</code> be reached anyway, it returns
+  <code>{ ok: false, status: 0, reason: "APNsNotConfigured" }</code> without opening a
+  connection. <code>.env.example</code> says the same in one line: "Leave blank locally: alerts
+  are still written, pushes are skipped." The client also survives Apple being unreachable: the
+  HTTP/2 session installs an error handler so a socket failure cannot become an unhandled event,
+  each request has a ten-second timeout, and the provider token is minted once and reused for
+  45 minutes because Apple rate-limits regeneration.
+</p>
+
+<p><strong>Test.</strong> Untested. <code>lib/push/apns.ts</code> has no test file, and the
+<code>pushConfigured</code> flag in the summaries is not asserted anywhere.</p>
+
+<h3 id="s16-3"><span class="num">16.3</span><span>Authentication</span></h3>
+
+<h4>A bad, expired or missing bearer token</h4>
+
+<p>
+  <strong>Symptom.</strong> The iOS app gets a 401 with the body <code>Unauthorized</code> from
+  any authenticated route. The web app, which sends cookies, is unaffected.
+</p>
+
+<p>
+  <strong>Handling.</strong> Two functions in <code>lib/supabase/route.ts</code>.
+  <code>bearerTokenFrom</code> returns <code>null</code> when the header is absent, when the scheme
+  is not <code>bearer</code> (case-insensitively), or when the scheme is present but the token is
+  empty. <code>createRouteSupabase</code> then chooses: no token means the cookie-backed client
+  from <code>lib/supabase/server.ts</code>, so a web caller never notices this code exists; a
+  token means a fresh supabase-js client that forwards it as an <code>Authorization</code> header
+  with <code>persistSession</code> and <code>autoRefreshToken</code> off. The route does not
+  inspect the token itself. It calls <code>supabase.auth.getUser()</code>, and a forged, expired
+  or revoked token yields no user, at which point every mutating route returns 401 before reading
+  the body. For a valid token, Row Level Security evaluates as that user for the rest of the
+  request, which is the reason the anon key can ship in the binary. On the web, pages under
+  <code>/app</code> and <code>/admin</code> (except <code>/admin/login</code>) are redirected to
+  the login page by <code>updateSession</code> in <code>lib/supabase/middleware.ts</code> when
+  there is no user; the API routes still check for themselves.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>lib/supabase/route.test.ts</code>: "extracts the token from an
+  Authorization header", "accepts a lowercase scheme", "returns null when the header is absent",
+  "returns null for a non-bearer scheme", "returns null when the scheme is present but the token
+  is empty". The 401 on a missing user is pinned per route:
+  <code>app/api/devices/route.test.ts</code> "rejects an unauthenticated caller",
+  <code>app/api/account/route.test.ts</code> "returns 401 and deletes nothing when
+  unauthenticated", <code>app/api/profile/route.test.ts</code> "returns 401 when there is no
+  user". An expired token reaching <code>getUser</code> is not itself tested; the tests stub the
+  user as absent.
+</p>
+
+<h3 id="s16-4"><span class="num">16.4</span><span>The model</span></h3>
+
+<h4>The model API fails during a chat reading</h4>
+
+<p>
+  <strong>Symptom.</strong> One of two things, depending on when. Before the stream starts: a
+  500 whose body reads "Something went wrong preparing your reading. Please try again." After it
+  starts: the reply stops and a final line appears in the transcript,
+  <code>[The stars are momentarily clouded. Please try again.]</code>.
+</p>
+
+<p>
+  <strong>Handling.</strong> <code>app/api/chat/route.ts</code> does all its preparation, the
+  profile read, the chart upgrade, the transit chart, the timeline context, the conversation and
+  the history, inside one <code>try</code> that ends in the 500 above. Two of those steps have
+  their own softer handling first: a failed <code>transitChart</code> sets <code>transits</code>
+  to <code>undefined</code> and the reading proceeds without today's sky, and a failed
+  <code>loadTimeline</code> is logged and skipped. <code>lib/astrology/transits.ts</code> also
+  deletes a rejected promise from its per-day cache, with the comment "never cache a failure",
+  so one bad ephemeris call does not poison the day for every user in that degree cell.
+</p>
+
+<p>
+  Once the <code>ReadableStream</code> has been returned the status is already 200 and the
+  <code>x-conversation-id</code> header has been sent, so a mid-stream error cannot change the
+  response code. The stream's <code>start</code> wraps the model call in a
+  <code>try</code>/<code>catch</code>/<code>finally</code>: the catch enqueues the apology line,
+  and the <code>finally</code> saves whatever assistant text had arrived, if any, and closes the
+  stream. A partial reading is therefore kept in the conversation rather than lost, and the
+  user's own message was already saved before the stream began. On iOS,
+  <code>ChatStore.send</code> in <code>mobile/Sanchara/Sources/Features/Chat/ChatStore.swift</code>
+  catches a thrown stream error and puts its description into the still-empty assistant bubble,
+  or into <code>errorMessage</code> if text had already arrived; a <code>CancellationError</code>
+  from a superseding message leaves the transcript as it was.
+</p>
+
+<p>
+  <strong>Tests.</strong> Untested on the chat route; there is no test file under
+  <code>app/api/chat/</code>. The bounded-history rule the route depends on is tested in
+  <code>lib/data/history.test.ts</code>: "keeps everything when it fits the budget", "drops the
+  oldest turns first", "never starts on an assistant turn", "keeps the newest turn even when it
+  alone exceeds the budget", "returns nothing for an empty conversation".
+</p>
+
+<h4>The model fails while composing a reading or an alert</h4>
+
+<p>
+  <strong>Symptom.</strong> A push arrives, or a row appears in the inbox, with plain wording:
+  "Your reading for today" and a sentence inviting the user to open the app, or for a dosha
+  change, "Sade Sati is active" with the condition's own detail. Nothing is skipped.
+</p>
+
+<p>
+  <strong>Handling.</strong> Both composers treat the model as optional. In
+  <code>lib/alerts/compose.ts</code>, <code>composeAlert</code> catches any error, and also
+  treats output that <code>parseAlertCopy</code> cannot read as a failure, then returns
+  <code>fallbackCopy(started, ended)</code>, which names the conditions from the facts the engine
+  already decided. In <code>lib/alerts/predictions.ts</code>, <code>composePrediction</code> does
+  the same and returns <code>fallbackPrediction(slot, firstName)</code>. The parser accepts a
+  delimited <code>TITLE</code>/<code>BODY</code>/<code>DETAIL</code> shape and, failing that, the
+  older JSON shape, because markdown inside a JSON string was found to break two replies in
+  seven. The comment above <code>fallbackPrediction</code> states the rule: "Never leave the slot
+  empty: a plain prompt to open the app still beats silence."
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>lib/alerts/compose.test.ts</code>: "still names the condition when
+  the model call fails", "reads as relief when a condition has ended", "returns null when neither
+  shape is present", "rejects a delimited reply missing its detail", "still accepts a JSON
+  reply", "rejects output missing a field". <code>lib/alerts/predictions.test.ts</code>: "still
+  says something useful when the model call fails".
+</p>
+
+<h3 id="s16-5"><span class="num">16.5</span><span>Place and time</span></h3>
+
+<h4>A birthplace that cannot be geocoded</h4>
+
+<p>
+  <strong>Symptom.</strong> The user types a town and the suggestion list stays empty, or the
+  geocoder is down.
+</p>
+
+<p>
+  <strong>Handling.</strong> <code>geocodePlace</code> in <code>lib/geo.ts</code> returns an empty
+  array for a query under two characters, for a non-OK response from the geocoder, and for a
+  response with no results; it never throws for those. <code>GET /api/geocode</code> is public
+  and returns that array. The web form in <code>components/IntakeForm.tsx</code> offers a second
+  path: "Can't find your birthplace? Enter coordinates manually", which takes a latitude and
+  longitude and derives the timezone in the browser with <code>resolveTimezone</code>, the same
+  <code>tz-lookup</code> call the server uses, so a chart can still be computed for a village no
+  geocoder knows. The iOS form in
+  <code>mobile/Sanchara/Sources/Features/Intake/IntakeView.swift</code> debounces the search by
+  300 milliseconds, turns a thrown request into an empty list with <code>try?</code>, and keeps
+  Save disabled until a place has been picked; it has no manual coordinate entry. On the server,
+  <code>POST /api/profile</code> rejects a missing field or a non-finite coordinate with a 400
+  before any chart is computed, and a chart computation that throws returns a 500 reading "Could
+  not compute your chart. Please try again." The web app's <code>saveIntake</code> server action
+  in <code>app/(app)/app/intake/actions.ts</code> has no equivalent catch: a compute failure there
+  surfaces as a Next.js error page.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>app/api/profile/route.test.ts</code>: "returns 400 when a required
+  field is missing", "returns 400 when lat is not a number", "saves the profile and returns 200
+  for a valid payload". The empty-result paths of <code>geocodePlace</code> are untested;
+  <code>lib/geo.test.ts</code> covers only <code>resolveTimezone</code>.
+</p>
+
+<h4>Timezone edge cases</h4>
+
+<p>
+  <strong>Symptom.</strong> A reading lands at the wrong hour, or a chart is computed for the
+  wrong instant.
+</p>
+
+<p>
+  <strong>Handling, and where it stops.</strong> The timezone is never typed by anyone. It is
+  derived from coordinates by <code>tz-lookup</code>, stored with the profile, and reused: the
+  iOS form's <code>prefill</code> keeps the stored coordinates and zone on edit because "the
+  birthplace has not moved." <code>computeChart</code> in <code>lib/astrology/chart.ts</code>
+  parses <code>birthDate</code> and <code>birthTime</code> with Luxon in that zone and converts
+  to UT before the ephemeris sees them. The scheduled jobs read
+  <code>profile.timezone || "UTC"</code>, decide the slot from the user's local hour with
+  <code>slotForHour</code> (before 14:00 is morning), and store <code>for_date</code> as the
+  user's local date, so "my reading for the 26th" means their 26th. The transit chart is sampled
+  at midday UTC once per day per whole-degree cell of latitude and longitude, which keeps the
+  prompt text stable for the cache; the comment notes only the Moon moves enough within a day to
+  matter. Two edges are not guarded. <code>tzlookup</code> throws
+  <code>RangeError("invalid coordinates")</code> outside the valid range, and the web form's manual
+  mode calls it with any finite numbers, so a latitude of 95 throws in the browser. And Luxon
+  given an unknown zone name returns an invalid <code>DateTime</code>, whose fields are
+  <code>NaN</code>, and nothing checks validity before <code>julday</code>; in practice the zone
+  always comes from <code>tz-lookup</code>, so the path is unreachable through the forms. Users far
+  from the fixed UTC schedule can have both cron runs land in the same half of their day and get
+  one reading instead of two, which <code>docs/PUSH_ALERTS.md</code> documents together with the
+  hourly schedule that would fix it.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>lib/geo.test.ts</code>: "maps New Delhi coordinates to
+  Asia/Kolkata", "maps New York coordinates to America/New_York".
+  <code>lib/alerts/slots.test.ts</code>: "splits the user's local day in two", "returns the current
+  slot when it has not been written", "returns nothing when the current slot already exists",
+  "does not backfill a slot the user has moved past". The invalid-coordinate and invalid-zone
+  paths are untested.
+</p>
+
+<h3 id="s16-6"><span class="num">16.6</span><span>Stored data</span></h3>
+
+<h4>A chart stored before whole-sign houses</h4>
+
+<p>
+  <strong>Symptom.</strong> None visible, which is the design. Before 0.3.0 the stored Vedic chart
+  carried Placidus house numbers under whole-sign labels, so the kundli and the PDF could draw a
+  planet in a house whose sign it was not in.
+</p>
+
+<p>
+  <strong>Handling.</strong> Every chart now carries <code>schemaVersion</code>, and
+  <code>CHART_SCHEMA_VERSION</code> in <code>lib/astrology/constants.ts</code> is 2.
+  <code>isChartStale</code> in <code>lib/astrology/derived.ts</code> is true when the stored
+  version (1 if absent) is lower, or when the chart has no <code>derived</code> facts.
+  <code>ensureCurrentChart</code> in <code>lib/data/birthProfile.ts</code> recomputes both
+  traditions together with <code>Promise.all</code>, writes them back in one update, and returns
+  the upgraded row; the comment explains that both are recomputed "so a profile is never half
+  upgraded", and that doing it on read "means no migration and no backfill job." It runs from
+  <code>getBirthProfile</code>, which the three server-component pages use, and from the chat
+  route. Any failure, whether the compute throws or the write comes back with an
+  <code>error</code>, is logged with its stage and the original profile is returned, because an
+  upgrade that cannot be written is not a reason to fail the request that triggered it. Readers
+  that only need facts do not wait for the upgrade: <code>factsFor</code> derives them in process
+  from the stored positions, and <code>deriveFacts</code> recomputes houses whole-sign regardless
+  of the stored numbers. The alerts job has a companion guard: <code>partitionForAlerts</code> in
+  <code>lib/alerts/run.ts</code> never notifies a natal condition once the user has natal rows on
+  record, because a natal condition "cannot start or end, so a change in one is always an
+  artifact of the computation changing."
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>lib/data/birthProfile.test.ts</code>: "returns the profile unchanged
+  when there is no stored vedic chart", "returns the profile unchanged when the stored chart is
+  already current", "recomputes and writes both traditions together for a stale chart", "swallows
+  a thrown compute/write exception and returns the original profile", "swallows a resolved write
+  error (RLS/constraint) and returns the original profile unchanged", "returns an upgraded
+  profile when the stored chart is stale". <code>lib/astrology/derived.test.ts</code>:
+  "recomputes houses whole-sign, ignoring the stored numbers". <code>lib/alerts/run.test.ts</code>:
+  "alerts natal conditions on a first read, when no natal rows exist", "never alerts a natal
+  condition once the user has natal rows", "keeps transit conditions alertable in both cases".
+</p>
+
+<h4>A failed profile read that looked like a missing profile</h4>
+
+<p>
+  <strong>Symptom.</strong> Fixed in 0.3.0. A user with a chart opened the app during a database
+  hiccup and was sent to the intake form as though they had never filled it in.
+</p>
+
+<p>
+  <strong>Handling.</strong> supabase-js resolves <code>{ data: null, error }</code> on a failed
+  read rather than throwing, and the old <code>getBirthProfile</code> ignored <code>error</code>
+  and returned <code>data ?? null</code>. It now throws with the error's message, matching
+  <code>saveBirthProfile</code> in the same file, while a genuine no-row result, which
+  <code>maybeSingle()</code> reports as <code>{ data: null, error: null }</code>, still returns
+  <code>null</code>. The three pages that read through it (<code>app/(app)/app/page.tsx</code>,
+  <code>chat/page.tsx</code> and <code>profile/page.tsx</code>) now surface an error instead of
+  the intake form. The chat route does its own read and checks <code>profileError</code>
+  explicitly, returning a 500 that says "Something went wrong loading your profile."
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>lib/data/birthProfile.test.ts</code>: "throws on a genuine read
+  failure instead of reporting it as no profile", "returns null when there is no stored profile".
+</p>
+
+<h4>Duplicate cron runs</h4>
+
+<p>
+  <strong>Symptom.</strong> None. The job can be fired twice in a minute, or moved to an hourly
+  schedule, and a user still gets one morning reading, one night reading and one alert per
+  change.
+</p>
+
+<p>
+  <strong>Handling.</strong> Three mechanisms. First, <code>daily_readings</code> has
+  <code>unique (user_id, for_date, slot)</code> from
+  <code>supabase/migrations/0005_daily_readings.sql</code>, and <code>writeDueReading</code> reads
+  the slots already written for today before deciding anything through <code>isSlotDue</code>.
+  If two runs race past that read, the insert fails with Postgres code <code>23505</code>, which
+  the code treats as "already done" and counts as <code>skipped</code>. Second,
+  <code>transit_conditions</code> has a partial unique index, <code>(user_id, signature)</code>
+  where <code>ended_on is null</code>, from <code>0004_alerts_push.sql</code>, and
+  <code>runAlertsForUser</code> diffs today's condition signatures against the open rows, so an
+  unchanged sky inserts nothing, closes nothing and sends nothing. Third,
+  <code>deriveHadNatalRows</code> fails closed: if the count of natal rows errors, the user is
+  treated as already having them, so a transient database error cannot turn a standing natal
+  dosha into a "has begun" push. Both jobs also bound their work to 500 profiles per run and
+  count a failing user in <code>failures</code> rather than aborting the run.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>lib/alerts/slots.test.ts</code>, the four names above.
+  <code>lib/alerts/run.test.ts</code>: "is false when the count query succeeds with zero natal
+  rows", "is true when the count query succeeds with at least one natal row", and the test whose
+  name begins "fails CLOSED", which passes an errored count and expects <code>true</code>. The
+  <code>23505</code> branch is untested.
+</p>
+
+<h4>Account deletion ordering</h4>
+
+<p>
+  <strong>Symptom.</strong> The user taps Delete on the profile screen and confirms.
+</p>
+
+<p>
+  <strong>Handling.</strong> <code>DELETE /api/account</code> takes the user id from the verified
+  session, never from the body, so a caller can only delete themselves, then calls
+  <code>admin.auth.admin.deleteUser(user.id)</code> with the service-role client. Every table
+  references <code>auth.users(id) on delete cascade</code>: <code>admins</code>,
+  <code>profiles</code>, <code>birth_profiles</code>, <code>conversations</code> (and through it
+  <code>messages</code>), <code>device_tokens</code>, <code>transit_conditions</code>,
+  <code>alerts</code>, <code>daily_readings</code>, <code>life_events</code>,
+  <code>life_event_scans</code> and <code>period_readings</code>. One call removes everything the
+  database holds, and because <code>device_tokens</code> goes with it the next cron cannot push
+  to the phone. If the call fails the route returns a 500 with a message and the account is
+  untouched. On the phone, <code>ProfileView.deleteAccount</code> calls the API first and only on
+  success runs <code>AuthStore.signOut</code>, which unregisters the device (a no-op now, but the
+  same path sign-out always takes), signs out of Supabase, and clears the App Group cache so the
+  widget stops showing the deleted chart. Two things are not removed: the avatar object in the
+  <code>avatars</code> storage bucket, which the route never touches, and the Sign in with Apple
+  grant, which <code>docs/APPLE_SIGN_IN.md</code> lists as a known gap against guideline
+  5.1.1(v).
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>app/api/account/route.test.ts</code>: "returns 401 and deletes
+  nothing when unauthenticated", "deletes only the calling user", "returns 500 when deletion
+  fails". The cascade itself is a database constraint and is not tested from code.
+</p>
+
+<h3 id="s16-7"><span class="num">16.7</span><span>Push</span></h3>
+
+<h4>A token minted under the wrong APNs environment</h4>
+
+<p>
+  <strong>Symptom.</strong> The cron reports <code>pushesSent: 0</code> for a device that is
+  registered, and the function log shows <code>apns send failed 400 BadDeviceToken</code>. Before
+  0.2.0 a Release build run from Xcode produced exactly this: it reported
+  <code>production</code> from its build configuration while carrying a development entitlement.
+</p>
+
+<p>
+  <strong>Handling.</strong> The environment is read from the truth APNs itself uses.
+  <code>ApsEnvironment.current</code> in <code>mobile/Sanchara/Sources/Services/Push.swift</code>
+  opens <code>embedded.mobileprovision</code>, finds the plist inside the signed envelope by
+  searching for <code>&lt;plist</code> and <code>&lt;/plist&gt;</code>, and returns
+  <code>production</code> only when <code>aps-environment</code> is exactly that string;
+  anything else, including no profile at all (the simulator), is <code>sandbox</code>. The app
+  sends that word with every registration. <code>POST /api/devices</code> checks the token is 64
+  to 200 hex characters, maps anything other than <code>sandbox</code> to
+  <code>production</code>, and upserts on the token with the admin client so a phone handed to a
+  new account changes owner. <code>ApnsClient.send</code> picks the host from the row's
+  environment, and when Apple answers 410, <code>Unregistered</code> or
+  <code>BadDeviceToken</code>, the row is deleted: "Apple only tells you a token is dead when you
+  use it." A token registered under the wrong host is therefore dropped on first use and written
+  back correctly at the next launch, since <code>PushStore.register</code> runs whenever iOS
+  hands the app a token. The TestFlight workflow removes the remaining way to get this wrong by
+  setting the entitlement to <code>production</code> before archiving.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>mobile/Sanchara/Tests/ApsEnvironmentTests.swift</code>:
+  <code>testDevelopmentProfileIsSandbox</code>, <code>testProductionProfileIsProduction</code>,
+  <code>testProfileWithoutThePushEntitlementIsSandbox</code>, <code>testNoPlistAtAllIsSandbox</code>,
+  <code>testAnUnknownValueIsNotTrustedAsProduction</code>, <code>testSimulatorBuildReportsSandbox</code>.
+  <code>app/api/devices/route.test.ts</code>: "rejects a malformed token", "stores the token
+  against the session user, not the body", "defaults an unknown environment to production",
+  "deletes only this user's row for that token". The dead-token deletion in the jobs is untested.
+</p>
+
+<h3 id="s16-8"><span class="num">16.8</span><span>The device</span></h3>
+
+<h4>A widget with no cached chart</h4>
+
+<p>
+  <strong>Symptom.</strong> A freshly installed app, a signed-out phone, or an App Group that was
+  never enabled. The widget must draw something.
+</p>
+
+<p>
+  <strong>Handling.</strong> Neither widget fetches. <code>ReadingProvider</code> in
+  <code>mobile/SancharaWidgets/ReadingWidget.swift</code> reads
+  <code>ChartCache.shared.loadReading()</code>, and when that is <code>nil</code> the entry's
+  <code>reading</code> is <code>nil</code> and the view shows its empty state, "Open Sanchara to get
+  your first reading." <code>PeriodProvider</code> in <code>PeriodWidget.swift</code> tries three
+  sources in order: the cached period with its theme, then the cached chart's <code>dasha</code>
+  without a theme ("the dates are true"), then the empty state "Open Sanchara to map your
+  periods." Both empty states name the next action rather than apologising. <code>ChartCache</code>
+  itself, in <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>, falls back to the
+  app's own caches directory when the App Group container is unavailable, so the app keeps
+  working and only the sharing stops; <code>docs/SIRI_AND_WIDGETS.md</code> names that as the
+  symptom of a missing App Group capability. Every read is a <code>try?</code>, so a corrupt file
+  reads as absent. The reading cache carries an <code>isFresh</code> flag so a widget "should not
+  keep insisting on yesterday's morning reading"; today the Siri snippet in
+  <code>IntentData.swift</code> checks it and the widget provider does not. Sign-out calls
+  <code>clear()</code>, which removes all four files, so the widget of a shared phone cannot show
+  the previous account.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>mobile/Sanchara/Tests/PeriodProgressTests.swift</code>:
+  <code>testCachedPeriodSurvivesTheRoundTrip</code>, <code>testClearRemovesTheCachedPeriod</code>,
+  <code>testFractionClampsOutsideThePeriod</code>, <code>testZeroLengthAndMalformedDatesGiveZero</code>.
+  The empty views themselves are untested.
+</p>
+
+<h4>The on-device model is unavailable</h4>
+
+<p>
+  <strong>Symptom.</strong> An iOS 17 phone, an iOS 26 phone without Apple Intelligence, or a
+  model that refuses. The question must still be answered.
+</p>
+
+<p>
+  <strong>Handling.</strong> Three layers, each of which falls through to the server.
+  <code>OnDeviceReasoner.route</code> in
+  <code>mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift</code> is wrapped in
+  <code>#if canImport(FoundationModels)</code> so the app builds for iOS 17, then gated on
+  <code>#available(iOS 26.0, *)</code> and on <code>isAvailable</code>, which is
+  <code>SystemLanguageModel.default.availability == .available</code>; any of those false means
+  <code>.escalate</code>. When the model runs, a refusal or a thrown error in
+  <code>isLookup</code> returns <code>false</code> and in <code>answer</code> returns
+  <code>nil</code>, with the comment that this "is not an error worth surfacing: the question
+  simply goes to Claude, which is where it went before." An answer that never called the lookup
+  tool is discarded as a guess. <code>ChatStore.send</code> only tries the reasoner for a Vedic
+  question that is not the opening reading and not an explicit request for the server; on
+  <code>.escalate</code> it streams from <code>/api/chat</code> exactly as before. Because Apple's
+  model refuses astrology, everything it is shown is framed as a reference table by
+  <code>ChartFacts</code>, and a test guards that framing because a slip would make the feature
+  stop answering silently.
+</p>
+
+<p>
+  <strong>Tests.</strong> <code>mobile/Sanchara/Tests/OnDeviceRoutingTests.swift</code>:
+  <code>testQuestionsAboutLifeNeverReachTheModel</code>,
+  <code>testQuestionsNamingPartOfTheChartGetOffered</code>,
+  <code>testInterpretiveQuestionsStillDoNotReachTheTable</code>,
+  <code>testAMissingBodyReturnsNothingRatherThanAGuess</code>,
+  <code>testNothingHandedToTheModelNamesAstrology</code>. The availability gate needs a device and
+  is untested.
+</p>
+
+<h3 id="s16-9"><span class="num">16.9</span><span>Untrusted text</span></h3>
+
+<h4>Prompt injection through chat history</h4>
+
+<p>
+  <strong>Symptom.</strong> A user, or text pasted by a user, tells the model to ignore its
+  instructions or to invent a placement.
+</p>
+
+<p>
+  <strong>Handling, honestly stated.</strong> There is no explicit prompt-injection defence in the
+  repository, and the file the name suggests, <code>lib/data/injection.test.ts</code>, is about
+  dependency injection: its <code>describe</code> is "data helpers accept an injected client",
+  and its three tests are "saveBirthProfile writes through the injected client", "appendMessage
+  writes through the injected client" and "falls back to the cookie client when none is
+  injected". What does exist limits the blast radius. User messages are sent to the model in the
+  <code>user</code> role and are never spliced into the system prompt; the system prompt in
+  <code>lib/astrology/prompt.ts</code> instructs the model to "Never state a placement, lordship,
+  aspect, dasha, condition or number that is not listed above" and to "Interpret only this
+  data"; and the model cannot act, since it has no tools and its output is text that is stored
+  and shown. History is bounded by <code>selectHistory</code> to 6,000 characters, newest first,
+  never starting on an assistant turn. The one place chat history is mined for facts, the
+  timeline scan in <code>app/api/timeline/scan/route.ts</code>, reads only rows with
+  <code>role = 'user'</code> ("Assistant turns are full of astrological narrative that reads like
+  biography and would extract as fiction"), tells the model to "Never infer one from a question
+  they asked, from a hypothetical, or from something you read in an astrological reading", quotes
+  the user's own words as evidence, and writes nothing until the user confirms each candidate;
+  <code>POST /api/life-events</code> then rejects a date before birth or in the future.
+</p>
+
+<p>
+  <strong>Tests.</strong> Prompt injection as such: untested. The surrounding limits are:
+  <code>lib/data/history.test.ts</code>, the five names in 16.4;
+  <code>lib/timeline/extract.test.ts</code>: "drops events outside the person's life", "drops
+  impossible dates", "reads a fourth field as evidence, so a pipe in a title becomes the quote",
+  "tells the model how to resolve relative dates and ages, and to keep undated events".
+</p>
+
+<h3 id="s16-10"><span class="num">16.10</span><span>The catalogue</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Failure</th><th>Where it is handled</th><th>What the user sees</th><th>Proof</th></tr></thead>
+<tbody>
+<tr><td>Required env var missing</td><td><code>lib/env.ts</code>, <code>required()</code></td><td>500 on the first route that needs it; the build is unaffected</td><td>untested</td></tr>
+<tr><td>Cron without <code>CRON_SECRET</code></td><td><code>app/api/cron/daily/route.ts</code></td><td>Nothing; 401 in the log</td><td>untested</td></tr>
+<tr><td>APNs absent</td><td><code>isPushConfigured</code>, <code>pushToDevices</code></td><td>Rows in the inbox, no notification</td><td>untested</td></tr>
+<tr><td>Bad or expired bearer token</td><td><code>lib/supabase/route.ts</code>, then <code>getUser</code></td><td>401 <code>Unauthorized</code></td><td><code>lib/supabase/route.test.ts</code>; the 401 in each route's tests</td></tr>
+<tr><td>Model fails before the stream</td><td><code>app/api/chat/route.ts</code>, outer <code>try</code></td><td>500 with a plain message</td><td>untested</td></tr>
+<tr><td>Model fails mid-stream</td><td>Same file, the stream's <code>catch</code> and <code>finally</code></td><td>An apology line; the partial reply is kept</td><td>untested</td></tr>
+<tr><td>Model fails composing a reading or alert</td><td><code>lib/alerts/compose.ts</code>, <code>predictions.ts</code></td><td>Plain fallback copy, still delivered</td><td><code>compose.test.ts</code>, <code>predictions.test.ts</code></td></tr>
+<tr><td>Transit chart fails in chat</td><td><code>app/api/chat/route.ts</code>, <code>lib/astrology/transits.ts</code></td><td>A reading without today's sky; nothing cached</td><td>untested</td></tr>
+<tr><td>Birthplace not found</td><td><code>lib/geo.ts</code>, <code>IntakeForm.tsx</code>, <code>IntakeView.swift</code></td><td>Empty list; manual coordinates on the web; Save disabled on iOS</td><td><code>app/api/profile/route.test.ts</code> for the 400s</td></tr>
+<tr><td>Invalid coordinates or zone</td><td>Not guarded</td><td>A thrown <code>RangeError</code> in the browser; <code>NaN</code> into the ephemeris</td><td>untested</td></tr>
+<tr><td>Fixed UTC schedule versus local day</td><td><code>lib/alerts/slots.ts</code></td><td>Possibly one reading a day far from IST</td><td><code>slots.test.ts</code></td></tr>
+<tr><td>Chart stored under the old schema</td><td><code>ensureCurrentChart</code>, <code>isChartStale</code></td><td>Nothing; upgraded on first read</td><td><code>birthProfile.test.ts</code>, <code>derived.test.ts</code></td></tr>
+<tr><td>Natal dosha "begins" after a recompute</td><td><code>partitionForAlerts</code>, <code>deriveHadNatalRows</code></td><td>Nothing; recorded silently</td><td><code>run.test.ts</code></td></tr>
+<tr><td>Profile read fails</td><td><code>getBirthProfile</code> throws</td><td>An error, not the intake form</td><td><code>birthProfile.test.ts</code></td></tr>
+<tr><td>Duplicate cron run</td><td>Unique index, <code>isSlotDue</code>, <code>23505</code>, signature diff</td><td>Nothing</td><td><code>slots.test.ts</code>; the <code>23505</code> branch untested</td></tr>
+<tr><td>Token under the wrong APNs environment</td><td><code>ApsEnvironment</code>, <code>ApnsClient.send</code></td><td>One missed push, then the row is replaced</td><td><code>ApsEnvironmentTests</code>, <code>devices/route.test.ts</code></td></tr>
+<tr><td>Widget with no cached chart</td><td><code>ReadingWidget.swift</code>, <code>PeriodWidget.swift</code></td><td>"Open Sanchara to ..."</td><td><code>PeriodProgressTests</code> for the cache; views untested</td></tr>
+<tr><td>On-device model unavailable</td><td><code>OnDeviceReasoner.route</code></td><td>The same answer, from the server, labelled</td><td><code>OnDeviceRoutingTests</code> for routing; the gate untested</td></tr>
+<tr><td>Prompt injection via history</td><td>No specific guard</td><td>Bounded history, no tools, user-only extraction with confirmation</td><td>untested as such</td></tr>
+<tr><td>Account deletion</td><td><code>app/api/account/route.ts</code>, cascades, <code>AuthStore.signOut</code></td><td>Everything in Postgres gone; avatar and Apple grant remain</td><td><code>account/route.test.ts</code></td></tr>
+</tbody></table></div>
+
+<div class="note caution"><b>The untested column</b>
+Eight rows have no test at all. Three are configuration paths that need a missing variable or a
+live socket to exercise (the env loader, the cron secret, APNs). Three are the chat route's own
+failure paths, before the stream, during it, and in the transit lookup. The last two are the
+unguarded coordinate and zone edges, and prompt injection. The chat route in particular is the
+one file where a regression would be felt by every user and caught by no test.
+</div>
+
+<h3 id="s16-11"><span class="num">16.11</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/env.ts</code>, for the one decision that makes the build secret-free and the first request the place a missing key fails.</li>
+  <li><code>lib/supabase/route.ts</code> and its test, for the bearer and cookie split.</li>
+  <li><code>app/api/chat/route.ts</code>, the stream's <code>catch</code> and <code>finally</code>, for what a partial reading becomes.</li>
+  <li><code>lib/alerts/compose.ts</code> and <code>predictions.ts</code>, the two fallbacks and the parser that feeds them.</li>
+  <li><code>lib/data/birthProfile.ts</code>, for the on-read upgrade and the read that now throws.</li>
+  <li><code>lib/alerts/run.ts</code>, for the signature diff, the natal partition and the fail-closed count.</li>
+  <li><code>lib/push/apns.ts</code> and <code>mobile/Sanchara/Sources/Services/Push.swift</code>, both ends of the environment question.</li>
+  <li><code>mobile/SancharaWidgets/PeriodWidget.swift</code> and <code>OnDeviceReasoner.swift</code>, for the device's two fallbacks.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why does a missing <code>ANTHROPIC_API_KEY</code> fail a request and not the build?</p>
+<p class="a">Because <code>env.anthropicApiKey</code> is a function called inside <code>anthropic()</code> during a request; nothing reads <code>process.env</code> at module load.</p>
+<p class="q">What does the chat route do with text the model had already streamed when the call fails?</p>
+<p class="a">Saves it as the assistant turn in <code>finally</code>, after enqueuing the apology line, then closes the stream. The status was already 200.</p>
+<p class="q">Why does the alerts job treat an errored natal-row count as "has natal rows"?</p>
+<p class="a">Because the naive reading would be "first-time reader" and every standing natal dosha would be pushed as news; suppressing natal alerts costs nothing real, since natal conditions cannot change.</p>
+<p class="q">A phone registers a sandbox token and the server is configured for production. What happens on the next cron?</p>
+<p class="a">The row carries <code>sandbox</code>, so the server sends to the sandbox host; environments are per row, not per server. Only a token registered under the wrong word fails, and Apple's <code>BadDeviceToken</code> gets that row deleted until the next launch re-registers it.</p>
+<p class="q">What does the period widget show before the timeline has ever been fetched?</p>
+<p class="a">The mahadasha and antardasha from the cached chart, with a progress bar and no theme; only with no chart at all does it show the empty state.</p>
+<p class="q">Which test file does not test what its name suggests?</p>
+<p class="a"><code>lib/data/injection.test.ts</code>, which tests that the data helpers accept an injected Supabase client. There is no prompt-injection test.</p>
+</div>
+</section>

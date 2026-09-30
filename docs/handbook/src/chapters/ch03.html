@@ -1,0 +1,691 @@
+<section class="chapter" id="ch03" data-hue="readings">
+<p class="chapter-kicker">Chapter three</p>
+<h2><span class="num">3</span><span>Readings, prompts, and cost</span></h2>
+
+<p class="lede">
+  Claude never computes a chart and never sees one it was not handed. A reading is an
+  interpretation of numbers the Swiss Ephemeris produced, delivered through a system prompt built
+  in two halves so that the expensive half is paid for once and read from cache after that.
+</p>
+
+<p>
+  This chapter describes the reading pipeline as it stands on <code>main</code> on
+  30 September 2026, version 0.3.0. It covers the prompt builders in
+  <code>lib/astrology/prompt.ts</code>, the model and effort settings in
+  <code>lib/anthropic.ts</code>, the caching and history rules that the chat route applies, the
+  one test file whose name promises more than it delivers, and the measured cost figures in
+  <code>docs/MODEL_COSTS.md</code>. The chat feature that sits on top of all this, with its
+  route handler, tables and clients, is <a href="#ch06">chapter 6</a>. The chart engine that
+  produces the facts is <a href="#ch02">chapter 2</a>.
+</p>
+
+<h3 id="s3-1"><span class="num">3.1</span><span>What a reading is</span></h3>
+
+<p>
+  A reading is one streamed answer from Claude to one question, grounded in facts the server
+  computed. The facts are the user's stored chart (<code>birth_profiles.chart</code>, holding a
+  Vedic and a Western chart side by side), the derived facts attached to the Vedic one (lords,
+  aspects, dignity, combustion, natal doshas), the numerology of the birth date and name, today's
+  sky read against the natal chart, and the pinned moments of the user's life timeline. Claude is
+  told, in so many words, that these are the only facts it has.
+</p>
+
+<p>
+  Three modes exist, and the type system keeps two of them apart from the third.
+  <code>Tradition</code> in <code>lib/astrology/types.ts</code> is <code>"vedic" | "western"</code>:
+  the two ways of computing a chart. <code>ChatMode</code> adds <code>"numerology"</code>, which
+  has no chart at all and reads from the birth date and the name. The chat route accepts a
+  <code>ChatMode</code>; only the two chart modes ever reach the ephemeris.
+</p>
+
+<p>
+  A reading is also either standard or deep. Standard runs on Sonnet with brief thinking and a
+  160 word length rule; deep runs on Opus with the default thinking budget and 320 words. The
+  client decides with one boolean, <code>deep</code>, in the request body.
+</p>
+
+<p>
+  Chat is not the only caller. Every model call in the repository goes through the one client in
+  <code>lib/anthropic.ts</code>, and three other places make readings of their own: the daily
+  morning and night readings, the dosha alerts, and the timeline's period meanings and moment
+  extraction. They share the prompt builders and the effort setting, which is why this chapter
+  is a foundations chapter and not a chat chapter.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Caller</th><th>Model</th><th>Effort</th><th>Prompt builders used</th></tr></thead>
+<tbody>
+<tr><td><code>app/api/chat/route.ts</code>, standard</td><td><code>READING_MODEL</code></td><td>low</td><td><code>buildChartSystem</code> or <code>buildNumerologySystem</code>, then <code>buildTodaySystem</code></td></tr>
+<tr><td><code>app/api/chat/route.ts</code>, deep</td><td><code>DEEP_READING_MODEL</code></td><td>default</td><td>the same</td></tr>
+<tr><td><code>lib/alerts/predictions.ts</code>, the twice-daily readings</td><td><code>READING_MODEL</code></td><td>low</td><td><code>buildChartSystem</code> then <code>buildTodaySystem</code> with <code>maxWords: 150</code></td></tr>
+<tr><td><code>lib/alerts/compose.ts</code>, the dosha alert copy</td><td><code>DEEP_READING_MODEL</code></td><td>low</td><td>its own system string</td></tr>
+<tr><td><code>lib/timeline/explain.ts</code> and <code>lib/timeline/extract.ts</code></td><td><code>READING_MODEL</code></td><td>low</td><td>their own system strings</td></tr>
+</tbody></table></div>
+
+<h3 id="s3-2"><span class="num">3.2</span><span>Files</span></h3>
+
+<pre class="tree">lib/astrology/prompt.ts          buildChartSystem, buildTodaySystem, buildNumerologySystem,
+                                 buildSystemPrompt and buildNumerologyPrompt (the joined forms)
+lib/astrology/prompt.test.ts     what the prompt must and must not contain
+lib/astrology/derived.ts         factsFor: the derived facts, Vedic only
+lib/astrology/transits.ts        transitChart (memoised per day), describeGochara, describeToday
+lib/astrology/numerology.ts      computeNumerology, computeNameNumber, loShu, personalCycle
+lib/timeline/describe.ts         describeTimelineForPrompt, appended to the stable half
+lib/anthropic.ts                 READING_MODEL, DEEP_READING_MODEL, LOW_EFFORT, the client
+lib/data/history.ts              selectHistory and HISTORY_BUDGET_CHARS
+lib/data/history.test.ts         the budget rules
+lib/data/injection.test.ts       the data helpers accept an injected Supabase client
+lib/data/chat.ts                 getMessages, appendMessage, getOrCreateConversation
+app/api/chat/route.ts            where the halves meet the cache breakpoints
+docs/MODEL_COSTS.md              the measured numbers, and why each change was made</pre>
+
+<p>
+  <code>lib/anthropic.ts</code> begins with <code>import "server-only"</code>. Importing it from a
+  client component fails the build, which is the mechanism that keeps
+  <code>ANTHROPIC_API_KEY</code> on the server: the key is read through
+  <code>env.anthropicApiKey()</code> in <code>lib/env.ts</code>, and that module is server-only
+  too. The client is a lazy singleton; <code>anthropic()</code> constructs it on first use so
+  that a module import never throws for want of a key.
+</p>
+
+<h3 id="s3-3"><span class="num">3.3</span><span>The system prompt in two halves</span></h3>
+
+<p>
+  The system prompt is two strings, built by two functions, sent as two blocks in the
+  <code>system</code> array of the request. The first block is everything that never changes for
+  a user. The second is everything that does. The split exists for one reason, stated in the
+  comment above <code>buildChartSystem</code>: the first half carries a cache breakpoint, so it
+  must be byte-identical on every turn and across conversations, and anything that varies has to
+  live in the second half and come after it.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 400" role="img" aria-label="Inputs on the left (the stored chart, derived facts, numerology, the timeline, the transit cache and the clock) feed two builder functions in the middle: buildChartSystem produces the stable half and buildTodaySystem the volatile half; on the right the request carries the two system blocks followed by the trimmed history and the new message.">
+  <defs>
+    <marker id="ch03a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch03b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">INPUTS</text>
+  <text class="lbl-sm" x="300" y="24">BUILDERS</text>
+  <text class="lbl-sm" x="600" y="24">THE REQUEST</text>
+
+  <rect class="box" x="20" y="40" width="200" height="34" rx="8"/><text class="lbl" x="120" y="62" text-anchor="middle">birth_profiles.chart</text>
+  <rect class="box" x="20" y="82" width="200" height="34" rx="8"/><text class="lbl" x="120" y="104" text-anchor="middle">factsFor (Vedic only)</text>
+  <rect class="box" x="20" y="124" width="200" height="34" rx="8"/><text class="lbl" x="120" y="146" text-anchor="middle">computeNumerology</text>
+  <rect class="box" x="20" y="166" width="200" height="34" rx="8"/><text class="lbl" x="120" y="188" text-anchor="middle">loadTimeline</text>
+
+  <rect class="box-alt" x="20" y="240" width="200" height="34" rx="8"/><text class="lbl" x="120" y="262" text-anchor="middle">transitChart (per day)</text>
+  <rect class="box-alt" x="20" y="282" width="200" height="34" rx="8"/><text class="lbl" x="120" y="304" text-anchor="middle">describeToday (per part of day)</text>
+  <rect class="box-alt" x="20" y="324" width="200" height="34" rx="8"/><text class="lbl" x="120" y="346" text-anchor="middle">deep flag: 160 or 320 words</text>
+
+  <rect class="box-hot" x="300" y="82" width="220" height="76" rx="10"/>
+  <text class="lbl" x="410" y="110" text-anchor="middle">buildChartSystem</text>
+  <text class="lbl-hot" x="410" y="130" text-anchor="middle">+ describeTimelineForPrompt</text>
+  <text class="lbl-sm" x="410" y="148" text-anchor="middle">identical every turn</text>
+
+  <rect class="box" x="300" y="262" width="220" height="60" rx="10"/>
+  <text class="lbl" x="410" y="288" text-anchor="middle">buildTodaySystem</text>
+  <text class="lbl-sm" x="410" y="308" text-anchor="middle">stable for hours, not forever</text>
+
+  <path class="flow" d="M220 57 L 260 57 L 260 108 L 294 108" marker-end="url(#ch03a)"/>
+  <path class="flow" d="M220 99 L 294 105" marker-end="url(#ch03a)"/>
+  <path class="flow" d="M220 141 L 260 141 L 260 118 L 294 118" marker-end="url(#ch03a)"/>
+  <path class="flow" d="M220 183 L 260 183 L 260 130 L 294 130" marker-end="url(#ch03a)"/>
+  <path class="flow" d="M220 257 L 260 257 L 260 282 L 294 282" marker-end="url(#ch03a)"/>
+  <path class="flow" d="M220 299 L 294 292" marker-end="url(#ch03a)"/>
+  <path class="flow" d="M220 341 L 260 341 L 260 302 L 294 302" marker-end="url(#ch03a)"/>
+
+  <rect class="box-hot" x="600" y="40" width="240" height="50" rx="8"/>
+  <text class="lbl" x="720" y="60" text-anchor="middle">system[0]: the stable half</text>
+  <text class="lbl-hot" x="720" y="78" text-anchor="middle">cache_control, ttl 1h</text>
+  <rect class="box" x="600" y="100" width="240" height="40" rx="8"/><text class="lbl" x="720" y="125" text-anchor="middle">system[1]: the today half</text>
+  <rect class="box-alt" x="600" y="160" width="240" height="40" rx="8"/><text class="lbl" x="720" y="185" text-anchor="middle">older stored turns</text>
+  <rect class="box-hot" x="600" y="210" width="240" height="50" rx="8"/>
+  <text class="lbl" x="720" y="230" text-anchor="middle">last stored turn</text>
+  <text class="lbl-hot" x="720" y="248" text-anchor="middle">cache_control</text>
+  <rect class="box" x="600" y="270" width="240" height="40" rx="8"/><text class="lbl" x="720" y="295" text-anchor="middle">the new user message</text>
+
+  <path class="flow-hot" d="M520 120 L 560 120 L 560 65 L 594 65" marker-end="url(#ch03b)"/>
+  <path class="flow" d="M520 292 L 560 292 L 560 120 L 594 120" marker-end="url(#ch03a)"/>
+  <path class="flow-dash" d="M410 350 L 410 372 L 720 372 L 720 316" marker-end="url(#ch03a)"/>
+  <text class="lbl-sm" x="430" y="366">selectHistory, from the messages table</text>
+</svg>
+<figcaption>
+  Four inputs that never change for a user feed the stable half; three that change with the day
+  feed the volatile half. The request sends them as two system blocks, then the trimmed history,
+  then the new message. Hot boxes carry a cache breakpoint.
+</figcaption>
+</figure>
+
+<h4>The stable half: buildChartSystem</h4>
+
+<p>
+  <code>buildChartSystem</code> takes the first name, the tradition, the chart, optionally the
+  derived facts, and optionally the two numerology numbers. It returns one string in a fixed
+  order: an identity line, the facts block, the numerology line, then three rule lists headed
+  Accuracy, How to answer and Format, and a closing line. The identity line names the system the
+  way the astrologer would: "Vedic (sidereal, Lahiri)" or "Western (tropical)". The facts block
+  is introduced as the user's real chart, computed with the Swiss Ephemeris, and the sentence
+  that follows is the whole grounding contract: these are the only facts you have.
+</p>
+
+<p>
+  The Accuracy rules forbid stating any placement, lordship, aspect, dasha, condition or number
+  not listed above; require every claim to name the placement it reads from, its house and the
+  technique; ask for tendencies and timing rather than guaranteed outcomes; and tell the model
+  to say what the chart does show when it does not show what was asked, or to ask one short
+  question when one missing detail would change the answer. The How to answer rules ban
+  sign-personality writing outright: a sentence that would be true of a twelfth of the
+  population is not an answer, and the model is told to delete it and read a house lord, an
+  aspect, or the dasha lord's placement instead. The Format rules ask for two or three short
+  sections under bold markdown headings, plain text with no emoji and no bold inside sentences,
+  and a final section titled <strong>In simple words</strong>. The last line is the one the
+  tests check for the spirit of the thing: never invent, and never flatter, and if the honest
+  reading is unremarkable, say so plainly.
+</p>
+
+<p>
+  The facts block has two renderers, and which one runs is the Vedic versus Western branch of
+  the whole system.
+</p>
+
+<h4>The Vedic branch: renderChartFacts</h4>
+
+<p>
+  When <code>derived</code> is present the block is rendered by <code>renderChartFacts</code>,
+  which writes five labelled sections from the <code>Derived</code> structure that
+  <code>lib/astrology/derived.ts</code> computes:
+</p>
+
+<ul>
+  <li>The ascendant, marked as setting house 1, and the Sun and Moon signs.</li>
+  <li><strong>PLACEMENTS</strong>: one line per planet from <code>planetLine</code>. Each line gives sign, degree, house and nakshatra, then the houses the planet rules, its dignity word (exalted, debilitated, in moolatrikona, in its own sign, neutral), "within a degree of exact" when it sits under a degree from its deep point, combustion with the distance from the Sun, retrograde, the houses it aspects, and the planets it is conjunct with.</li>
+  <li><strong>HOUSES</strong>: one line per house giving its sign, its lord, where that lord sits and with what dignity, which planets occupy the house and which aspect it.</li>
+  <li><strong>CURRENT PERIOD</strong>: the mahadasha and antardasha lords with their dates and, for each, the lord's own natal placement, dignity and rulerships, because that placement is what gives the period its character.</li>
+  <li><strong>STANDING CONDITIONS IN THE BIRTH CHART</strong>: the natal doshas, one label and one detail line each.</li>
+</ul>
+
+<p>
+  Two grammar helpers exist because the model copies the prompt's register. <code>houseSuffix</code>
+  returns "s" for a plural list of houses and nothing for one, so "aspects house 9" and "aspects
+  houses 4, 7, 8" both read correctly; the test suite pins both forms. <code>RELATIONSHIP_PHRASE</code>
+  phrases a number relationship with the pair as the subject ("are friends", "are enemies") to
+  avoid an article agreement error. One sentinel matters more than the grammar: a house whose
+  lord is not a body in the chart comes out of <code>deriveFacts</code> with <code>lordHouse</code>
+  of 0, and the renderer says "lord Sun (not a body in this chart)" rather than printing house 0
+  as though it were a placement. Every real chart has all nine bodies, so this is only reachable
+  from a hand-built fixture, but a prompt that stated a placement that does not exist would be
+  teaching the model to do the same.
+</p>
+
+<h4>The Western branch: renderChart</h4>
+
+<p>
+  When <code>derived</code> is absent the block is rendered by <code>renderChart</code>: the
+  ascendant, the Sun and Moon signs, the dasha line if the chart has one, and one plain line per
+  planet with sign, degree, house, nakshatra and a retrograde flag. No lordship, no aspects, no
+  dignity, no doshas. The comment above the function explains why, and the fix it records is
+  worth knowing because it was a real bug in this release. Every technique
+  <code>renderChartFacts</code> adds is Vedic. Handing it to a Western reading would cite Indian
+  technique and Vedic doshas as though they were tropical, and the whole-sign house numbers it
+  derives would disagree with <code>chart.planets[].house</code>, which for a Western chart is
+  Placidus, and which is what the PDF and the iOS chart view actually render.
+</p>
+
+<p>
+  The gate is not in the prompt module at all. <code>factsFor</code> in
+  <code>lib/astrology/derived.ts</code> returns <code>undefined</code> for any chart whose
+  <code>tradition</code> is not <code>"vedic"</code>, and returns the stored derived block, or
+  a freshly computed one for a chart written before derived facts shipped, otherwise. The chat
+  route calls <code>factsFor(chart)</code> and passes whatever comes back, so the Western
+  branch is chosen by the chart's own tradition field and no caller can opt a Western chart into
+  Vedic technique by mistake. The transit text follows the same rule in
+  <code>describeGochara</code>: houses from the ascendant and from the Moon, and the transit
+  afflictions, are added only when the natal chart is Vedic; a Western reading gets the plain
+  sky, where each body is and which natal body it sits over.
+</p>
+
+<h4>The numerology branch: buildNumerologySystem</h4>
+
+<p>
+  Numerology has no chart, so it has its own stable builder. <code>buildNumerologySystem</code>
+  introduces Sanchara as a Vedic numerologist and lists the real numbers computed from the birth
+  date and the name: the mulank (root, from the birth day), the bhagyank (destiny, from the full
+  date), the namank (from the full name, which is quoted in the prompt), the digits that repeat
+  in the birth date and the digits that are missing from it (the Lo Shu grid), and whether the
+  namank and the mulank are friends, neutral or enemies. Its Accuracy rule is stricter in one
+  way: every number cited must match the values above exactly. Its Format rules are the same as
+  the chart prompt's, down to the closing <strong>In simple words</strong> section.
+</p>
+
+<h4>The volatile half: buildTodaySystem</h4>
+
+<p>
+  <code>buildTodaySystem</code> takes the day, optionally the transit text, optionally a length,
+  and optionally the personal year and month. It writes "Today is …" with an instruction to use
+  it for anything about today, now, or the current period; the personal cycle line when given
+  (used by numerology); a <strong>SKY TODAY</strong> block when transits are given, followed on
+  its own line by the instruction to name the transiting planet and the natal house or planet
+  it touches; and the length rule, "160 words or fewer unless they ask for more" by default. The
+  chat route sets 160 for a standard reading and 320 for a deep one; the daily readings job sets
+  150.
+</p>
+
+<p>
+  The word "today" is deliberately coarse. <code>describeToday</code> in
+  <code>lib/astrology/transits.ts</code> renders the weekday and long date plus a part of day
+  (morning before noon, afternoon before five, evening before nine, night after) and the zone
+  name, in the user's own timezone. The route computes it with Luxon in
+  <code>profile.timezone</code>, never the server's clock. A clock time here would change the
+  prompt every minute, which is the first of the two things that used to break the cache.
+</p>
+
+<h4>What the route appends</h4>
+
+<p>
+  The route appends one more thing to the stable string before sending it: the life timeline.
+  <code>describeTimelineForPrompt</code> in <code>lib/timeline/describe.ts</code> renders the
+  current dasha period (Vedic only, since Western has no dashas) and up to
+  <code>MAX_MOMENTS</code>, which is 30, of the user's pinned moments newest first, each with its
+  date at the precision it was pinned and, for Vedic, the period it fell in. It returns an empty
+  string when there is nothing to say, so the route can append it unconditionally. It goes in the
+  stable half on purpose, and the route's comment says why: it only changes when the user pins or
+  removes a moment, so it belongs with the chart and not with the day.
+</p>
+
+<h4>Why byte-identical, and how it is kept so</h4>
+
+<p>
+  A cached prefix is matched by exact bytes. If the stable half differed by one character between
+  two turns, every turn would write a new cache entry and read none. So the rule is that nothing
+  in <code>buildChartSystem</code> may depend on the clock, the sky, the length setting, or the
+  order in which a JSON store returns fields. Three tests in <code>lib/astrology/prompt.test.ts</code>
+  hold the line: the stable half must not contain "Today is", "SKY TODAY" or "words or fewer";
+  two calls with the same inputs must return the same string; and a <code>Derived</code> that has
+  been through <code>JSON.parse(JSON.stringify(…))</code>, which is how a stored chart returns
+  it, must render identically to a freshly computed one.
+</p>
+
+<p>
+  <code>buildSystemPrompt</code> and <code>buildNumerologyPrompt</code> join the two halves into
+  one string for callers that do not cache. No route calls them today; the tests do, and they are
+  the simplest way to see the whole prompt at once.
+</p>
+
+<div class="note"><b>The blank line before the numerology sentence</b>
+<code>renderChartFacts</code> ends whichever labelled block comes last with no trailing blank
+line. The numerology line therefore begins with two newlines of its own, or it would land inside
+HOUSES, CURRENT PERIOD or STANDING CONDITIONS and read as one more item of that block. The test
+named for it checks that the line before "Numerology:" is empty.
+</div>
+
+<h3 id="s3-4"><span class="num">3.4</span><span>Models and effort</span></h3>
+
+<pre><code>// lib/anthropic.ts
+export const READING_MODEL = "claude-sonnet-5";
+export const DEEP_READING_MODEL = "claude-opus-4-8";
+
+export function supportsAdaptiveThinking(model: string): boolean {
+  return model === "claude-sonnet-5" || model === "claude-opus-4-8";
+}
+
+export const LOW_EFFORT: { readonly output_config: { readonly effort: "low" } } = {
+  output_config: { effort: "low" },
+};</code></pre>
+
+<p>
+  Two models, one switch. Standard readings run on Sonnet 5, which the file's comment describes as
+  intelligent and stable with adaptive thinking for well-reasoned interpretation. A deep reading
+  upgrades to Opus 4.8. Both support adaptive thinking; the comment notes that Haiku 4.5 would
+  not, which is why <code>supportsAdaptiveThinking</code> exists as a function rather than a
+  constant. Every caller spreads <code>thinking: { type: "adaptive" }</code> into the request
+  only when that function says yes.
+</p>
+
+<p>
+  <code>LOW_EFFORT</code> is the more consequential export. Thinking tokens are billed as
+  output, and output is the expensive half of a reading. The comment above the constant records
+  a measurement made on a standard Vedic reading of the same chart and question:
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Setting</th><th>Output tokens</th></tr></thead>
+<tbody>
+<tr><td>adaptive thinking, default effort</td><td class="num-cell">1,452</td></tr>
+<tr><td>adaptive thinking, effort "low"</td><td class="num-cell">719</td></tr>
+<tr><td>thinking disabled</td><td class="num-cell">328</td></tr>
+</tbody></table></div>
+
+<p>
+  All three cited the same real placements. That is the finding that set the policy: routine
+  readings run at low effort, reasoning intact and spend halved, and deep readings keep the
+  default, because the default is what a person is asking for when they turn Deep on. The chat
+  route applies it with one spread, <code>...(body.deep ? {} : LOW_EFFORT)</code>. The daily
+  readings, the alert copy and both timeline jobs apply it unconditionally.
+</p>
+
+<p>
+  The type of <code>LOW_EFFORT</code> is written out longhand because <code>output_config</code>
+  is generally available on the API but postdates the types in the installed SDK
+  (<code>@anthropic-ai/sdk</code> at <code>^0.68.0</code> in <code>package.json</code>). The
+  value is cast so the wire format stays exact. The same is true of <code>"adaptive"</code>,
+  which each caller casts through <code>unknown</code> to
+  <code>Anthropic.ThinkingConfigParam</code>.
+</p>
+
+<p>
+  <code>max_tokens</code> is set per caller and is a ceiling, not a target. The route's comment
+  is explicit that the length rule in the prompt is what governs how much is generated. The
+  values are 1,600 for a standard chat reading, 3,000 for a deep one, and 1,600 for both the
+  daily readings and the alert copy.
+</p>
+
+<div class="note caution"><b>A stale comment in the route</b>
+Above the thinking spread in <code>app/api/chat/route.ts</code> a comment still says that only
+the deep (Opus) model supports adaptive thinking and that Haiku rejects it. That was true of an
+earlier model pair. <code>supportsAdaptiveThinking</code> is the source of record, and it
+returns true for both current models, so standard readings think too, at low effort.
+</div>
+
+<h3 id="s3-5"><span class="num">3.5</span><span>Caching and the cost of a turn</span></h3>
+
+<p>
+  The API is stateless. Every turn re-sends the system prompt and the whole retained history and
+  is billed for all of it as input. Prompt caching lets a request declare breakpoints; the prefix
+  up to a breakpoint that matches a recent request byte for byte is billed as a cache read at a
+  tenth of the input rate. The chat route sets two.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 300" role="img" aria-label="A request laid out left to right as five segments: the stable system half, the today half, older turns, the last stored turn and the new message. Two breakpoint walls sit after the first segment and after the fourth. On a first turn everything is written to cache; on a later turn everything left of the second wall is a cache read and only the new message is billed at full rate.">
+  <defs>
+    <marker id="ch03c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">ONE REQUEST, LEFT TO RIGHT</text>
+
+  <rect class="box-hot" x="20" y="44" width="200" height="60" rx="8"/>
+  <text class="lbl" x="120" y="68" text-anchor="middle">stable system half</text>
+  <text class="lbl-hot" x="120" y="88" text-anchor="middle">chart, rules, timeline</text>
+
+  <rect class="box" x="240" y="44" width="140" height="60" rx="8"/>
+  <text class="lbl" x="310" y="68" text-anchor="middle">today half</text>
+  <text class="lbl-sm" x="310" y="88" text-anchor="middle">date, sky, length</text>
+
+  <rect class="box-alt" x="400" y="44" width="150" height="60" rx="8"/>
+  <text class="lbl" x="475" y="68" text-anchor="middle">older turns</text>
+  <text class="lbl-sm" x="475" y="88" text-anchor="middle">within 6,000 chars</text>
+
+  <rect class="box-hot" x="570" y="44" width="130" height="60" rx="8"/>
+  <text class="lbl" x="635" y="68" text-anchor="middle">last stored turn</text>
+  <text class="lbl-hot" x="635" y="88" text-anchor="middle">breakpoint</text>
+
+  <rect class="box" x="720" y="44" width="120" height="60" rx="8"/>
+  <text class="lbl" x="780" y="68" text-anchor="middle">new message</text>
+  <text class="lbl-sm" x="780" y="88" text-anchor="middle">full rate</text>
+
+  <line class="wall" x1="230" y1="34" x2="230" y2="200"/>
+  <text class="lbl-sm" x="236" y="130">breakpoint 1, ttl 1h</text>
+  <text class="lbl-sm" x="236" y="146">ignored below 1,024 tokens</text>
+
+  <line class="wall" x1="710" y1="34" x2="710" y2="200"/>
+  <text class="lbl-sm" x="716" y="130">breakpoint 2</text>
+  <text class="lbl-sm" x="716" y="146">carries the conversation</text>
+
+  <path class="flow-hot" d="M20 180 L 700 180" marker-end="url(#ch03c)"/>
+  <text class="lbl-hot" x="20" y="172">from turn 2: all of this is a cache read at 0.1 times the input rate</text>
+
+  <text class="lbl-sm" x="20" y="230">Turn 1 of a conversation writes both entries and reads nothing. That is the one turn that costs full price, and it is the shortest one.</text>
+  <text class="lbl-sm" x="20" y="250">Anything that changes the stable half (a pinned moment, a chart recompute, a name change) moves breakpoint 1 and the next turn writes again.</text>
+  <text class="lbl-sm" x="20" y="270">The today half changes at most a few times a day, so a conversation that spans midnight or a part-of-day boundary pays one write.</text>
+</svg>
+<figcaption>
+  Two breakpoints. The first sits after the stable system half with a one hour lifetime; the
+  second sits on the last stored turn and is the one that makes a conversation cheap.
+</figcaption>
+</figure>
+
+<h4>The two breakpoints</h4>
+
+<p>
+  The first breakpoint is on the stable system block: <code>cache_control: { type: "ephemeral",
+  ttl: "1h" }</code>. The hour, per the route's comment, is so that a reply half an hour later
+  still reads the chart from cache rather than paying full price for it again. The second is on
+  the last stored turn of the history: the route maps the retained turns into
+  <code>MessageParam</code>s and gives the final one a content array with
+  <code>cache_control: { type: "ephemeral" }</code>. From the second message of a conversation
+  onward the whole prefix, chart, today and history, is a cache read.
+</p>
+
+<p>
+  The route's comment and <code>docs/MODEL_COSTS.md</code> both record the subtlety. A prefix
+  below the API's minimum cacheable length, 1,024 tokens on Sonnet, is silently not cached. The
+  measured stable half is 942 tokens, so on its own it may fall under the line, and the first
+  breakpoint is then simply ignored. That is why the conversation breakpoint, not the system
+  one, does the real work: by the second turn the prefix up to the last stored turn is well over
+  the minimum, and it includes the system blocks.
+</p>
+
+<h4>Making the prompt hold still</h4>
+
+<p>
+  Two things used to change on every request and had to stop before caching could work. The date
+  line carried a clock time, so the prompt differed every minute; it is now the date plus a part
+  of day, as <code>describeToday</code> renders it. And transits were computed for the current
+  instant. <code>transitChart</code> in <code>lib/astrology/transits.ts</code> now computes them
+  for midday UTC and memoises the promise in a module-level map keyed by day, tradition and the
+  latitude and longitude rounded to whole degrees, so users in the same city share an entry. The
+  map is cleared when it reaches <code>MAX_ENTRIES</code>, 200, and a failed computation is
+  deleted from it so an error is never cached. Midday is the sample point because the Moon is
+  the only body that moves enough within a day to matter, and sampling the middle halves the
+  worst-case drift. The memo also stops the ephemeris running on every message, which was the
+  lesser of its two purposes.
+</p>
+
+<h4>The history budget</h4>
+
+<pre><code>// lib/data/history.ts
+export const HISTORY_BUDGET_CHARS = 6000;
+
+export function selectHistory(turns: Turn[], budget: number = HISTORY_BUDGET_CHARS): Turn[] {
+  const kept: Turn[] = [];
+  let used = 0;
+  for (let i = turns.length - 1; i &gt;= 0; i--) {
+    const turn = turns[i];
+    const cost = turn.content.length;
+    if (used + cost &gt; budget &amp;&amp; kept.length &gt; 0) break;
+    kept.unshift(turn);
+    used += cost;
+  }
+  while (kept.length &gt; 0 &amp;&amp; kept[0].role === "assistant") kept.shift();
+  return kept;
+}</code></pre>
+
+<p>
+  The route loads every stored message of the conversation with <code>getMessages</code> in
+  <code>lib/data/chat.ts</code>, ordered by <code>created_at</code> ascending, and hands them to
+  <code>selectHistory</code>. The budget is in characters, roughly four to a token, so 6,000
+  characters is about 1,500 tokens. It walks newest first, because the most recent exchange
+  matters most for coherence, and stops when the next turn would overflow, except that the
+  newest turn is always kept even if it alone exceeds the budget. It then drops any leading
+  assistant turns, because the API requires the first message to be from the user, and a reply
+  with no question above it reads as a non sequitur anyway. The old rule was a flat last ten
+  turns; the budget replaced it so that one long reading cannot crowd out the recent exchange,
+  and so a conversation that runs all evening does not keep getting more expensive.
+</p>
+
+<h4>The measured numbers</h4>
+
+<p>
+  Every figure below is reproduced from <code>docs/MODEL_COSTS.md</code>, which states that each
+  one was measured against the real API on a real chart asking a real question, not estimated.
+  "Before" is the pipeline before the four changes that document describes: caching, effort, the
+  history budget and the explicit length rule. "After" is the pipeline this chapter describes.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Measure</th><th>Before</th><th>After</th></tr></thead>
+<tbody>
+<tr><td>System prompt</td><td class="num-cell">1,608 tokens</td><td class="num-cell">942</td></tr>
+<tr><td>System plus a 10-turn history</td><td class="num-cell">4,017 tokens</td><td class="num-cell">2,868 (8 turns kept)</td></tr>
+<tr><td>Input billed from turn 2 on</td><td class="num-cell">4,017 at full rate</td><td class="num-cell">2,867 as cache read (0.1 times)</td></tr>
+<tr><td>Output on a standard reading</td><td class="num-cell">1,452 tokens</td><td class="num-cell">719</td></tr>
+<tr><td>Length of the reading itself</td><td class="num-cell">167 words</td><td class="num-cell">169</td></tr>
+</tbody></table></div>
+
+<p>
+  At the Sonnet 5 prices the document quotes, $2 per million input tokens and $10 per million
+  output, a mid-conversation turn went from roughly $0.023 to $0.008, and the reading did not get
+  shorter. The document also records two figures that did not become defaults: disabling thinking
+  entirely on the standard path would take output to about 328 tokens, a quarter of the original,
+  and was not chosen because chart work benefits from some reasoning; and the alerts job, which
+  runs once per user per day on Opus, had its <code>max_tokens</code> cut from 4,096 to 1,600
+  alongside the move to low effort.
+</p>
+
+<h4>Watching it in production</h4>
+
+<p>
+  After the stream ends the route awaits <code>finalMessage()</code> and logs one line per turn:
+</p>
+
+<pre><code>chat usage conv=&lt;id&gt; model=claude-sonnet-5 in=13 cache_write=0 cache_read=2867 out=538</code></pre>
+
+<p>
+  The fields are the API's <code>input_tokens</code>, <code>cache_creation_input_tokens</code>,
+  <code>cache_read_input_tokens</code> and <code>output_tokens</code>. The diagnostic rule from
+  the cost document: <code>cache_read</code> staying at 0 across a conversation means something
+  reintroduced a per-request change into the prefix, and the date line and the transit text are
+  the first two places to look.
+</p>
+
+<div class="rail" data-hue="readings">
+<h4>The cheapest turn never reaches the API</h4>
+<p>
+  <code>docs/MODEL_COSTS.md</code> ends with the one saving this chapter does not cover. On iOS 26
+  with Apple Intelligence, questions that are lookups rather than interpretation ("where is my
+  Saturn", "which dasha am I in") are answered by the on-device model from the cached chart, and
+  never become a paid turn at all. The saving is in the turn count, not the per-turn price. The
+  router, the tool it reads through, and the vocabulary rules it must obey are in
+  <a href="#ch10">chapter 10</a>.
+</p>
+</div>
+
+<h3 id="s3-6"><span class="num">3.6</span><span>Guarding the prompt</span></h3>
+
+<p>
+  There is no filter in this repository that inspects a user's message for instructions aimed at
+  the model. The guard is structural, and it is worth being precise about what it consists of.
+</p>
+
+<p>
+  <strong>User text goes in <code>messages</code>, never in <code>system</code>.</strong> The
+  route reads <code>body.message</code>, appends it to the messages array and stores it; it is
+  never interpolated into either system string. Two kinds of user-authored text do reach the
+  stable half, and both are the user's own data reaching only the user's own prompt: the first
+  name (and, for numerology, the full name, which is quoted as the source of the namank), and
+  the titles of the moments the user has pinned on their timeline, which
+  <code>describeTimelineForPrompt</code> renders verbatim.
+</p>
+
+<p>
+  <strong>The system prompt contains only computed facts and fixed rules.</strong> The chart
+  block is rendered from numbers the ephemeris produced. The Accuracy rules tell the model that
+  those numbers are the only facts it has and that a sentence with no placement behind it does
+  not go in the answer. This is what makes an invented placement unlikely: the model has a
+  complete, labelled list, and an instruction to cite from it.
+</p>
+
+<p>
+  <strong>Identity is checked twice.</strong> The route calls <code>supabase.auth.getUser()</code>
+  and returns 401 without a user. <code>getOrCreateConversation</code> in
+  <code>lib/data/chat.ts</code>, when handed an existing conversation id, verifies that the row
+  belongs to this <code>user_id</code> before reusing it and throws "Conversation not found"
+  otherwise; its comment calls this defence in depth on top of RLS. The tables themselves carry
+  owner-only policies, described in <a href="#ch06">chapter 6</a>. So a user cannot append to,
+  or read history from, a conversation that is not theirs, and the history that becomes part of
+  the prompt is always their own.
+</p>
+
+<h4>What lib/data/injection.test.ts actually tests</h4>
+
+<p>
+  Despite its name, this file has nothing to do with prompt injection. It tests
+  <strong>dependency</strong> injection: that the data helpers accept an injected Supabase client and
+  use it, and fall back to the cookie client only when none is given. Its three cases are that
+  <code>saveBirthProfile</code> writes through the injected client, that <code>appendMessage</code>
+  writes through the injected client with exactly the row shape the <code>messages</code> table
+  expects, and that <code>appendMessage</code> with no client calls <code>createServerSupabase</code>
+  once.
+</p>
+
+<p>
+  Why that matters to readings is the bearer path. A web request carries Supabase cookies, and
+  <code>createServerSupabase</code> in <code>lib/supabase/server.ts</code> builds a client from
+  them. An iOS request carries <code>Authorization: Bearer &lt;jwt&gt;</code> and no cookies.
+  <code>createRouteSupabase</code> in <code>lib/supabase/route.ts</code> reads that header and
+  returns a plain <code>supabase-js</code> client that forwards the token, so Row Level Security
+  evaluates as that user. Every helper in <code>lib/data/chat.ts</code> and
+  <code>lib/data/birthProfile.ts</code> takes an optional <code>db?: Db</code> for this reason. If
+  a helper ignored it and built its own cookie client, an iOS turn would run as nobody: the
+  conversation insert would fail RLS and the reading would never be stored. The test pins that
+  <code>createServerSupabase</code> is not called when a client is injected, which is the whole
+  contract.
+</p>
+
+<div class="note"><b>Name versus contents</b>
+If you came to <code>injection.test.ts</code> looking for prompt injection guards, the honest
+answer is that the guards are the four structural facts above, and the tests that hold them are
+in <code>prompt.test.ts</code> (the rules text is present) and <code>history.test.ts</code> (the
+history is well formed). The chat route itself has no test file.
+</div>
+
+<h3 id="s3-7"><span class="num">3.7</span><span>Tests</span></h3>
+
+<p>
+  All are Vitest, run with <code>npm test</code>, and none touches the network. The prompt tests
+  build from a fixture chart (Leo ascendant, Sun in Sagittarius, Moon in Taurus, Venus in Libra,
+  Venus mahadasha, Sun antardasha) and compute its derived facts once so every assertion reads
+  the same numbers the prompt was rendered from.
+</p>
+
+<ul>
+  <li><code>lib/astrology/prompt.test.ts</code>, <strong>buildSystemPrompt</strong>: the joined prompt carries the name, the tradition, the ascendant, a nakshatra and the dasha lord; it contains "never state a placement", "only this data", "guidance and reflection" and "in simple words"; the stable half carries no "Today is", no "SKY TODAY" and no length rule, while the volatile half carries all three; and two calls with the same inputs return the same string.</li>
+  <li><strong>buildTodaySystem transit framing</strong>: with a multi-line transit block the instruction lands on its own line, not glued to a bullet, and there is no double period.</li>
+  <li><strong>derived facts in the prompt</strong>: pinned to the fixture's computed values rather than the shape of a sentence. The Sun's line says what it rules; the Moon at 3.1° Taurus is exalted; Venus in house 3 "aspects house 9", singular; a Mars in Aries lagna "aspects houses 4, 7, 8"; house 10's line names Venus in house 3 in Libra as its lord; the mahadasha line says where Venus sits; the generic register ban ("true of a twelfth of the population") is present; and a lord that is not a body in the chart is said to be so rather than placed in house 0.</li>
+  <li><strong>a Western chart gets no derived facts</strong>: the C1 regression. With a Leo ascendant and Mars stored in Placidus house 5, whole-sign counting would put it in house 6; the test asserts the prompt reads "Mars: Capricorn 2°, h5", contains no moolatrikona, no "aspects house" and no STANDING CONDITIONS, through both <code>buildChartSystem</code> with no derived and <code>buildSystemPrompt</code>'s default.</li>
+  <li><strong>numerology stays its own block</strong>: the blank line before "Numerology: Mulank 3, Bhagyank 7."</li>
+  <li><strong>derived facts survive a JSON round trip</strong>: fresh and round-tripped <code>Derived</code> render identically.</li>
+  <li><strong>numerology prompt</strong>: for the birth date 1990-07-15 the repeated digits are 1 and 9, the missing digits 2, 3, 4, 6 and 8, and "The namank 1 and the mulank 6 are enemies." appears as one literal sentence, so a swapped argument order or a wrong relationship word fails.</li>
+  <li><strong>buildTodaySystem with personal cycles</strong>: distinct year and month values both render, and neither appears when absent.</li>
+  <li><code>lib/data/history.test.ts</code>: everything is kept when it fits; the oldest turns drop first; a window never starts on an assistant turn (and can be empty as a result); the newest turn is kept even when it alone exceeds the budget; an empty conversation yields nothing.</li>
+  <li><code>lib/data/injection.test.ts</code>: the three dependency injection cases in section 3.6, with <code>computeChart</code> stubbed so the ephemeris binary is not loaded.</li>
+</ul>
+
+<h3 id="s3-8"><span class="num">3.8</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/astrology/prompt.ts</code>, top to bottom. Read <code>renderChart</code>'s comment before <code>renderChartFacts</code>, so the Western branch makes sense as the older, plainer one.</li>
+  <li><code>lib/astrology/derived.ts</code>, just <code>factsFor</code> and the comment above it, for the gate that chooses the branch.</li>
+  <li><code>lib/astrology/transits.ts</code>, for the memo key and <code>describeToday</code>, which are the two things that made the prompt hold still.</li>
+  <li><code>lib/anthropic.ts</code>, for the three measured effort numbers.</li>
+  <li><code>app/api/chat/route.ts</code>, from the profile read to the <code>messages.stream</code> call, watching for the two <code>cache_control</code> objects.</li>
+  <li><code>lib/data/history.ts</code>, for the budget.</li>
+  <li><code>docs/MODEL_COSTS.md</code>, for what each change bought.</li>
+  <li><code>lib/astrology/prompt.test.ts</code>, which reads as the list of rules in plain English.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why is the timeline appended to the stable half rather than the today half, when it is user data that can change?</p>
+<p class="a">Because it changes only when the user pins or removes a moment, which is rare, while the today half changes several times a day. Putting it in the stable half means a pin costs one cache write; putting it in the today half would gain nothing, since the today half is not behind its own breakpoint.</p>
+<p class="q">The stable half measures 942 tokens and Sonnet's minimum cacheable prefix is 1,024. Why does caching work at all?</p>
+<p class="a">Because of the second breakpoint on the last stored turn. From turn 2 the prefix up to that turn includes both system blocks plus history, is well over the minimum, and is what is read from cache. The first breakpoint is a bonus when the chart is large enough.</p>
+<p class="q">Why does a Western reading get no lordships, aspects or doshas?</p>
+<p class="a"><code>factsFor</code> returns <code>undefined</code> for any non-Vedic chart, so <code>buildChartSystem</code> falls back to <code>renderChart</code>. The techniques are Vedic, and whole-sign house numbers would contradict the Placidus houses the PDF and the iOS view draw from <code>chart.planets[].house</code>.</p>
+<p class="q">Why is the length rule in the prompt rather than in <code>max_tokens</code>?</p>
+<p class="a">Because <code>max_tokens</code> truncates; it does not shorten. A model told to write 160 words writes about 160 and stops cleanly. The ceiling of 1,600 exists so a runaway answer is bounded, not to shape a normal one.</p>
+<p class="q">What does <code>selectHistory</code> do with a stored assistant turn that has no user turn before it in the window?</p>
+<p class="a">Drops it. The window is trimmed from the front until the first turn is a user turn, because the API requires that and because an answer with no question reads as a non sequitur. The test named "never starts on an assistant turn" pins it, including the case where the result is empty.</p>
+<p class="q">What does <code>injection.test.ts</code> guard against?</p>
+<p class="a">A data helper that ignores the injected bearer client and builds its own cookie client. On an iOS request that client has no session, RLS denies the write, and the reading is never stored.</p>
+</div>
+</section>

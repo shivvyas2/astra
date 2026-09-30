@@ -1,0 +1,848 @@
+<section class="chapter" id="ch09" data-hue="alerts">
+<p class="chapter-kicker">Chapter nine</p>
+<h2><span class="num">9</span><span>Daily readings and dosha alerts</span></h2>
+
+<p class="lede">
+  Twice a day a scheduled job writes each person a reading for the half of the day they are in,
+  and sends a push only when something in their sky actually changed. The clock is the user's,
+  not the server's; the astrology is decided in code, not by the model; and a condition that
+  merely continues is never announced twice.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. It is
+  the one feature in Sanchara that runs with nobody looking. A chat route that misbehaves is
+  seen and retried by the person in front of it; a cron job that misbehaves wakes people at
+  night, bills a model call nobody asked for, or says "Mangal Dosha has begun" to someone whose
+  chart has not changed since the day they were born. Most of the design below exists to make
+  each of those impossible rather than unlikely.
+</p>
+
+<h3 id="s9-1"><span class="num">9.1</span><span>Intent</span></h3>
+
+<p>
+  Two things are pushed to a person, both written from their own chart against today's sky. A
+  reading, morning and night, kept by date so the app shows an archive rather than a
+  notification that vanishes. And a dosha alert, sent only when an affliction starts or ends: a
+  Sade Sati stepping from rising to peak, Saturn leaving the eighth from the Moon, a node
+  arriving over the ascendant. A standing condition is recorded and shown, but it does not nag.
+</p>
+
+<p>
+  Three decisions shape everything else. The slot a reading belongs to is decided by the user's
+  local hour, so one fixed UTC schedule serves every timezone. The dosha engine
+  (<code>lib/astrology/doshas.ts</code>) decides deterministically which conditions hold, and
+  Claude only writes the words. And natal conditions, fixed at birth, never alert after a
+  user's first read, because a change in one is an artifact of the computation moving under
+  them and never an event.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 400" role="img" aria-label="Vercel Cron calls the daily route with a bearer secret; the route runs the predictions job and then the alerts job; the jobs read birth profiles, write daily readings, transit conditions and alerts, ask Claude for the copy, read device tokens, and send each token to the APNs host that matches its row, which delivers the push to the iPhone.">
+  <defs>
+    <marker id="ch09a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch09b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">VERCEL</text>
+  <text class="lbl-sm" x="200" y="24">ROUTE HANDLER</text>
+  <text class="lbl-sm" x="380" y="24">JOBS</text>
+  <text class="lbl-sm" x="560" y="24">TABLES</text>
+  <text class="lbl-sm" x="720" y="24">APPLE, THEN PHONE</text>
+
+  <rect class="box" x="20" y="44" width="150" height="56" rx="8"/>
+  <text class="lbl" x="95" y="67" text-anchor="middle">Vercel Cron</text>
+  <text class="lbl-sm" x="95" y="87" text-anchor="middle">02:30 and 15:30 UTC</text>
+
+  <rect class="box-hot" x="200" y="44" width="150" height="56" rx="8"/>
+  <text class="lbl" x="275" y="67" text-anchor="middle">/api/cron/daily</text>
+  <text class="lbl-hot" x="275" y="87" text-anchor="middle">Bearer CRON_SECRET</text>
+
+  <rect class="box" x="380" y="44" width="150" height="40" rx="8"/>
+  <text class="lbl" x="455" y="69" text-anchor="middle">runDuePredictions</text>
+
+  <rect class="box" x="380" y="170" width="150" height="40" rx="8"/>
+  <text class="lbl" x="455" y="195" text-anchor="middle">runDailyAlerts</text>
+
+  <rect class="box-alt" x="380" y="300" width="150" height="40" rx="8"/>
+  <text class="lbl" x="455" y="325" text-anchor="middle">Claude writes copy</text>
+
+  <rect class="box-alt" x="560" y="44" width="130" height="34" rx="8"/>
+  <text class="lbl" x="625" y="66" text-anchor="middle">birth_profiles</text>
+  <rect class="box" x="560" y="100" width="130" height="34" rx="8"/>
+  <text class="lbl" x="625" y="122" text-anchor="middle">daily_readings</text>
+  <rect class="box" x="560" y="170" width="130" height="34" rx="8"/>
+  <text class="lbl" x="625" y="192" text-anchor="middle">transit_conditions</text>
+  <rect class="box" x="560" y="224" width="130" height="34" rx="8"/>
+  <text class="lbl" x="625" y="246" text-anchor="middle">alerts</text>
+  <rect class="box-alt" x="560" y="300" width="130" height="34" rx="8"/>
+  <text class="lbl" x="625" y="322" text-anchor="middle">device_tokens</text>
+
+  <rect class="box" x="720" y="100" width="120" height="56" rx="8"/>
+  <text class="lbl" x="780" y="123" text-anchor="middle">APNs</text>
+  <text class="lbl-sm" x="780" y="143" text-anchor="middle">sandbox or production</text>
+
+  <rect class="box-hot" x="720" y="300" width="120" height="56" rx="8"/>
+  <text class="lbl" x="780" y="323" text-anchor="middle">iPhone</text>
+  <text class="lbl-hot" x="780" y="343" text-anchor="middle">PushStore</text>
+
+  <path class="flow" d="M170 72 L 194 72" marker-end="url(#ch09a)"/>
+  <text class="lbl-sm" x="176" y="64">1</text>
+  <path class="flow" d="M350 64 L 374 64" marker-end="url(#ch09a)"/>
+  <text class="lbl-sm" x="356" y="56">2</text>
+  <path class="flow" d="M275 100 L 275 190 L 374 190" marker-end="url(#ch09a)"/>
+  <text class="lbl-sm" x="282" y="150">3, after 2</text>
+  <path class="flow-dash" d="M530 58 L 554 58" marker-end="url(#ch09a)"/>
+  <path class="flow-dash" d="M530 178 L 548 178 L 548 66 L 554 66" marker-end="url(#ch09a)"/>
+  <path class="flow-hot" d="M530 74 L 554 112" marker-end="url(#ch09b)"/>
+  <text class="lbl-hot" x="536" y="98">one slot</text>
+  <path class="flow-hot" d="M530 188 L 554 188" marker-end="url(#ch09b)"/>
+  <path class="flow-hot" d="M530 200 L 545 200 L 545 241 L 554 241" marker-end="url(#ch09b)"/>
+  <path class="flow-dash" d="M380 80 L 365 80 L 365 320 L 374 320" marker-end="url(#ch09a)"/>
+  <path class="flow-dash" d="M455 210 L 455 294" marker-end="url(#ch09a)"/>
+  <path class="flow-dash" d="M510 210 L 510 317 L 554 317" marker-end="url(#ch09a)"/>
+  <text class="lbl-sm" x="516" y="290">tokens</text>
+  <path class="flow-hot" d="M690 317 L 700 317 L 700 128 L 714 128" marker-end="url(#ch09b)"/>
+  <text class="lbl-hot" x="600" y="365">host chosen per row</text>
+  <path class="flow-hot" d="M780 156 L 780 294" marker-end="url(#ch09b)"/>
+  <text class="lbl-hot" x="788" y="230">push</text>
+  <line class="wall" x1="708" y1="30" x2="708" y2="380"/>
+  <text class="lbl-sm" x="20" y="392">Dashed arrows are reads and model calls. Solid hot arrows are the writes and the push. Nothing left of the wall keeps a token in memory past one run.</text>
+</svg>
+<figcaption>
+  One route, two jobs in sequence, five tables. The predictions job writes one reading per user
+  per slot; the alerts job writes an alert only on a change. Both send each device token to the
+  APNs host its own row names.
+</figcaption>
+</figure>
+
+<h3 id="s9-2"><span class="num">9.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">app/api/cron/
+├── daily/route.ts               the scheduled job: readings, then the dosha sweep
+└── alerts/route.ts              the older entry point; runs only the dosha sweep
+
+app/api/devices/
+├── route.ts                     POST registers a device token, DELETE removes it
+└── route.test.ts                session user wins over the body, environment defaults
+
+lib/alerts/
+├── slots.ts                     morning or night from the local hour; is the slot due
+├── predictions.ts               the twice-daily reading, one per user per slot
+├── run.ts                       the dosha sweep: diff, record, partition, alert, push
+├── compose.ts                   the alert copy, the reply parser, the fallback
+└── *.test.ts                    slots, partitioning, parsing, fallbacks
+
+lib/push/apns.ts                 token-based APNs client over HTTP/2
+lib/astrology/doshas.ts          detectConditions, the signatures the sweep diffs
+vercel.json                      the two cron schedules
+
+supabase/migrations/
+├── 0004_alerts_push.sql         device_tokens, transit_conditions, alerts
+└── 0005_daily_readings.sql      daily_readings
+
+mobile/Sanchara/Sources/
+├── Services/Push.swift          PushStore, the app delegate, ApsEnvironment
+├── Features/Alerts/
+│   ├── DailyStore.swift         DailyReading, grouping by date, the widget cache
+│   ├── AlertsStore.swift        SancharaAlert, open, markRead
+│   ├── InboxView.swift          the bell sheet: Daily and Alerts tabs, DailyReadingView
+│   └── AlertsView.swift         AlertDetailView, severityColor
+└── Features/Chat/ChatView.swift where a tapped push becomes an open sheet
+
+mobile/Sanchara/Tests/
+├── ApsEnvironmentTests.swift    the entitlement parser
+└── DailyReadingTests.swift      grouping and labels
+
+docs/PUSH_ALERTS.md              the one-time setup: APNs key, env vars, entitlement</pre>
+
+<p>
+  The split inside <code>lib/alerts</code> is by what can be tested without a network.
+  <code>slots.ts</code> is two pure functions; <code>compose.ts</code> exports its parser and
+  fallback separately from the model call; <code>run.ts</code> pulls its two hardest decisions
+  out into <code>partitionForAlerts</code> and <code>deriveHadNatalRows</code>. Everything that
+  touches Supabase or APNs stays in the orchestrating functions.
+</p>
+
+<h3 id="s9-3"><span class="num">9.3</span><span>Model</span></h3>
+
+<h4>A condition and its signature</h4>
+
+<pre><code>// lib/astrology/doshas.ts
+export type Severity = "info" | "caution" | "warning";
+
+export type Condition = {
+  kind: string;
+  signature: string;
+  label: string;
+  severity: Severity;
+  scope: "natal" | "transit";
+  /** A plain factual sentence, the grounding the model is allowed to interpret. */
+  detail: string;
+};</code></pre>
+
+<p>
+  The <code>signature</code> is the whole mechanism. It folds in the phase and the sign involved,
+  so that Saturn moving on, or Sade Sati stepping from rising to peak, reads as a new condition
+  rather than the same one continuing. Natal detectors produce signatures such as
+  <code>mangal_dosha:7</code> or <code>kaal_sarp:&lt;sign&gt;</code>; transit detectors produce
+  <code>sade_sati:&lt;phase&gt;:&lt;sign&gt;</code>, <code>kantaka_shani</code>,
+  <code>node_over_moon_&lt;node&gt;</code>, <code>ashtama_surya</code>, <code>guru_6_8_12</code>,
+  <code>retrograde_&lt;planet&gt;</code> and the rest, each suffixed with the sign that makes it
+  specific. The sweep never compares labels or kinds. It compares signatures against the set of
+  open rows, and the difference is the news.
+</p>
+
+<h4>The copy</h4>
+
+<pre><code>// lib/alerts/compose.ts
+export type AlertCopy = {
+  title: string;
+  body: string;
+  detail: string;
+};
+
+// lib/alerts/slots.ts
+export type Slot = "morning" | "night";
+export const NIGHT_STARTS_AT_HOUR = 14;</code></pre>
+
+<p>
+  One copy type serves both a reading and an alert: a title, one plain sentence for the lock
+  screen, and a markdown detail ending in a section titled "In simple words". The prompt asks
+  for under 38 characters of title and under 140 of body; the parser cuts at 60 and 200, so a
+  reply a few characters over is trimmed rather than discarded.
+</p>
+
+<h4>Four tables</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Columns that matter</th><th>Uniqueness</th><th>App may</th></tr></thead>
+<tbody>
+<tr><td><code>device_tokens</code></td><td><code>token</code> (primary key), <code>user_id</code>, <code>platform</code> (only <code>ios</code>), <code>environment</code> (<code>sandbox</code> or <code>production</code>), <code>updated_at</code></td><td>the token itself</td><td>read, write and delete its own rows, though the route uses the admin client (see 9.4)</td></tr>
+<tr><td><code>transit_conditions</code></td><td><code>kind</code>, <code>signature</code>, <code>label</code>, <code>severity</code>, <code>scope</code>, <code>detail</code>, <code>started_on</code>, <code>ended_on</code></td><td>partial unique index on <code>(user_id, signature)</code> where <code>ended_on is null</code></td><td>read its own rows</td></tr>
+<tr><td><code>alerts</code></td><td><code>severity</code>, <code>kinds text[]</code>, <code>title</code>, <code>body</code>, <code>detail</code>, <code>created_at</code>, <code>read_at</code></td><td>none beyond the id</td><td>read, and update (to mark read)</td></tr>
+<tr><td><code>daily_readings</code></td><td><code>for_date</code>, <code>slot</code>, <code>tradition</code> (default <code>vedic</code>), <code>title</code>, <code>body</code>, <code>detail</code>, <code>created_at</code>, <code>read_at</code></td><td><code>unique (user_id, for_date, slot)</code></td><td>read, and update (to mark read)</td></tr>
+</tbody></table></div>
+
+<p>
+  Every table has Row Level Security on, and every policy is owner-only. The jobs write with the
+  service-role client, which bypasses RLS; the policies let the app read its own inbox and mark
+  things read through PostgREST with no route handler in between.
+  <code>transit_conditions</code> is the state the feature hangs on: a row is open while
+  <code>ended_on</code> is null, and the partial unique index allows one open row per signature
+  per user, so two runs racing cannot open a condition twice. <code>daily_readings.for_date</code>
+  is the user's own local date, with the migration's reason: "my reading for the 26th" has to
+  mean their 26th.
+</p>
+
+<div class="note"><b>Why <code>ended_on</code> and not a delete</b>
+A closed row is history. The unique index is partial precisely so a condition can end, stay on
+record with its dates, and open again under the same signature when Saturn returns. The table
+is a ledger of every affliction the engine has seen, not a set of current ones.
+</div>
+
+<h3 id="s9-4"><span class="num">9.4</span><span>The server side</span></h3>
+
+<h4>Two routes, one current</h4>
+
+<pre><code>// vercel.json
+"crons": [
+  { "path": "/api/cron/daily", "schedule": "30 2 * * *" },
+  { "path": "/api/cron/daily", "schedule": "30 15 * * *" }
+]</code></pre>
+
+<p>
+  Both schedules hit <code>/api/cron/daily</code>, at 02:30 and 15:30 UTC, which is 08:00 and
+  21:00 in India. The handler runs <code>runDuePredictions()</code>, then
+  <code>runDailyAlerts()</code>, and answers with both summaries. <code>/api/cron/alerts</code> is
+  the older route: it runs only the dosha sweep, is not named in <code>vercel.json</code>, and
+  survives for running that half by hand. Its docstring still says the cron fires it, and the
+  comment in <code>0004_alerts_push.sql</code> names it too; both are out of date. Read
+  <code>vercel.json</code> as the truth about what is scheduled.
+</p>
+
+<pre><code>// app/api/cron/daily/route.ts
+export const runtime = "nodejs";
+export const maxDuration = 300;
+
+export async function GET(request: Request) {
+  const secret = env.cronSecret();
+  if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  ...
+}</code></pre>
+
+<p>
+  Vercel sends <code>Authorization: Bearer $CRON_SECRET</code> on scheduled invocations, and the
+  same header runs the job by hand with <code>curl</code>. A missing secret refuses everything;
+  "no secret means open" would expose a job that spends model tokens for every user to anyone
+  who finds the path. The runtime is Node because the Swiss Ephemeris runs as WebAssembly, and
+  the five-minute <code>maxDuration</code> is the budget for up to 500 users, each of whom may
+  cost a chart computation and a model call.
+</p>
+
+<h4>Slots</h4>
+
+<pre><code>// lib/alerts/slots.ts
+export function slotForHour(localHour: number): Slot {
+  return localHour &lt; NIGHT_STARTS_AT_HOUR ? "morning" : "night";
+}
+
+export function isSlotDue(localHour: number, alreadyWritten: Slot[]): Slot | null {
+  const slot = slotForHour(localHour);
+  return alreadyWritten.includes(slot) ? null : slot;
+}</code></pre>
+
+<p>
+  Anything before 14:00 local is that day's morning reading; anything after is that night's.
+  <code>isSlotDue</code> asks one question: does this user still need the reading for the slot
+  they are in right now? It does not backfill. A user in the evening with no morning reading
+  gets tonight's, not a stale "good morning" hours late, which the test <code>does not backfill
+  a slot the user has moved past</code> pins.
+</p>
+
+<h4>The reading</h4>
+
+<p>
+  <code>runDuePredictions</code> selects every <code>birth_profiles</code> row with a computed
+  chart, up to 500, and calls <code>writeDueReading</code> for each inside its own
+  <code>try</code>; one user failing is counted and logged, and the loop continues. Per user:
+</p>
+
+<ol>
+  <li>The Vedic chart is required; a profile without one counts as skipped.</li>
+  <li>The zone is <code>profile.timezone</code>, or UTC when null. <code>nowLocal</code> and
+    <code>forDate</code> come from Luxon in that zone.</li>
+  <li>The slots already written for that user and date are read from <code>daily_readings</code>,
+    and <code>isSlotDue(nowLocal.hour, slots)</code> decides. Null means nothing to do.</li>
+  <li><code>transitChart</code> computes today's sky at the user's birthplace, and
+    <code>detectConditions(chart, transits)</code> finds the same afflictions the alert job
+    tracks, so the reading and the alerts never contradict each other.</li>
+  <li><code>composePrediction</code> writes the copy and the row is inserted with
+    <code>tradition: "vedic"</code>. A unique violation (Postgres code <code>23505</code>) is
+    returned as null, "already done", not thrown: the index is the safety net for two runs
+    racing.</li>
+  <li>The reading is pushed to every device with <code>kind: "daily"</code> and a thread id of
+    <code>sanchara-daily-morning</code> or <code>sanchara-daily-night</code>.</li>
+</ol>
+
+<pre><code>// lib/alerts/predictions.ts
+const flagged = args.conditions
+  .filter((c) =&gt; c.severity !== "info" &amp;&amp; c.scope !== "natal")
+  .slice(0, 4)
+  .map((c) =&gt; `- ${c.label}: ${c.detail}`)
+  .join("\n");
+
+const stable = buildChartSystem({ firstName, tradition: "vedic", chart, derived: factsFor(chart), numerology });
+const todayBlock = buildTodaySystem({ today, transits, maxWords: 150 });
+...
+system: [
+  // Identical for this user on every run, so it is a cache read whenever
+  // two of their readings land within the hour.
+  { type: "text", text: stable, cache_control: { type: "ephemeral", ttl: "1h" } },
+  { type: "text", text: todayBlock },
+],</code></pre>
+
+<p>
+  The prompt has three parts. The stable block is the same chart system prompt the chat uses,
+  with the derived facts and numerology, marked for a one-hour prompt cache. The today block is
+  the gochara description, called with <code>includeAfflictions: false</code> because the job
+  lists the flagged conditions itself; asking for them twice was the double-listing fixed in
+  0.3.0. The task is one of two briefs, morning ("look forward, not back") or night ("reflect on
+  the day, then say what tomorrow morning opens with"), followed by at most four flagged
+  conditions, to be worked in only where they bear on the day and without alarm. Natal
+  conditions are left out of that list for the same reason they never alert: they are not about
+  today. The model is <code>READING_MODEL</code> (<code>claude-sonnet-5</code>) at
+  <code>LOW_EFFORT</code> with 1,600 output tokens. If the call fails or the reply cannot be
+  parsed, <code>fallbackPrediction</code> stores a plain reading that greets the user by first
+  name and points at the app, so the slot is never empty.
+</p>
+
+<h4>The dosha sweep</h4>
+
+<p>
+  <code>runDailyAlerts</code> has the same outer shape: the same profile query, a per-user
+  <code>try</code>, and a summary of <code>processed</code>, <code>alerted</code>,
+  <code>pushesSent</code>, <code>failures</code> and <code>pushConfigured</code>. Per user,
+  <code>runAlertsForUser</code> works in a fixed order, and the order is the correctness.
+</p>
+
+<ol>
+  <li>Compute today's sky with <code>computeChart</code> at the user's latitude and longitude,
+    the same way the chat route does. Then <code>detectConditions(natal, transit)</code>, indexed
+    by signature.</li>
+  <li>Count the user's natal rows in <code>transit_conditions</code>. This is the only fact that
+    decides whether a natal condition may alert, and it fails closed (below).</li>
+  <li>Load the open rows (<code>ended_on is null</code>). <code>started</code> is every current
+    condition whose signature is not open; <code>ended</code> is every open row whose signature
+    is not current.</li>
+  <li>Insert every started row with <code>started_on</code> as the user's local date, and close
+    every ended row the same way. The code warns at each step that these are the raw, unfiltered
+    lists: a natal filter inlined here would stop natal rows being written, and the same
+    condition would re-detect as "starting" forever.</li>
+  <li>Only now partition. <code>partitionForAlerts</code> keeps everything when the user had no
+    natal rows (a first read, where the whole natal set is genuinely news) and otherwise routes
+    natal conditions to <code>silent</code>. Then keep only <code>caution</code> and
+    <code>warning</code> (<code>NOTIFIABLE</code>), and at most six
+    (<code>MAX_CONDITIONS_PER_ALERT</code>), because past that an alert becomes a list.</li>
+  <li>If nothing is left, return without an alert. Otherwise the severity is the highest among
+    the started conditions, or the ended ones if nothing started; <code>composeAlert</code>
+    writes the copy; one row goes into <code>alerts</code> with the <code>kinds</code> involved;
+    and the push goes out.</li>
+</ol>
+
+<pre><code>// lib/alerts/run.ts
+export function deriveHadNatalRows(result: { count: number | null; error: { message: string } | null }): boolean {
+  if (result.error) return true;
+  return (result.count ?? 0) &gt; 0;
+}</code></pre>
+
+<p>
+  Supabase returns <code>count: null</code> alongside an error, so the naive
+  <code>(count ?? 0) &gt; 0</code> would read a failed count as "no natal rows", treat an existing
+  user as a first-time reader, and let their natal conditions through unfiltered. That is the
+  bug the 0.3.0 move to whole-sign houses would have caused: the detectors shifted, some natal
+  signatures changed, and "Mangal Dosha has begun" would have gone to people whose chart has not
+  changed since birth. On error the function assumes the opposite of the naive read. It does not
+  throw, because suppressing a natal alert costs nothing real (the condition still shows in the
+  app and the next run reconciles), while aborting the user would drop their legitimate transit
+  alerts for the day.
+</p>
+
+<h4>Composing the alert</h4>
+
+<p>
+  <code>composeAlert</code> uses <code>DEEP_READING_MODEL</code> (<code>claude-opus-4-8</code>),
+  again at low effort and 1,600 tokens; an alert is a title, a sentence and about 180 words, so
+  the thinking budget is kept short on purpose. The system prompt gives the model a short chart
+  summary (ascendant, Sun and Moon signs, the running dasha, every planet with sign and house),
+  the conditions under "Newly active now" and "No longer active" with their factual
+  <code>detail</code> lines, and four rules: never invent a placement, dosha, date or number not
+  listed; no guaranteed outcomes and no medical, legal or financial guarantees; calm and
+  practical, a heads-up and not doom; a remedy that is traditional and harmless.
+</p>
+
+<pre><code>// lib/alerts/compose.ts
+export function parseAlertCopy(text: string): AlertCopy | null {
+  const title = text.match(/^\s*TITLE:\s*(.+)$/m)?.[1]?.trim();
+  const body = text.match(/^\s*BODY:\s*(.+)$/m)?.[1]?.trim();
+  const detailIndex = text.search(/^\s*DETAIL:\s*$/m);
+  const detail = detailIndex === -1 ? undefined : text.slice(text.indexOf("\n", detailIndex) + 1).trim();
+  if (title &amp;&amp; body &amp;&amp; detail) {
+    return { title: title.slice(0, 60), body: body.slice(0, 200), detail };
+  }
+  return parseAlertJson(text);
+}</code></pre>
+
+<p>
+  The reply is line-delimited rather than JSON because <code>detail</code> is markdown. Asked
+  for JSON, the model sometimes writes real newlines inside the string, which is not valid JSON,
+  and the reply is lost; the comment records two of a batch of seven live readings coming back
+  that way. Delimited text has no escaping to get wrong. JSON is still accepted as a second parse
+  for the old shape. When neither parses, or the call throws, <code>fallbackCopy</code> still
+  names the condition: "Sade Sati (peak phase) is active", or "has eased" when only endings
+  remain.
+</p>
+
+<h4>The APNs client</h4>
+
+<p>
+  <code>lib/push/apns.ts</code> talks to Apple directly over HTTP/2 with token-based
+  authentication; there is no push library. <code>isPushConfigured()</code> is true only when all
+  of <code>APNS_KEY_ID</code>, <code>APNS_TEAM_ID</code>, <code>APNS_BUNDLE_ID</code> and
+  <code>APNS_PRIVATE_KEY</code> are set. Without them the jobs still write readings and alerts;
+  they just send nothing, and the summary says <code>pushConfigured: false</code>.
+  <code>APNS_PRIVATE_KEY</code> is the full text of the <code>.p8</code> file; the env accessor
+  turns literal <code>\n</code> sequences back into newlines so the key survives a single-line
+  variable.
+</p>
+
+<pre><code>// lib/push/apns.ts
+const HOSTS: Record&lt;PushEnvironment, string&gt; = {
+  sandbox: "https://api.sandbox.push.apple.com",
+  production: "https://api.push.apple.com",
+};
+
+function providerToken(): string {
+  const now = Math.floor(Date.now() / 1000);
+  if (cachedToken &amp;&amp; now - cachedToken.issuedAt &lt; 45 * 60) return cachedToken.value;
+  const header = base64url(JSON.stringify({ alg: "ES256", kid: env.apnsKeyId() }));
+  const payload = base64url(JSON.stringify({ iss: env.apnsTeamId(), iat: now }));
+  const key = createPrivateKey(env.apnsPrivateKey()!);
+  const signature = signWithKey("sha256", Buffer.from(`${header}.${payload}`), {
+    key,
+    dsaEncoding: "ieee-p1363",
+  });
+  ...
+}</code></pre>
+
+<p>
+  The provider token is a JWT signed with the <code>.p8</code> key: <code>kid</code> in the
+  header, <code>iss</code> (the team id) and <code>iat</code> in the payload. Apple accepts one
+  for an hour and rate-limits regeneration, so the module keeps it for 45 minutes across sends
+  and warm invocations. The one subtlety is <code>dsaEncoding: "ieee-p1363"</code>: ES256 wants
+  the raw r and s pair, and Node signs DER by default. <code>ApnsClient</code> keeps one HTTP/2
+  session per environment, so a run that notifies many users pays for one TLS handshake; the
+  session's <code>error</code> handler exists because an unhandled socket error would take the
+  process down.
+</p>
+
+<p>
+  <code>send</code> posts to <code>/3/device/&lt;token&gt;</code> with <code>apns-topic</code> set to
+  the bundle id, <code>apns-push-type: alert</code> and <code>apns-priority: 10</code>. The payload
+  is an <code>aps</code> block (title and body, the default sound, a <code>thread-id</code>
+  defaulting to <code>sanchara-alerts</code>, <code>interruption-level: active</code>) plus two
+  custom keys the app reads on a tap: <code>alert_id</code> and <code>kind</code>. A ten-second
+  timeout cancels the stream. The result reports <code>unregistered: true</code> on a 410 or the
+  reasons <code>Unregistered</code> and <code>BadDeviceToken</code>; both jobs delete those tokens
+  after the loop, because Apple only tells you a token is dead when you use it.
+</p>
+
+<p>
+  The job never chooses the environment. Each <code>device_tokens</code> row carries the
+  <code>environment</code> the app reported at registration, and <code>send</code> opens the
+  session for that row. A sandbox token and a production token for the same user coexist, each
+  going to the only host that will accept it.
+</p>
+
+<h4>Registering a device</h4>
+
+<p>
+  <code>POST /api/devices</code> takes <code>{ token, environment }</code>. The token must match
+  <code>/^[0-9a-fA-F]{64,200}$/</code>: APNs token length has grown over the years, so the route
+  checks the alphabet and a sane range rather than pinning 64 characters. The environment is
+  <code>sandbox</code> only when the body says exactly that; anything else becomes
+  <code>production</code>. The row is upserted on <code>token</code> with <code>platform:
+  "ios"</code> and the user id from the verified session, never from the body. It is written with
+  the admin client on purpose: a device handed from one account to another has to change owner,
+  and the owner-only RLS policy would correctly refuse that update. <code>DELETE</code> matches
+  both the token and the session user, so one account cannot unregister another's device.
+</p>
+
+<h3 id="s9-5"><span class="num">9.5</span><span>The clients</span></h3>
+
+<h4>The web app</h4>
+
+<p>
+  There is no web surface for readings or alerts in 0.3.0: nothing under <code>app/</code> or
+  <code>components/</code> reads <code>daily_readings</code> or <code>alerts</code>. The web app's
+  part is the route handlers it hosts. The inbox is an iOS feature, and the phone reads the
+  tables straight through PostgREST under RLS.
+</p>
+
+<h4>PushStore and the entitlement</h4>
+
+<p>
+  <code>Push.swift</code> holds three things. <code>PushStore</code> is a <code>@MainActor</code>
+  observable singleton with the device token, an authorization flag, and <code>pending</code>,
+  the notification just tapped. <code>SancharaAppDelegate</code> exists because SwiftUI has no
+  hook for APNs callbacks: it receives the token, turns a tap into a
+  <code>TappedNotification</code> (an id and a kind, <code>daily</code> or <code>alert</code>,
+  from the payload's custom keys), and shows a banner even when the app is open, since these
+  are infrequent and time-relevant. And <code>ApsEnvironment</code> answers the one fact the
+  server needs right about a device.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/Services/Push.swift
+static func parse(profileText: String) -&gt; String {
+    guard let open = profileText.range(of: "&lt;plist"),
+          let close = profileText.range(of: "&lt;/plist&gt;", range: open.upperBound..&lt;profileText.endIndex)
+    else { return sandbox }
+    let plist = String(profileText[open.lowerBound..&lt;close.upperBound])
+    guard let data = plist.data(using: .utf8),
+          let root = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
+          let entitlements = root["Entitlements"] as? [String: Any],
+          let value = entitlements["aps-environment"] as? String
+    else { return sandbox }
+    return value == production ? production : sandbox
+}</code></pre>
+
+<p>
+  The environment is read from the signing entitlement, not the build configuration. The 0.2.0
+  changelog records why: a Release build run from Xcode still carries
+  <code>aps-environment: development</code> and mints a sandbox token, and reporting "production"
+  for it made every push to that device fail silently. So the app reads
+  <code>embedded.mobileprovision</code> from its own bundle, which is what APNs reads too. That
+  file is a CMS-signed blob with a plist inside. Rather than parse CMS, the code decodes the
+  bytes as Latin-1 (every byte maps to a character, so the binary envelope cannot make the decode
+  fail), finds the span between <code>&lt;plist</code> and <code>&lt;/plist&gt;</code>, and reads
+  the entitlements dictionary. <code>production</code> is returned only when the profile says
+  exactly that; a simulator build has no profile and cannot receive pushes, so sandbox is the
+  harmless answer for every failure. <code>mobile/project.yml</code> sets the entitlement to
+  <code>development</code>; the README and the TestFlight workflow switch it to
+  <code>production</code> before archiving, and the app reports whichever it finds.
+</p>
+
+<p>
+  Registration is asked for in <code>ChatView</code>, not at launch, with the reason in the
+  code: by then the user has a chart, so "we'll tell you when a dosha starts" means something.
+  <code>requestAuthorization</code> asks once and calls <code>registerForRemoteNotifications</code>;
+  the delegate hands the token to <code>received</code>, which formats it as hex and calls
+  <code>register</code>, which posts it with <code>ApsEnvironment.current</code> whenever there is
+  a session. A failed registration is swallowed; the next launch retries.
+  <code>AuthStore.signOut</code> calls <code>unregister</code> before the session is gone, so the
+  next person to sign in on that phone does not receive the previous account's readings.
+</p>
+
+<h4>The two stores</h4>
+
+<p>
+  <code>DailyStore</code> loads the newest 60 rows of <code>daily_readings</code>, ordered by
+  <code>for_date</code> then <code>created_at</code>, both descending, and groups them into
+  <code>DailyReadingDay</code> values: newest day first, morning above night within a day, each
+  labelled "Today", "Yesterday" or a long date. After every successful load it saves the newest
+  reading into the App Group cache as a <code>CachedReading</code> and calls
+  <code>WidgetRefresh.reload()</code>, because the widget and the Siri snippet read this and
+  neither can run the query themselves. <code>AlertsStore</code> loads the newest 50 alerts.
+  Both stores expose <code>unreadCount</code>, <code>open(id:)</code> and <code>markRead</code>.
+  <code>open</code> looks in the loaded list first and reloads only on a miss, because the push
+  usually arrives before the app has reloaded. <code>markRead</code> writes <code>read_at</code>,
+  the only write RLS allows the app, and a failure leaves the badge until the next load.
+</p>
+
+<h4>The inbox</h4>
+
+<p>
+  <code>InboxView</code> is one sheet with two tabs, Daily and Alerts, each with an unread badge,
+  so the bell means "things for you". The Daily tab is sectioned by day with a sun or moon glyph
+  per row; the Alerts tab is a flat list with a severity dot (<code>severityColor</code>: the
+  accent for <code>warning</code>, amber for <code>caution</code>, muted otherwise). A tap opens
+  <code>DailyReadingView</code> or <code>AlertDetailView</code>, which render the markdown
+  <code>detail</code> and end with one button, "Ask Sanchara about this", that closes the inbox,
+  starts a new reading and sends a question built from the title and body. The sheet's
+  <code>.task</code> marks the item read as it opens.
+</p>
+
+<h3 id="s9-6"><span class="num">9.6</span><span>How it works</span></h3>
+
+<h4>A scheduled run</h4>
+
+<ol>
+  <li>Vercel Cron sends <code>GET /api/cron/daily</code> with the bearer secret. The handler
+    checks it and calls the two jobs in order: readings first, then the sweep.</li>
+  <li>Each job opens one admin client and one <code>ApnsClient</code>, loads up to 500 profiles
+    with a chart, and loops. The readings job decides a slot per user and writes and pushes only
+    when it is due; the sweep diffs, records, partitions, and alerts only on a change.</li>
+  <li>Both clients are closed in <code>finally</code>, and the handler answers with the two
+    summaries. A top-level error becomes a 500 with a logged cause; a per-user failure is only a
+    count.</li>
+</ol>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 260" role="img" aria-label="The user's timezone gives a local hour; hours before 14 map to morning and the rest to night; the slots already written for that local date are read from daily_readings; isSlotDue returns the slot if it is missing and null otherwise, which leads to writing the morning reading, writing the night reading, or skipping.">
+  <defs>
+    <marker id="ch09c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch09d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box" x="20" y="40" width="180" height="56" rx="8"/>
+  <text class="lbl" x="110" y="63" text-anchor="middle">profile.timezone</text>
+  <text class="lbl-sm" x="110" y="83" text-anchor="middle">UTC when null</text>
+
+  <rect class="box-hot" x="250" y="40" width="200" height="56" rx="8"/>
+  <text class="lbl" x="350" y="63" text-anchor="middle">nowLocal.hour</text>
+  <text class="lbl-hot" x="350" y="83" text-anchor="middle">before 14: morning, else night</text>
+
+  <rect class="box" x="250" y="150" width="200" height="56" rx="8"/>
+  <text class="lbl" x="350" y="173" text-anchor="middle">daily_readings</text>
+  <text class="lbl-sm" x="350" y="193" text-anchor="middle">slots written for this local date</text>
+
+  <rect class="box-hot" x="520" y="40" width="160" height="56" rx="8"/>
+  <text class="lbl" x="600" y="63" text-anchor="middle">isSlotDue</text>
+  <text class="lbl-hot" x="600" y="83" text-anchor="middle">the slot, or null</text>
+
+  <rect class="box" x="720" y="20" width="120" height="40" rx="8"/>
+  <text class="lbl" x="780" y="45" text-anchor="middle">write morning</text>
+  <rect class="box" x="720" y="76" width="120" height="40" rx="8"/>
+  <text class="lbl" x="780" y="101" text-anchor="middle">write night</text>
+  <rect class="box-alt" x="720" y="150" width="120" height="40" rx="8"/>
+  <text class="lbl" x="780" y="175" text-anchor="middle">skipped</text>
+
+  <path class="flow" d="M200 68 L 244 68" marker-end="url(#ch09c)"/>
+  <path class="flow-hot" d="M450 68 L 514 68" marker-end="url(#ch09d)"/>
+  <path class="flow-dash" d="M450 178 L 600 178 L 600 102" marker-end="url(#ch09c)"/>
+  <text class="lbl-sm" x="462" y="170">already written?</text>
+  <path class="flow-hot" d="M680 60 L 714 44" marker-end="url(#ch09d)"/>
+  <path class="flow-hot" d="M680 76 L 714 92" marker-end="url(#ch09d)"/>
+  <path class="flow-dash" d="M640 96 L 640 170 L 714 170" marker-end="url(#ch09c)"/>
+  <text class="lbl-sm" x="648" y="140">null</text>
+  <text class="lbl-sm" x="20" y="238">A second run in the same half of a local day finds the slot written and skips. A slot the user has moved past is never backfilled.</text>
+</svg>
+<figcaption>
+  The slot decision, per user, on every run. The unique index on <code>(user_id, for_date,
+  slot)</code> backs the same decision at the database, so two runs racing cannot both write.
+</figcaption>
+</figure>
+
+<h4>What the two UTC runs mean in other places</h4>
+
+<p>
+  The schedule was chosen for India, where the two runs land at 08:00 and 21:00. Everyone else
+  gets whatever those two instants are on their own clock, run through <code>slotForHour</code>
+  (offsets as of late September):
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Zone</th><th>02:30 UTC is</th><th>15:30 UTC is</th><th>Readings per day</th></tr></thead>
+<tbody>
+<tr><td>India, UTC+5:30</td><td>08:00, morning</td><td>21:00, night</td><td class="num-cell">2</td></tr>
+<tr><td>London, UTC+1</td><td>03:30, morning</td><td>16:30, night</td><td class="num-cell">2</td></tr>
+<tr><td>New York, UTC-4</td><td>22:30 the day before, night</td><td>11:30, morning</td><td class="num-cell">2</td></tr>
+<tr><td>Los Angeles, UTC-7</td><td>19:30 the day before, night</td><td>08:30, morning</td><td class="num-cell">2</td></tr>
+<tr><td>Tokyo, UTC+9</td><td>11:30, morning</td><td>00:30 the next day, morning</td><td class="num-cell">1</td></tr>
+<tr><td>Sydney, UTC+10</td><td>12:30, morning</td><td>01:30 the next day, morning</td><td class="num-cell">1</td></tr>
+</tbody></table></div>
+
+<p>
+  A user far enough east has both runs land in the morning half of two consecutive local days:
+  the second writes tomorrow's morning reading just after midnight, and the next morning's run
+  finds it written and skips. They never get a night reading. The London user's morning reading
+  is written at 03:30 and waits on the lock screen until they wake. <code>docs/PUSH_ALERTS.md</code>
+  names the remedy: on a Vercel plan that allows sub-daily crons, <code>0 * * * *</code> makes
+  every timezone exact at no extra model cost, because each hourly run writes only for users
+  whose current slot is missing. The code is already written for that schedule; only
+  <code>vercel.json</code> would change.
+</p>
+
+<h4>A condition starts</h4>
+
+<p>
+  Saturn enters the sign twelfth from a user's natal Moon. <code>detectConditions</code> now
+  returns a <code>sade_sati</code> signature carrying the phase and the sign, a
+  <code>warning</code> with scope <code>transit</code>. No open row has that signature, so it is
+  in <code>started</code> and is inserted with today's local date; it is transit, so the
+  partition keeps it; it is notifiable; Opus writes a title, a sentence and a page; the
+  <code>alerts</code> row is inserted with <code>kinds: ["sade_sati"]</code>; and every device
+  gets the push in the <code>sanchara-alerts</code> thread. Tomorrow the same signature is open
+  and current, so it is in neither list and nothing happens. When Saturn moves on, the row is
+  closed, the next phase's signature opens, and the alert reads as a change of phase rather
+  than a repeat.
+</p>
+
+<h4>A tap</h4>
+
+<p>
+  The delegate's <code>didReceive</code> reads <code>alert_id</code> and <code>kind</code> from the
+  payload and sets <code>PushStore.shared.pending</code>. <code>ChatView</code> observes it,
+  clears it, switches <code>inboxTab</code> to match, calls the store's <code>open(id:)</code>,
+  and presents the inbox. Because <code>open</code> sets <code>selected</code>, the detail sheet
+  is already up when the inbox appears.
+</p>
+
+<h3 id="s9-7"><span class="num">9.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>Idempotent by construction.</strong> The unique index on
+    <code>daily_readings</code> and the partial unique index on <code>transit_conditions</code>
+    mean an extra run, a retry, or two runs racing write nothing twice. The route's own comment
+    says it: extra runs mostly find nothing to do.</li>
+  <li><strong>No model call for a skipped slot.</strong> The slot check happens before the
+    transit chart and before the model, so a run that lands in an already-written half of a
+    user's day costs one small query.</li>
+  <li><strong>The chart block is cached.</strong> The stable system prompt carries
+    <code>cache_control</code> with a one-hour TTL and is byte-identical for a user on every run,
+    and it matches the chat's chart block, so a reading and a conversation in the same hour
+    share it.</li>
+  <li><strong>Sonnet for the reading, Opus for the alert.</strong> The reading runs twice a day
+    for everyone; the alert runs only on a change, so the more expensive model is reserved for
+    the rarer message. Both run at low effort with a 1,600-token cap.</li>
+  <li><strong>One APNs session per environment per run</strong>, and one provider token per 45
+    minutes, shared across every device in the loop.</li>
+  <li><strong>Dead tokens are pruned as they are found</strong>, so the loop does not grow with
+    every uninstalled app.</li>
+  <li><strong>Bounded work.</strong> Both jobs cap the profile query at 500 and the route at
+    five minutes. There is no pagination; past 500 users with charts, the limit is the next
+    thing to change.</li>
+  <li><strong>The phone caches the newest reading</strong> in the App Group so the widget and
+    Siri answer with no network, and the cache's <code>isFresh</code> keeps a widget from
+    insisting on yesterday's morning reading.</li>
+</ul>
+
+<h3 id="s9-8"><span class="num">9.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>No <code>CRON_SECRET</code> configured</td><td>Both cron routes answer 401 to everyone, including Vercel. The job cannot be left open by omission</td></tr>
+<tr><td>No APNs variables</td><td>Readings and alerts are still written and appear in the inbox; <code>pushesSent</code> is 0 and <code>pushConfigured</code> is false</td></tr>
+<tr><td>Profile has no timezone</td><td>Treated as UTC for the slot and the stored date</td></tr>
+<tr><td>Profile has no Vedic chart</td><td>Skipped by both jobs; nothing is written</td></tr>
+<tr><td>Second run in the same half of a local day</td><td><code>isSlotDue</code> returns null; counted as <code>skipped</code>; no chart, no model call</td></tr>
+<tr><td>Two runs race on the same slot</td><td>The insert fails with <code>23505</code> and is treated as "already done", not as a failure</td></tr>
+<tr><td>Evening, and no morning reading exists</td><td>Tonight's reading is written; the morning is never backfilled</td></tr>
+<tr><td>Model call fails or returns something unparseable</td><td>A deterministic fallback is stored: a greeting for a reading, the condition's name for an alert. The slot or alert is never empty</td></tr>
+<tr><td>Model replies in the old JSON shape</td><td>Still accepted by <code>parseAlertJson</code>, including inside a fenced or chatty reply</td></tr>
+<tr><td>Natal condition's signature changes for an existing user</td><td>The row is opened and the old one closed, silently. No alert, no push</td></tr>
+<tr><td>Natal count query fails</td><td>Fails closed: the user is treated as having natal rows, so natal conditions cannot alert; transit alerts still go out</td></tr>
+<tr><td>A user's first sweep</td><td>Every standing condition, natal included, is news and may alert once, subject to severity</td></tr>
+<tr><td>Only <code>info</code> conditions changed</td><td>Recorded in <code>transit_conditions</code>; no alert row, no push</td></tr>
+<tr><td>More than six notifiable changes</td><td>The first six are named; all are still recorded</td></tr>
+<tr><td>One user throws mid-loop</td><td>Counted in <code>failures</code>, logged with the user id; the loop continues</td></tr>
+<tr><td>Apple says the token is unregistered or bad</td><td>Deleted after the loop; no retry</td></tr>
+<tr><td>APNs does not answer in ten seconds</td><td>The stream is cancelled and the send reported as a timeout; the token is kept</td></tr>
+<tr><td>Sandbox token sent to the production host, or the reverse</td><td>Cannot happen from the job: the host comes from the row, and the row's environment from the entitlement the app was signed with</td></tr>
+<tr><td>Release build run from Xcode, or a simulator</td><td>Reports <code>sandbox</code>: the embedded profile says <code>development</code>, or there is no profile at all</td></tr>
+<tr><td>Body claims a different <code>user_id</code></td><td>Ignored; the session user owns the row</td></tr>
+<tr><td>Device changes hands between accounts</td><td>The admin-client upsert moves the row to the new owner; sign-out unregistered it first anyway</td></tr>
+<tr><td>Push arrives before the inbox has loaded</td><td><code>open(id:)</code> misses, reloads, and finds it</td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<p>
+  On the server, five Vitest files, 24 tests, none of which touch a network, a database or the
+  model:
+</p>
+
+<ul>
+  <li><code>lib/alerts/slots.test.ts</code>: <code>slotForHour</code> splits the day at 14; <code>isSlotDue</code> returns the current slot when missing, null when written, and never backfills.</li>
+  <li><code>lib/alerts/run.test.ts</code>: <code>partitionForAlerts</code> alerts natal conditions only on a first read and keeps transit conditions alertable either way; <code>deriveHadNatalRows</code> is false at zero, true at three, and true when the count query errors (the test is named "fails CLOSED").</li>
+  <li><code>lib/alerts/compose.test.ts</code>: <code>parseAlertCopy</code> reads the delimited shape with newlines intact, still accepts JSON, returns null for a refusal, and rejects a reply missing its detail; <code>parseAlertJson</code> finds the object in a fenced reply; <code>fallbackCopy</code> names the condition and reads as relief when one has ended.</li>
+  <li><code>lib/alerts/predictions.test.ts</code>: <code>fallbackPrediction</code> greets by first name, keeps the body under 140 characters, ends with "In simple words", and gives night a different title from morning.</li>
+  <li><code>app/api/devices/route.test.ts</code>: 401 with nothing written for no session; 400 for a malformed token; the row is stored against the session user, not the body, with <code>onConflict: "token"</code>; an unknown environment defaults to production; <code>DELETE</code> filters by both token and user.</li>
+</ul>
+
+<p>On the phone, two XCTest files:</p>
+
+<ul>
+  <li><code>ApsEnvironmentTests</code> builds a fake profile with non-text bytes either side of the plist, as CMS wrapping produces, and checks that development is sandbox, production is production, a profile without the entitlement is sandbox, no plist is sandbox, a wrong-case value is not trusted as production, and the test bundle itself (no embedded profile, the simulator case) reports sandbox.</li>
+  <li><code>DailyReadingTests</code>: newest day first, morning before night within a day, "Today" and "Yesterday" labels, and the slot flags.</li>
+</ul>
+
+<div class="note caution"><b>What is not tested</b>
+The orchestration in <code>runAlertsForUser</code> and <code>writeDueReading</code>, the diff
+against open rows, the APNs client and the JWT signing have no automated tests. They are
+exercised by calling <code>/api/cron/daily</code> with the secret and reading the summary, as
+<code>docs/PUSH_ALERTS.md</code> describes.
+</div>
+
+<h3 id="s9-9"><span class="num">9.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/alerts/slots.ts</code>, the whole timezone story in twenty lines.</li>
+  <li><code>lib/astrology/doshas.ts</code>, the header comment on <code>signature</code>, then one natal and one transit detector.</li>
+  <li><code>lib/alerts/run.ts</code>, top to bottom: <code>partitionForAlerts</code>, <code>deriveHadNatalRows</code>, then <code>runAlertsForUser</code> and the comments at each write.</li>
+  <li><code>lib/alerts/predictions.ts</code>, <code>writeDueReading</code> and the three-part prompt in <code>composePrediction</code>.</li>
+  <li><code>lib/alerts/compose.ts</code>, the rules in the system prompt and why <code>parseAlertCopy</code> is not JSON.</li>
+  <li><code>lib/push/apns.ts</code>, <code>providerToken</code> and <code>send</code>.</li>
+  <li><code>supabase/migrations/0004_alerts_push.sql</code>, for the partial unique index and its comment.</li>
+  <li><code>mobile/Sanchara/Sources/Services/Push.swift</code>, <code>ApsEnvironment.parse</code> and the comment above <code>PushStore.environment</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Alerts/DailyStore.swift</code>, <code>group</code> and the cache write in <code>load</code>.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why is the slot decided by the user's local hour rather than by which cron fired?</p>
+<p class="a">One fixed UTC schedule then serves every timezone, and the same code works unchanged under an hourly schedule. The cron decides when to look; the user's clock decides what is due.</p>
+<p class="q">Why are natal rows still inserted into <code>transit_conditions</code> if they can never alert?</p>
+<p class="a">The diff is against open rows. A natal condition never recorded is absent from the open set on every run, so it would be in <code>started</code> forever. Recording it once is what makes it silent.</p>
+<p class="q">What does <code>deriveHadNatalRows</code> return when the count query fails, and why?</p>
+<p class="a">True. That routes natal conditions to silent, which costs nothing; the other direction is a push saying a birth condition began today.</p>
+<p class="q">Why does the reply use <code>TITLE:</code>, <code>BODY:</code> and <code>DETAIL:</code> lines instead of JSON?</p>
+<p class="a">The detail is markdown with real newlines, and the model sometimes writes them raw inside a JSON string, which does not parse. Delimited lines have no escaping to get wrong.</p>
+<p class="q">Where does the job learn which APNs host to use for a device?</p>
+<p class="a">From the <code>environment</code> column of that device's row, set at registration from the <code>aps-environment</code> entitlement in the app's embedded provisioning profile. Neither the job nor the build configuration guesses.</p>
+<p class="q">Why does the device route write with the admin client when RLS already lets a user manage their own tokens?</p>
+<p class="a">A phone that changes hands has to move its token to the new account, and an owner-only policy correctly refuses that update. The user id still comes from the session, never the body.</p>
+<p class="q">A user in Tokyo never gets a night reading. Why, and what fixes it?</p>
+<p class="a">Both UTC runs land before 14:00 local on two consecutive days, so both are morning slots and the second is skipped. An hourly cron fixes it with no code change, because <code>isSlotDue</code> already writes only what is missing.</p>
+</div>
+</section>

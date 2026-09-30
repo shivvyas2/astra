@@ -1,0 +1,609 @@
+<section class="chapter" id="ch11" data-hue="profile">
+<p class="chapter-kicker">Chapter eleven</p>
+<h2><span class="num">11</span><span>Profile, account, and admin</span></h2>
+
+<p class="lede">
+  The profile is the birth chart's front door: the details that computed it, a photo, the kundli,
+  and the two account controls that end things. Beside it sits an admin area that can read
+  everything about a user and change nothing.
+</p>
+
+<h3 id="s11-1"><span class="num">11.1</span><span>Intent</span></h3>
+
+<p>
+  This chapter describes the profile, account deletion and the admin area as they are on
+  <code>main</code> on 30 September 2026, version 0.3.0. The profile screen has one job on both
+  clients: show the birth details on file and let a person change them or their photo. Changing the
+  birth data recomputes the chart; that sentence appears verbatim on the web page and in the iOS
+  header, because it is the one consequence a person should know before they edit. Account deletion
+  exists because App Store Review Guideline 5.1.1(v) requires it, and it was built as one route that
+  both clients call. The admin area exists so the author can see what a user's chart, profile and
+  transcripts look like when something goes wrong, without a database console and without any way
+  to alter a user's data from the browser.
+</p>
+
+<p>
+  Three decisions shape the code. A photo is optional and never travels alone: it rides as one part
+  of the same multipart request as the birth details, and the server overwrites the stored avatar
+  only when a photo part is present. Deletion takes no user id from the request, so a caller can only
+  ever delete themself, and the database's cascades do the rest. And the admin has read access
+  through the service-role client, but the only actions on offer send a password reset email or
+  mint a one-time login link; nothing on any admin page writes to a user's rows.
+</p>
+
+<h3 id="s11-2"><span class="num">11.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">app/(app)/app/profile/page.tsx        the web profile: IntakeForm with initial values
+app/(app)/app/intake/actions.ts       saveIntake: avatar upload, then saveBirthProfile
+app/api/profile/route.ts              POST: the same work for the phone, returns JSON
+app/api/profile/route.test.ts
+app/api/account/route.ts              DELETE: deletes the calling user
+app/api/account/route.test.ts
+lib/data/birthProfile.ts              BirthProfileRow, getBirthProfile, saveBirthProfile
+components/IntakeForm.tsx             the form, including the photo control
+components/AppShell.tsx               sidebar: Profile link and Sign out
+components/AdminShell.tsx             admin sidebar: Users and Sign out
+app/admin/
+├── layout.tsx                        passthrough, force-dynamic
+├── login/page.tsx                    email and password, nothing else
+├── actions.ts                        adminSignIn, adminSignOut, sendPasswordReset, generateLoginLink
+├── page.tsx                          the user list
+├── users/[id]/page.tsx               one user: account, birth profile, chats
+└── conversations/[id]/page.tsx       one transcript
+lib/admin/
+├── guard.ts                          isAdminUser, requireAdmin (chapter 4)
+└── data.ts                           adminListUsers, adminGetUser, adminGetTranscript
+supabase/migrations/
+├── 0001_init.sql                     admins, profiles, birth_profiles, cascades
+└── 0002_avatar.sql                   birth_profiles.avatar_url
+mobile/Sanchara/Sources/
+├── Features/Profile/ProfileView.swift    the sheet: header, details, kundli, account
+├── Features/Profile/AvatarBadge.swift    the top-bar control: photo or initials
+├── Features/Intake/PhotoField.swift      SancharaPhotoField and UIImage.avatarJPEG
+├── Features/Intake/ProfileStore.swift    details and chart, cached to the App Group
+├── Features/Intake/BirthProfileDetails.swift
+└── Services/SancharaAPI.swift            saveProfile, deleteAccount, BirthProfileInput
+mobile/Sanchara/Tests/ProfilePhotoTests.swift</pre>
+
+<p>
+  The profile has no route of its own for reading. The web page reads through
+  <code>getBirthProfile</code> with the cookie client, and the phone reads
+  <code>birth_profiles</code> directly over PostgREST under the owner-only policy. Only writes go
+  through a route or an action, because a write computes the chart with the Swiss Ephemeris and
+  that runs on the server.
+</p>
+
+<h3 id="s11-3"><span class="num">11.3</span><span>Model</span></h3>
+
+<h4>birth_profiles</h4>
+
+<p>
+  One row per user, enforced by <code>unique (user_id)</code>. The columns are the eight birth
+  fields, the computed <code>chart</code> as jsonb, <code>updated_at</code>, and since migration 0002
+  a nullable <code>avatar_url</code>. <code>user_id</code> references <code>auth.users(id) on delete
+  cascade</code>.
+</p>
+
+<pre><code>// lib/data/birthProfile.ts
+export type BirthProfileRow = {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  birth_time: string;
+  place_name: string;
+  lat: number;
+  lng: number;
+  timezone: string;
+  avatar_url: string | null;
+  chart: { vedic: unknown; western: unknown } | null;
+};</code></pre>
+
+<p>
+  The iOS counterpart is <code>BirthProfileDetails</code>, a <code>Codable</code> struct whose coding
+  keys map the snake-case columns. It deliberately omits the chart: <code>ProfileStore</code> fetches
+  the details and the roughly 4 KB chart in two queries, the second only once the first says a chart
+  exists. Two computed properties matter here. <code>fullName</code> joins and trims the names.
+  <code>birthTimeShort</code> takes the first five characters of the Postgres <code>time</code>, which
+  arrives as <code>HH:mm:ss</code>, giving the <code>HH:mm</code> shape the picker and
+  <code>POST /api/profile</code> both use. The web page does the same with
+  <code>String(p.birth_time).slice(0, 5)</code>.
+</p>
+
+<h4>The avatar</h4>
+
+<p>
+  The photo lives in a Supabase Storage bucket called <code>avatars</code>, at the path
+  <code>&lt;user id&gt;/avatar.&lt;ext&gt;</code> where the extension is <code>png</code>,
+  <code>webp</code> or <code>jpg</code> by content type. What the row stores is the bucket's public
+  URL for that path with a <code>?v=&lt;timestamp&gt;</code> query appended; the comment says
+  "cache-bust so a replaced photo shows immediately". Nothing in the migrations creates the bucket
+  or a storage policy: uploads use the service-role client, and reads are plain fetches of the public
+  URL by the browser, <code>AsyncImage</code>, and the admin pages. The code therefore assumes the
+  bucket exists and is public, which is a one-time dashboard step rather than a migration.
+</p>
+
+<h4>The upload contract</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Services/SancharaAPI.swift
+struct BirthProfileInput {
+    var firstName = ""
+    var lastName = ""
+    var birthDate = ""      // yyyy-MM-dd
+    var birthTime = ""      // HH:mm
+    var placeName = ""
+    var lat: Double = 0
+    var lng: Double = 0
+    var timezone = ""
+    /// Optional profile photo, already downscaled to JPEG. The route uploads it
+    /// to the `avatars` bucket and only overwrites the stored URL when one is
+    /// sent, so leaving this nil keeps the existing photo.
+    var photoJPEG: Data?
+}</code></pre>
+
+<p>
+  <code>multipartBody(boundary:)</code> writes the eight text fields as form parts named exactly as
+  the columns, then, only if <code>photoJPEG</code> is non-empty, a part named <code>photo</code> with
+  filename <code>avatar.jpg</code> and content type <code>image/jpeg</code>. The same field names are
+  what the web <code>IntakeForm</code> posts, with a file input named <code>photo</code> that accepts
+  PNG, JPEG and WebP. One server contract, two producers.
+</p>
+
+<h4>admins and the admin rows</h4>
+
+<p>
+  <code>admins</code> has two columns, <code>user_id</code> and <code>created_at</code>, and no write
+  policy. <code>AdminUserRow</code> in <code>lib/admin/data.ts</code> is what the user list renders:
+  id, email, created and last sign-in from Auth, first and last name, place, birth date and avatar
+  from <code>birth_profiles</code>, and a <code>conversationCount</code>.
+</p>
+
+<h3 id="s11-4"><span class="num">11.4</span><span>The server side</span></h3>
+
+<h4>Saving the profile</h4>
+
+<p>
+  Two entry points do the same work. <code>saveIntake</code> in
+  <code>app/(app)/app/intake/actions.ts</code> is a server action the web form posts to; it reads the
+  user from the cookie client, redirects to <code>/login</code> if there is none, uploads the photo
+  if one was sent, calls <code>saveBirthProfile</code>, and redirects to <code>/app</code>.
+  <code>POST /api/profile</code> exists because, as its comment says, a native client cannot invoke a
+  server action. It does the same work with the bearer-aware client, validates the eight required
+  fields and that <code>lat</code> and <code>lng</code> are finite numbers (400 otherwise), and returns
+  <code>{ ok: true }</code> instead of redirecting. Both contain an identical
+  <code>uploadAvatar</code>.
+</p>
+
+<pre><code>// app/api/profile/route.ts
+let avatarUrl: string | null = null;
+const photo = form.get("photo");
+if (photo instanceof File &amp;&amp; photo.size &gt; 0 &amp;&amp; photo.type.startsWith("image/")) {
+  avatarUrl = await uploadAvatar(user.id, photo);
+}</code></pre>
+
+<pre><code>// lib/data/birthProfile.ts, inside saveBirthProfile
+// Only overwrite the avatar when a new one was uploaded.
+if (input.avatarUrl) row.avatar_url = input.avatarUrl;
+
+const { error } = await supabase.from("birth_profiles").upsert(row, { onConflict: "user_id" });</code></pre>
+
+<p>
+  These two fragments are the whole avatar rule. No photo part, or an empty one, or one that is not
+  an image, means <code>avatarUrl</code> stays null; and a null <code>avatarUrl</code> means the
+  upsert row has no <code>avatar_url</code> key at all, so the existing value is left standing.
+  <code>saveBirthProfile</code> always recomputes both charts (<code>computeChart</code> for vedic and
+  western in parallel) and writes them with the row, so any save, including one whose only purpose
+  is a new photo, is a chart computation. An upload that fails returns null from
+  <code>uploadAvatar</code> and the save proceeds without touching the photo; the failure is not
+  reported to the client.
+</p>
+
+<h4>Deleting the account</h4>
+
+<pre><code>// app/api/account/route.ts
+export async function DELETE(request: Request) {
+  const supabase = await createRouteSupabase(request);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const admin = createAdminSupabase();
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) {
+    console.error("account deletion error", error);
+    return Response.json({ error: "Could not delete your account. Please try again." }, { status: 500 });
+  }
+
+  return Response.json({ ok: true });
+}</code></pre>
+
+<p>
+  Sixteen lines, and the comment above them carries the two rules: the user id comes from the
+  verified session, never from the request body, so a caller can only ever delete themself; and
+  the rows cascade from <code>auth.users</code>. What actually goes, and in what order:
+</p>
+
+<ol>
+  <li><code>auth.admin.deleteUser</code> removes the row in <code>auth.users</code>. This is the only
+    statement the route issues.</li>
+  <li>Postgres runs the <code>on delete cascade</code> on every foreign key that points at it. In
+    schema order that is <code>admins</code>, <code>profiles</code>, <code>birth_profiles</code>,
+    <code>conversations</code>, <code>device_tokens</code>, <code>transit_conditions</code>,
+    <code>alerts</code>, <code>daily_readings</code>, <code>life_events</code>,
+    <code>life_event_scans</code> and <code>period_readings</code>.</li>
+  <li><code>messages</code> cascades from <code>conversations</code>, one level down, so transcripts
+    go with their conversations.</li>
+</ol>
+
+<p>
+  Two things do not go. The avatar object in the <code>avatars</code> bucket is not deleted; no code
+  removes it, and the public URL that pointed to it was in the row that just cascaded away. And the
+  Apple token is not revoked, the gap described in <a href="#s4-6">4.6</a>. Both are worth knowing
+  before an App Store review that exercises deletion.
+</p>
+
+<h4>What the admin can read</h4>
+
+<p>
+  <code>lib/admin/data.ts</code> has three functions, all built on <code>createAdminSupabase</code>,
+  all read-only.
+</p>
+
+<ul>
+  <li><code>adminListUsers</code> calls <code>auth.admin.listUsers</code> for the first page of up to
+    1000 users, selects six columns from every <code>birth_profiles</code> row and the
+    <code>id, user_id</code> pair of every conversation, joins them in memory into
+    <code>AdminUserRow</code>, and sorts newest first. Three queries regardless of user count.</li>
+  <li><code>adminGetUser</code> calls <code>auth.admin.getUserById</code>, selects the whole
+    <code>birth_profiles</code> row for that user, and lists their conversations newest first with
+    id, tradition, title and created date. The returned <code>user</code> carries a
+    <code>confirmed</code> boolean derived from <code>email_confirmed_at</code>.</li>
+  <li><code>adminGetTranscript</code> selects one conversation and its messages in creation order,
+    with role, content and timestamp.</li>
+</ul>
+
+<p>
+  The <code>chart</code> jsonb comes back as part of <code>select("*")</code> in
+  <code>adminGetUser</code>, but the page renders only the six birth fields from it; the chart is
+  never shown. Nothing in the file inserts, updates or deletes.
+</p>
+
+<h4>What the admin can do</h4>
+
+<p>
+  <code>app/admin/actions.ts</code> has four server actions. <code>adminSignIn</code> and
+  <code>adminSignOut</code> are covered in <a href="#s4-8">4.8</a>. The other two both begin with
+  <code>await requireAdmin()</code>:
+</p>
+
+<ul>
+  <li><code>sendPasswordReset</code> calls <code>resetPasswordForEmail</code> on the cookie client with
+    a redirect to <code>/login</code>. The comment says why this is the shape: the admin never sees or
+    stores the password. The user page repeats this next to the buttons: "Passwords are stored only
+    as secure one-way hashes and cannot be displayed."</li>
+  <li><code>generateLoginLink</code> calls <code>auth.admin.generateLink</code> with type
+    <code>magiclink</code> for the user's email and a redirect to <code>/app</code>, then redirects
+    back to the user page with the link in the query string, where it is printed with the
+    instruction to open it in a private window. This is the one capability that lets the author act
+    as a user, and it acts through a normal session under RLS, not through the admin client.</li>
+</ul>
+
+<h3 id="s11-5"><span class="num">11.5</span><span>The clients</span></h3>
+
+<h4>Web</h4>
+
+<p>
+  <code>app/(app)/app/profile/page.tsx</code> is a server component. It calls
+  <code>getBirthProfile</code>, redirects to <code>/app/intake</code> if there is no row, and renders a
+  heading, the sentence about recomputing, a "Download kundli (PDF)" link to <code>/api/kundli</code>,
+  and the <code>IntakeForm</code> with <code>action={saveIntake}</code> and every field pre-filled from
+  the row. The form is the same component intake uses (<a href="#ch05">chapter 5</a>); an
+  <code>initial</code> prop switches its button label to "Update my details" and seeds the photo
+  preview from <code>avatarUrl</code>. Choosing a file replaces the preview with an object URL
+  before anything is uploaded.
+</p>
+
+<p>
+  The sidebar in <code>AppShell</code> has the Profile link, highlighted when the path is
+  <code>/app/profile</code>, and the Sign out form at the bottom. There is no account deletion on
+  the web. The route accepts the cookie client and would work, but no page calls it; deletion was
+  built for the App Store requirement and only the phone offers it today.
+</p>
+
+<h4>iOS: ProfileView</h4>
+
+<p>
+  <code>ProfileView</code> is a sheet in a <code>NavigationStack</code>, presented over the chat, and
+  its header comment names it the native counterpart of the web page. It takes a
+  <code>ProfileStore</code> and reads <code>AuthStore</code> from the environment. Top to bottom:
+</p>
+
+<ul>
+  <li><strong>The header</strong>: a 64-point circular <code>PhotosPicker</code> showing the current
+    photo via <code>AsyncImage</code>, or "Add photo", with a small camera badge and a progress
+    overlay while uploading; then <code>fullName</code> in the light 28-point face and the recompute
+    sentence.</li>
+  <li><strong>The detail card</strong>: three rows, Born, Place, Timezone. <code>formattedBirth</code>
+    parses <code>birthDate</code> with a POSIX formatter and renders it long-style with
+    <code>birthTimeShort</code>; the comment gives the target shape, "15 June 1995 at 10:30", the
+    moment as it was where they were born.</li>
+  <li><strong>Buttons</strong>: "View your kundli" (disabled and dimmed until <code>profile.chart</code>
+    is loaded), "Edit birth details", and, only when there is no chart yet, "Download kundli (PDF)".
+    The comment explains the ordering: the kundli leads now that there is one to look at in the
+    app, and the PDF is reachable from inside the chart instead of as a second competing button.</li>
+  <li><strong>Suggestions</strong>: a status line from <code>SuggestionEngine.onDeviceStatus</code> and
+    a note that follow-up questions are written on the device.</li>
+  <li><strong>Account</strong>: Sign out, which calls <code>auth.signOut()</code> and dismisses; and
+    "Delete my account" in the accent colour, which sets <code>confirmDelete</code> and raises an
+    alert with a Cancel and a destructive Delete.</li>
+</ul>
+
+<p>
+  "Edit birth details" presents <code>IntakeView</code> with the current details; on completion the
+  sheet reloads the store and closes. That path is <a href="#ch05">chapter 5</a>'s. Changing the
+  photo is deliberately not that path. The header comment says it: routing a photo change through
+  the birth-details form would mean re-submitting a chart to swap a picture.
+</p>
+
+<h4>iOS: the photo</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Features/Intake/PhotoField.swift
+func avatarJPEG(maxDimension: CGFloat = 1024, quality: CGFloat = 0.8) -&gt; Data? {
+    let longest = max(size.width, size.height)
+    guard longest &gt; 0 else { return nil }
+
+    let scale = min(1, maxDimension / longest)
+    let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    ...
+    return resized.jpegData(compressionQuality: quality)
+}</code></pre>
+
+<p>
+  <code>UIImage.avatarJPEG</code> is the one image function in the app. It scales the longest side
+  down to 1024 points, never up (<code>min(1, ...)</code>), renders at scale 1 so the output is not
+  multiplied by the screen density, and encodes JPEG at 0.8. The comment gives the reason: a modern
+  phone photo is several megabytes and is shown at 72 points, and sending the original would make
+  intake feel broken on a slow connection for no visible gain. <code>SancharaPhotoField</code>, the
+  intake form's circular control, wraps <code>PhotosPicker</code>, which runs out of process; the app
+  never asks for photo library permission because only the one chosen image is handed over.
+  <code>ProfileView</code> uses <code>PhotosPicker</code> directly for the same reason.
+</p>
+
+<p>
+  <code>AvatarBadge</code> is the 28-point control in the chat top bar: the photo when there is one,
+  otherwise the first letters of the first and last name, and when even those are absent a star
+  glyph. The comment's rule is "never an empty grey circle". <code>AsyncImage</code> uses the initials
+  circle as its placeholder, so the badge never flashes empty while the image loads.
+</p>
+
+<h4>iOS: what is cached</h4>
+
+<p>
+  <code>ProfileStore.load()</code> begins by reading the chart and the details from
+  <code>ChartCache</code> in the App Group, so the profile sheet and the badge draw at once; the
+  network fetch that follows refreshes both and writes them back. If the fetch fails and a cache
+  exists, the state is still <code>ready</code>; only a device that has never loaded a profile sees
+  the failure screen. On sign-out <code>ChartCache.clear()</code> removes the chart, details, reading
+  and period files, so the next account on the device does not inherit this one's name or photo
+  URL. The avatar image itself is fetched by <code>AsyncImage</code> from the public URL and is not
+  written to the App Group.
+</p>
+
+<h4>The admin pages</h4>
+
+<p>
+  Three pages, each opening with <code>await requireAdmin()</code> and wrapping itself in
+  <code>AdminShell</code>, a sidebar with one menu entry, Users, and a Sign out form.
+  <code>app/admin/page.tsx</code> lists users newest first with avatar or initials, name or
+  "(no profile yet)", email, join date and chat count. <code>app/admin/users/[id]/page.tsx</code>
+  shows an Account card (names, email, joined, last sign-in, email confirmed, user id), the two action
+  buttons, a Birth profile card (date, time, place, timezone, latitude, longitude) or "No birth
+  details entered yet", and the list of chats linking to
+  <code>app/admin/conversations/[id]/page.tsx</code>, which renders the transcript as bubbles labelled
+  User and Sanchara. Every page is read from <code>lib/admin/data.ts</code>; there is no form on any
+  of them that changes a user's row.
+</p>
+
+<h3 id="s11-6"><span class="num">11.6</span><span>How it works</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 440" role="img" aria-label="Sequence for changing a photo on iOS: ProfileView loads the picked image, downscales it with avatarJPEG, and calls SancharaAPI.saveProfile with the existing birth details plus the JPEG; the API posts multipart with a bearer token to /api/profile; the route verifies the user, uploads the photo to the avatars bucket with the admin client, then saveBirthProfile recomputes the chart and upserts the row with the new avatar_url; the route returns ok and ProfileStore reloads.">
+  <defs>
+    <marker id="ch11a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch11b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box" x="20" y="20" width="150" height="34" rx="8"/><text class="lbl" x="95" y="42" text-anchor="middle">ProfileView</text>
+  <rect class="box" x="230" y="20" width="150" height="34" rx="8"/><text class="lbl" x="305" y="42" text-anchor="middle">SancharaAPI</text>
+  <rect class="box-hot" x="440" y="20" width="160" height="34" rx="8"/><text class="lbl" x="520" y="42" text-anchor="middle">POST /api/profile</text>
+  <rect class="box" x="660" y="20" width="180" height="34" rx="8"/><text class="lbl" x="750" y="42" text-anchor="middle">Supabase</text>
+
+  <line class="wall" x1="95" y1="54" x2="95" y2="420"/>
+  <line class="wall" x1="305" y1="54" x2="305" y2="420"/>
+  <line class="wall" x1="520" y1="54" x2="520" y2="420"/>
+  <line class="wall" x1="750" y1="54" x2="750" y2="420"/>
+
+  <text class="lbl-sm" x="110" y="80">1 PhotosPicker item picked</text>
+  <text class="lbl-sm" x="110" y="98">2 loadTransferable, UIImage, avatarJPEG (1024 max, 0.8)</text>
+  <path class="flow" d="M95 128 L 299 128" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="110" y="122">3 saveProfile(details + photoJPEG)</text>
+  <path class="flow" d="M305 162 L 514 162" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="320" y="156">4 multipart, Authorization: Bearer</text>
+  <path class="flow" d="M520 196 L 744 196" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="535" y="190">5 getUser (as the user)</text>
+  <path class="flow-hot" d="M520 230 L 744 230" marker-end="url(#ch11b)"/>
+  <text class="lbl-hot" x="535" y="224">6 storage.upload avatars/&lt;uid&gt;/avatar.jpg (admin)</text>
+  <text class="lbl-sm" x="535" y="262">7 computeChart vedic and western (in process)</text>
+  <path class="flow" d="M520 292 L 744 292" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="535" y="286">8 upsert birth_profiles with avatar_url (as the user)</text>
+  <path class="flow-dash" d="M514 326 L 311 326" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="320" y="320">9 { ok: true }</text>
+  <path class="flow-dash" d="M299 360 L 101 360" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="110" y="354">10 profile.load(): new avatarUrl, cache updated</text>
+  <path class="flow" d="M95 394 L 744 394" marker-end="url(#ch11a)"/>
+  <text class="lbl-sm" x="110" y="388">11 AsyncImage fetches the public URL with ?v=timestamp</text>
+</svg>
+<figcaption>
+  A photo change is a full profile save. The upload uses the admin client because there is no
+  storage policy; the row write uses the user's own client and RLS. The chart is recomputed even
+  though nothing about the birth changed.
+</figcaption>
+</figure>
+
+<h4>Change a photo</h4>
+
+<p>
+  <code>ProfileView.uploadPickedPhoto</code> runs when <code>photoItem</code> changes. It loads the
+  item as <code>Data</code>, decodes a <code>UIImage</code>, and calls <code>avatarJPEG</code>; if any
+  step fails the message is "That image could not be read. Try another." It then builds a
+  <code>BirthProfileInput</code> from the details already on file, using <code>birthTimeShort</code>
+  for the time, attaches the JPEG, and calls <code>SancharaAPI.saveProfile</code>. The method's
+  comment states the reason for sending the whole profile: the route takes it as a whole and only
+  replaces the avatar when a photo part is present. On success <code>profile.load()</code> refreshes
+  the details, and the new URL, with its fresh <code>?v=</code> query, makes <code>AsyncImage</code>
+  fetch the replaced image rather than a cached one. A <code>defer</code> block clears the picker
+  item and the uploading flag on every exit.
+</p>
+
+<h4>Delete the account</h4>
+
+<ol>
+  <li>The alert's destructive button calls <code>deleteAccount()</code>, which sets
+    <code>isDeleting</code> so the button cannot be tapped twice.</li>
+  <li><code>SancharaAPI.deleteAccount()</code> sends <code>DELETE /api/account</code> with the bearer
+    token and checks the status; a non-2xx becomes an error shown under the buttons.</li>
+  <li>The route deletes the auth user and the cascades run (<a href="#s11-4">11.4</a>).</li>
+  <li>On success the view calls <code>auth.signOut()</code>. Its first step,
+    <code>PushStore.shared.unregister()</code>, has nothing left to act on: the user is gone and the
+    <code>device_tokens</code> row has already cascaded away. The call is wrapped in
+    <code>try?</code>, so whatever the server answers, nothing is lost and nothing is shown. Then the Supabase session is signed out and <code>ChartCache</code> is
+    cleared, which removes the deleted person's chart from the widget and Siri.</li>
+  <li>The sheet dismisses and <code>RootView</code> shows <code>AuthView</code>.</li>
+</ol>
+
+<h4>An admin session</h4>
+
+<ol>
+  <li>The author opens <code>/admin</code>. The middleware finds no session and redirects to
+    <code>/admin/login</code>.</li>
+  <li><code>adminSignIn</code> signs in with a password, checks <code>admins</code>, and redirects to
+    <code>/admin</code>. A non-admin account is signed out again and told "Not authorized".</li>
+  <li>The users page calls <code>requireAdmin</code> then <code>adminListUsers</code>; each user links to
+    their page, each chat to its transcript. Every read goes through the service-role client because
+    the rows belong to other people.</li>
+  <li>To see the app as a user, "Generate login link" mints a magic link and prints it. Opened in a
+    private window, it goes through <code>/auth/callback</code> like any other link and produces an
+    ordinary session for that user. From then on the private window is that user, under RLS, with
+    no admin powers.</li>
+</ol>
+
+<h3 id="s11-7"><span class="num">11.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>A photo change costs a chart.</strong> <code>saveBirthProfile</code> always runs
+    <code>computeChart</code> twice, so swapping a picture invokes the ephemeris. It runs in process
+    inside the route and completes in the same request, so the cost is server time rather than a
+    slow round trip, but it is the reason the profile route declares <code>runtime = "nodejs"</code>.
+    Splitting a photo-only endpoint off would remove it.</li>
+  <li><strong>Uploads are bounded on the phone.</strong> 1024 points on the longest side at 0.8
+    quality; <code>testDownscalesLargePhotos</code> asserts a 3000 by 2000 source comes out under half
+    a megabyte. The web form sends whatever file was chosen, with no client-side resize, and the
+    route accepts any <code>image/*</code> of any size.</li>
+  <li><strong>Reads are cached on the phone.</strong> The profile sheet draws from the App Group
+    cache before the network answers, and the details query selects nine columns without the chart,
+    which is fetched separately and only when needed.</li>
+  <li><strong>The public URL carries a cache-buster.</strong> The <code>?v=</code> timestamp is stored
+    in the row, not computed on read, so every client sees the same URL until the next upload and
+    the image is cached by the browser and by <code>URLSession</code> until then.</li>
+  <li><strong>Admin reads are three queries for the list</strong>, regardless of user count, joined
+    in memory; and <code>listUsers</code> asks for one page of 1000, so past that the list is
+    silently truncated. The user page is three more, and the chart jsonb rides along in
+    <code>select("*")</code> unused.</li>
+  <li><strong>Deletion is one statement.</strong> The cascades run inside Postgres; the route does
+    not enumerate tables and does not need to change when a table is added, provided the new table
+    references <code>auth.users</code> with <code>on delete cascade</code> as all eleven do today.</li>
+</ul>
+
+<h3 id="s11-8"><span class="num">11.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>Profile page opened with no birth row</td><td>Web redirects to <code>/app/intake</code>; iOS <code>ProfileStore</code> goes to <code>needsIntake</code> and <code>SignedInView</code> shows intake instead</td></tr>
+<tr><td>Save with no photo part</td><td><code>avatarUrl</code> is null, the upsert row omits <code>avatar_url</code>, the existing photo stays</td></tr>
+<tr><td>Save with an empty file input on the web</td><td><code>photo.size &gt; 0</code> fails; treated as no photo</td></tr>
+<tr><td>A non-image file named <code>photo</code></td><td><code>type.startsWith("image/")</code> fails; treated as no photo</td></tr>
+<tr><td>Storage upload fails</td><td><code>uploadAvatar</code> returns null; the birth details still save; the failure is logged nowhere and not reported</td></tr>
+<tr><td>Picked image cannot be decoded on iOS</td><td>"That image could not be read. Try another." and no request is sent</td></tr>
+<tr><td>Same photo path uploaded twice</td><td><code>upsert: true</code> on the storage call replaces the object; the new <code>?v=</code> query defeats caches</td></tr>
+<tr><td>Photo changed from JPEG to PNG on the web</td><td>A second object at <code>avatar.png</code> is created; the old <code>avatar.jpg</code> is left in the bucket</td></tr>
+<tr><td>Missing required field on <code>POST /api/profile</code></td><td>400 with the field name; <code>saveBirthProfile</code> not called</td></tr>
+<tr><td><code>lat</code> not numeric</td><td>400; <code>saveBirthProfile</code> not called</td></tr>
+<tr><td>Chart computation throws</td><td>500 with "Could not compute your chart. Please try again."; the avatar, if any, was already uploaded</td></tr>
+<tr><td>Delete without a session</td><td>401; <code>deleteUser</code> never called</td></tr>
+<tr><td><code>deleteUser</code> returns an error</td><td>500 with a generic message; the error is logged; nothing was deleted because the one statement failed</td></tr>
+<tr><td>Delete succeeds, then push unregister fails</td><td>Expected: the user is gone and the token row cascaded; <code>try?</code> swallows it</td></tr>
+<tr><td>Avatar object after deletion</td><td>Remains in the bucket under the old user id; nothing references it</td></tr>
+<tr><td>Non-admin account signs in at <code>/admin/login</code></td><td>Signed out immediately, "Not authorized"</td></tr>
+<tr><td>Admin row removed mid-session</td><td>The next page load's <code>requireAdmin</code> redirects to login</td></tr>
+<tr><td>User with no birth profile in the admin list</td><td>"(no profile yet)" with initials from the email</td></tr>
+<tr><td>More than 1000 users</td><td>The list shows the first page only</td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<ul>
+  <li><code>app/api/account/route.test.ts</code> mocks <code>createRouteSupabase</code> and
+    <code>createAdminSupabase</code> and pins three things: an unauthenticated request returns 401 and
+    <code>deleteUser</code> is not called; an authenticated request returns 200 with
+    <code>{ ok: true }</code> and <code>deleteUser</code> is called with exactly the session's user id
+    ("deletes only the calling user"); and an error from <code>deleteUser</code> becomes a 500.</li>
+  <li><code>app/api/profile/route.test.ts</code> pins the 401 with no user, a 200 for a valid payload
+    with <code>saveBirthProfile</code> receiving the parsed <code>lat</code> as a number and the bearer
+    client as its second argument, a 400 when <code>timezone</code> is missing, and a 400 when
+    <code>lat</code> is not a number.</li>
+  <li><code>mobile/Sanchara/Tests/ProfilePhotoTests.swift</code>, whose header says what it guards:
+    the contract with <code>/api/profile</code>, which only overwrites the avatar when a
+    <code>photo</code> part is present. <code>testDownscalesLargePhotos</code>: a 3000 by 2000 image
+    comes out with its longest side at 1024, its aspect ratio at 1.5, and under 500,000 bytes.
+    <code>testLeavesSmallPhotosAlone</code>: a 400 by 400 image is not upscaled.
+    <code>testMultipartCarriesThePhotoWhenOneIsPicked</code>: the body contains a part named
+    <code>photo</code> with filename <code>avatar.jpg</code>, the <code>image/jpeg</code> content type,
+    the image bytes, the text fields, and a terminating boundary.
+    <code>testMultipartOmitsThePhotoPartWhenNoneIsPicked</code>: with no JPEG there is no
+    <code>photo</code> part at all, with the assertion message "sending an empty photo part would
+    clear a profile photo the user meant to keep".</li>
+</ul>
+
+<p>
+  Not covered by a test: <code>uploadAvatar</code> itself, the admin data functions, and the admin
+  pages. The first would need a storage stub; the second and third depend on the Auth admin API.
+</p>
+
+<h3 id="s11-9"><span class="num">11.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/data/birthProfile.ts</code>, for <code>saveBirthProfile</code> and the one line that decides whether the avatar changes.</li>
+  <li><code>app/api/profile/route.ts</code>, then <code>app/(app)/app/intake/actions.ts</code>, to see the same work done twice for two callers.</li>
+  <li><code>mobile/Sanchara/Sources/Services/SancharaAPI.swift</code>, the <code>BirthProfileInput</code> struct and <code>multipartBody</code> at the bottom.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Intake/PhotoField.swift</code>, for <code>avatarJPEG</code>.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Profile/ProfileView.swift</code>, <code>uploadPickedPhoto</code> and <code>deleteAccount</code> in particular.</li>
+  <li><code>app/api/account/route.ts</code> and <code>supabase/migrations/0001_init.sql</code> side by side, following every <code>on delete cascade</code>.</li>
+  <li><code>lib/admin/data.ts</code> and <code>app/admin/actions.ts</code>, to confirm for yourself what the admin can and cannot do.</li>
+  <li><code>mobile/Sanchara/Tests/ProfilePhotoTests.swift</code>, which reads as the upload contract in plain English.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">How does the server know whether to keep or replace the avatar?</p>
+<p class="a">By the presence of a <code>photo</code> part that is a non-empty image. If there is none, <code>avatarUrl</code> is null and <code>saveBirthProfile</code> omits <code>avatar_url</code> from the upsert, so the column keeps its value.</p>
+<p class="q">Why does the iOS photo change send all eight birth fields?</p>
+<p class="a">Because the route takes the profile as a whole and there is no photo-only endpoint. The view builds the input from the details already on file so nothing changes but the picture.</p>
+<p class="q">What does <code>DELETE /api/account</code> delete, and what does it leave?</p>
+<p class="a">It issues one <code>auth.admin.deleteUser</code>; every table referencing <code>auth.users</code> cascades, and <code>messages</code> cascades from <code>conversations</code>. It leaves the avatar object in storage and does not revoke the Apple token.</p>
+<p class="q">Why does the profile save recompute the chart when only the photo changed?</p>
+<p class="a">Because <code>saveBirthProfile</code> has one path and it always computes both charts before the upsert. The cost is accepted for simplicity; a separate avatar endpoint would avoid it.</p>
+<p class="q">Which admin action changes a user's row?</p>
+<p class="a">None. The two actions send a password reset email and mint a magic link; both go through Auth, and neither touches a table.</p>
+<p class="q">Why is the upload done with the admin client while the row write is done as the user?</p>
+<p class="a">There is no storage policy for users, so the bucket write needs the service role; the path is built from the verified user id. The row is under RLS, so the user's own client is enough and keeps the rule that a user writes only their own row.</p>
+</div>
+</section>

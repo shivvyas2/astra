@@ -1,0 +1,795 @@
+<section class="chapter" id="ch05" data-hue="intake">
+<p class="chapter-kicker">Chapter five</p>
+<h2><span class="num">5</span><span>Intake and the birth profile</span></h2>
+
+<p class="lede">
+  Everything Sanchara does starts from one row: a name, a date, a time, a place and the two charts
+  computed from them. Intake is the form that fills it, on the web and on the phone, and the birth
+  profile is the row that every other feature reads. The one idea that shaped it is that the chart is
+  computed once, at save time, and stored beside the details that produced it.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. A person
+  who signs in has, at first, nothing but an auth user. The web app and the iOS app both notice that
+  and send them to intake. When they submit, the server geocodes nothing and guesses nothing: the
+  form has already resolved a place to coordinates and an IANA timezone, and the route hands those to
+  the Swiss Ephemeris, computes a Vedic and a Western chart, and writes all of it into
+  <code>birth_profiles</code> in one upsert. From then on the chat, the kundli, the timeline, the
+  daily readings and the widget all read that stored chart. Nothing recomputes it unless the details
+  change, or the chart's schema falls behind.
+</p>
+
+<h3 id="s5-1"><span class="num">5.1</span><span>Intent</span></h3>
+
+<p>
+  A birth chart is only as good as the moment and place it is cast for. The intake form therefore
+  refuses to submit until it holds a real latitude, longitude and timezone, and it gets them from a
+  geocoder rather than from the person. Typing "Mumbai" produces a list of candidates with their
+  timezones already attached, and picking one fills four hidden fields. Someone whose village the
+  geocoder does not know can type coordinates by hand, and the timezone is still derived for them,
+  offline, from the coordinates.
+</p>
+
+<p>
+  The second intent is that the computed chart belongs with the details. <code>birth_profiles</code>
+  carries a <code>chart</code> jsonb column holding both traditions. Readers never call the ephemeris;
+  they read the column. This is what lets the iOS app cache the chart in the App Group and answer
+  Siri, App Intents and the widget without a network, and it is what makes a chart upgrade a
+  read-time concern rather than a migration.
+</p>
+
+<p>
+  The third intent is that the two clients do the same work through the same function. The web form
+  submits to a server action, the iOS form posts multipart form data to a route handler, and both
+  end in <code>saveBirthProfile</code>. The route exists only because a native client cannot invoke a
+  Next.js server action; its own comment says so.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 330" role="img" aria-label="Two clients on the left, the web IntakeForm and the iOS IntakeView, both resolve a birthplace through GET /api/geocode, then submit to either the saveIntake server action or POST /api/profile; both of those call saveBirthProfile, which runs computeChart twice and upserts one row into birth_profiles; the iOS app then reads that row directly from Supabase and caches it in the App Group.">
+  <defs>
+    <marker id="ch05a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch05b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">CLIENTS</text>
+  <text class="lbl-sm" x="250" y="24">ROUTE HANDLERS</text>
+  <text class="lbl-sm" x="490" y="24">LIB</text>
+  <text class="lbl-sm" x="700" y="24">SUPABASE</text>
+
+  <rect class="box" x="20" y="40" width="170" height="40" rx="8"/><text class="lbl" x="105" y="65" text-anchor="middle">IntakeForm (web)</text>
+  <rect class="box" x="20" y="120" width="170" height="40" rx="8"/><text class="lbl" x="105" y="145" text-anchor="middle">IntakeView (iOS)</text>
+  <rect class="box-alt" x="20" y="250" width="170" height="40" rx="8"/><text class="lbl" x="105" y="275" text-anchor="middle">ChartCache (App Group)</text>
+
+  <rect class="box" x="250" y="40" width="190" height="40" rx="8"/><text class="lbl" x="345" y="65" text-anchor="middle">saveIntake action</text>
+  <rect class="box" x="250" y="120" width="190" height="40" rx="8"/><text class="lbl" x="345" y="145" text-anchor="middle">POST /api/profile</text>
+  <rect class="box-alt" x="250" y="200" width="190" height="40" rx="8"/><text class="lbl" x="345" y="225" text-anchor="middle">GET /api/geocode</text>
+
+  <rect class="box-hot" x="490" y="70" width="170" height="70" rx="10"/>
+  <text class="lbl" x="575" y="98" text-anchor="middle">saveBirthProfile</text>
+  <text class="lbl-hot" x="575" y="118" text-anchor="middle">computeChart x2, upsert</text>
+  <rect class="box" x="490" y="200" width="170" height="40" rx="8"/><text class="lbl" x="575" y="225" text-anchor="middle">geocodePlace + tz-lookup</text>
+
+  <rect class="box" x="700" y="70" width="140" height="70" rx="10"/>
+  <text class="lbl" x="770" y="98" text-anchor="middle">birth_profiles</text>
+  <text class="lbl-sm" x="770" y="118" text-anchor="middle">chart jsonb, RLS</text>
+  <rect class="box-alt" x="700" y="160" width="140" height="40" rx="8"/><text class="lbl" x="770" y="185" text-anchor="middle">avatars bucket</text>
+
+  <path class="flow" d="M190 60 L 244 60" marker-end="url(#ch05a)"/>
+  <path class="flow" d="M190 140 L 244 140" marker-end="url(#ch05a)"/>
+  <path class="flow-dash" d="M105 80 L 105 220 L 244 220" marker-end="url(#ch05a)"/>
+  <path class="flow-dash" d="M190 150 L 220 150 L 220 228 L 244 228" marker-end="url(#ch05a)"/>
+  <path class="flow" d="M440 220 L 484 220" marker-end="url(#ch05a)"/>
+  <path class="flow-hot" d="M440 60 L 465 60 L 465 95 L 484 95" marker-end="url(#ch05b)"/>
+  <path class="flow-hot" d="M440 140 L 465 140 L 465 115 L 484 115" marker-end="url(#ch05b)"/>
+  <path class="flow-hot" d="M660 105 L 694 105" marker-end="url(#ch05b)"/>
+  <path class="flow-dash" d="M345 160 L 345 180 L 694 180" marker-end="url(#ch05a)"/>
+  <text class="lbl-sm" x="470" y="174">photo, admin client</text>
+  <path class="flow-dash" d="M770 140 L 770 270 L 190 270" marker-end="url(#ch05a)"/>
+  <text class="lbl-sm" x="420" y="262">ProfileStore reads details, then chart, under RLS</text>
+</svg>
+<figcaption>
+  Two forms, one save. Both clients resolve a place through the public geocode route, then submit
+  through their own door to the same <code>saveBirthProfile</code>. The iOS app reads the row back
+  directly from Supabase and caches it on disk for the extension processes.
+</figcaption>
+</figure>
+
+<h3 id="s5-2"><span class="num">5.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">app/api/profile/route.ts              POST: the native intake door, returns JSON
+app/api/profile/route.test.ts         401, 200, missing field, bad number
+app/api/geocode/route.ts              GET ?q=: birthplace search, no auth
+app/(app)/app/intake/page.tsx         the web intake screen
+app/(app)/app/intake/actions.ts       saveIntake, the server action
+app/(app)/app/profile/page.tsx        the same form, prefilled, for editing
+app/(app)/app/page.tsx                home: "Enter birth details" when there is no row
+components/IntakeForm.tsx             the form, TimePicker, ManualCoords
+components/PlaceAutocomplete.tsx      typeahead over /api/geocode
+lib/geo.ts                            geocodePlace, resolveTimezone
+lib/geo.test.ts                       two coordinates, two timezones
+lib/data/birthProfile.ts              getBirthProfile, saveBirthProfile, ensureCurrentChart
+lib/data/birthProfile.test.ts         the upgrade path and the read failure
+supabase/migrations/0001_init.sql     birth_profiles and its RLS policy
+supabase/migrations/0002_avatar.sql   avatar_url
+supabase/migrations/0003_numerology_mode.sql   numerology as a conversation mode
+
+mobile/Sanchara/Sources/RootView.swift                       auth state, then profile state
+mobile/Sanchara/Sources/Features/Intake/IntakeView.swift     the form and IntakeStore
+mobile/Sanchara/Sources/Features/Intake/ProfileStore.swift   has this account a chart yet
+mobile/Sanchara/Sources/Features/Intake/BirthProfileDetails.swift   the row, decoded
+mobile/Sanchara/Sources/Features/Intake/PhotoField.swift     PhotosPicker and avatarJPEG
+mobile/Sanchara/Sources/Services/SancharaAPI.swift           saveProfile, geocode, BirthProfileInput
+mobile/Sanchara/Sources/Services/ChartCache.swift            the App Group cache</pre>
+
+<p>
+  The decisions live in <code>lib/data/birthProfile.ts</code> and <code>lib/geo.ts</code>. Both route
+  handlers and the server action are thin: they authenticate, validate the shape, upload a photo if
+  one came, and call the lib. That is why the tests for the route mock <code>saveBirthProfile</code>
+  entirely and the tests for the lib mock only the database.
+</p>
+
+<h3 id="s5-3"><span class="num">5.3</span><span>Model</span></h3>
+
+<h4>The table</h4>
+
+<pre><code>-- supabase/migrations/0001_init.sql
+create table public.birth_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  first_name text not null,
+  last_name text not null,
+  birth_date date not null,
+  birth_time time not null,
+  place_name text not null,
+  lat double precision not null,
+  lng double precision not null,
+  timezone text not null,
+  chart jsonb,
+  updated_at timestamptz not null default now(),
+  unique (user_id)
+);
+alter table public.birth_profiles enable row level security;
+
+create policy "birth self" on public.birth_profiles
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());</code></pre>
+
+<p>
+  One row per user, enforced by <code>unique (user_id)</code>, which is also the conflict target of
+  the upsert. <code>chart</code> is nullable so that a row can in principle exist without one, though
+  nothing in the current code writes a row that way: <code>saveBirthProfile</code> always writes the
+  details and the chart together. The policy is owner-only for every verb. The iOS app reads this
+  table directly through supabase-swift with the user's own session, and that policy is the whole
+  reason it can.
+</p>
+
+<p>
+  Migration 0002 adds <code>avatar_url text</code>, nullable. Migration 0003 is not a column on this
+  table at all: it drops and recreates the check constraint on <code>conversations.tradition</code> so
+  that a chat can run in <code>numerology</code> mode alongside <code>vedic</code> and
+  <code>western</code>. It belongs to this chapter only in that numerology is computed from the birth
+  date and name stored here; the chat mode itself is in <a href="#ch06">chapter 6</a>. The full
+  schema is catalogued in <a href="#ch13">chapter 13</a>.
+</p>
+
+<h4>The row, in TypeScript and in Swift</h4>
+
+<pre><code>// lib/data/birthProfile.ts
+export type BirthProfileRow = {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+  birth_time: string;
+  place_name: string;
+  lat: number;
+  lng: number;
+  timezone: string;
+  avatar_url: string | null;
+  chart: { vedic: unknown; western: unknown } | null;
+};</code></pre>
+
+<p>
+  Postgres hands <code>birth_time</code> back as <code>HH:mm:ss</code>, while every form and the
+  ephemeris input use <code>HH:mm</code>. That is why <code>ensureCurrentChart</code> and the kundli
+  route both <code>slice(0, 5)</code> before use, and why the Swift struct carries a
+  <code>birthTimeShort</code> computed property doing the same <code>prefix(5)</code>. The Swift side,
+  <code>BirthProfileDetails</code>, decodes the same columns under snake-case coding keys and adds
+  <code>fullName</code>. It is deliberately dependency-free, because <code>project.yml</code> compiles
+  it into the widget extension as well as the app.
+</p>
+
+<h4>What goes into the chart</h4>
+
+<pre><code>// lib/astrology/types.ts
+export type BirthInput = {
+  birthDate: string; // YYYY-MM-DD
+  birthTime: string; // HH:mm
+  lat: number;
+  lng: number;
+  timezone: string; // IANA
+};</code></pre>
+
+<p>
+  Five values, all of which the form must resolve before its submit button enables. The result of
+  <code>computeChart(birth, tradition)</code> is a <code>Chart</code> carrying the ascendant, twelve
+  house cusps, the planets with sign, degree, house, retrograde flag and (Vedic only) nakshatra,
+  the Moon and Sun signs, the ayanamsa, the running dasha, a <code>schemaVersion</code>, and the
+  <code>derived</code> facts. How those are computed is <a href="#ch02">chapter 2</a>; this chapter
+  cares only that the column holds <code>{ vedic, western }</code> and that
+  <code>schemaVersion</code> is what decides whether the stored copy is still current.
+</p>
+
+<h3 id="s5-4"><span class="num">5.4</span><span>The server side</span></h3>
+
+<h4>Geocoding</h4>
+
+<pre><code>// lib/geo.ts
+export async function geocodePlace(query: string): Promise&lt;GeoResult[]&gt; {
+  const q = query.trim();
+  if (q.length &lt; 2) return [];
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&amp;count=5&amp;language=en&amp;format=json`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) return [];
+  ...
+  return (data.results ?? []).map((r) =&gt; ({
+    name: [r.name, r.admin1, r.country].filter(Boolean).join(", "),
+    lat: r.latitude,
+    lng: r.longitude,
+    timezone: resolveTimezone(r.latitude, r.longitude),
+    country: r.country ?? "",
+  }));
+}</code></pre>
+
+<p>
+  The geocoder is Open-Meteo's, which needs no key and returns up to five candidates. The timezone
+  does not come from the geocoder. <code>resolveTimezone</code> wraps <code>tz-lookup</code>, a
+  table of timezone polygons that runs in process, so every candidate arrives with the IANA name the
+  ephemeris needs. The same function runs in the browser for manually typed coordinates. The
+  package ships no types, hence the <code>@ts-expect-error</code> on its import. A query under two
+  characters and any non-2xx from Open-Meteo both return an empty list rather than an error, so the
+  typeahead never shows a failure state; it simply shows nothing.
+</p>
+
+<p>
+  <code>app/api/geocode/route.ts</code> is three lines: read <code>q</code>, call
+  <code>geocodePlace</code>, return the array. It does not check for a session. The iOS client's
+  comment says why that matters: "The route is public, so this call carries no token." A birthplace
+  search happens before a chart exists and reveals nothing about the account.
+</p>
+
+<h4>The native door: POST /api/profile</h4>
+
+<pre><code>// app/api/profile/route.ts
+export const runtime = "nodejs";
+
+const REQUIRED = [
+  "first_name", "last_name", "birth_date", "birth_time",
+  "place_name", "lat", "lng", "timezone",
+] as const;</code></pre>
+
+<p>
+  The route runs on the Node runtime because <code>swisseph-wasm</code> is loaded inside
+  <code>saveBirthProfile</code>; the comment above the export says exactly that. The handler resolves
+  the caller with <code>createRouteSupabase(request)</code>, which returns a bearer-token client for a
+  native caller and falls back to the cookie client for the web, so RLS evaluates as the user either
+  way. No user is a 401. Then it reads <code>formData()</code> and checks each required field is a
+  non-blank string, answering <code>{ error: "Missing required field: &lt;name&gt;" }</code> with a 400
+  for the first one that is not. <code>lat</code> and <code>lng</code> are parsed with
+  <code>Number</code> and must be finite, or the 400 reads "lat and lng must be numbers".
+</p>
+
+<p>
+  A <code>photo</code> part is optional. It is used only if it is a <code>File</code>, has a size, and
+  has an <code>image/</code> content type. <code>uploadAvatar</code> picks an extension from the type
+  (png, webp, otherwise jpg), writes the bytes to the <code>avatars</code> bucket at
+  <code>&lt;userId&gt;/avatar.&lt;ext&gt;</code> with <code>upsert: true</code>, and returns the
+  public URL with a <code>?v=&lt;timestamp&gt;</code> query so a replaced photo is not served from
+  cache. The upload uses the service-role client, which bypasses RLS; the storage bucket has no
+  per-user policy in the migrations, and the path is fixed to the authenticated user's id by the
+  route, not by the caller. An upload error returns <code>null</code> and the save proceeds without
+  a photo rather than failing.
+</p>
+
+<p>
+  Finally the route calls <code>saveBirthProfile</code> inside a try. A thrown error is logged and
+  answered with a 500 and the text "Could not compute your chart. Please try again." Success is
+  <code>{ ok: true }</code>. The iOS client shows the error string from any non-2xx body verbatim,
+  which is why the messages are written for a person.
+</p>
+
+<h4>The web door: saveIntake</h4>
+
+<p>
+  <code>app/(app)/app/intake/actions.ts</code> is the same procedure as a server action. It gets the
+  user from the cookie client, redirects to <code>/login</code> if there is none, runs an identical
+  <code>uploadAvatar</code>, calls <code>saveBirthProfile</code> with the eight fields coerced by
+  <code>String</code> and <code>Number</code>, and redirects to <code>/app</code>. It does not
+  validate presence: the browser form marks the visible inputs <code>required</code> and its submit
+  button is disabled until a place is resolved, so the action trusts the form. The two
+  <code>uploadAvatar</code> functions are copies, not a shared import.
+</p>
+
+<h4>saveBirthProfile</h4>
+
+<pre><code>// lib/data/birthProfile.ts
+const [vedic, western] = await Promise.all([
+  computeChart(birth, "vedic"),
+  computeChart(birth, "western"),
+]);
+const row: Record&lt;string, unknown&gt; = {
+  user_id: input.userId,
+  ...
+  chart: { vedic, western },
+  updated_at: new Date().toISOString(),
+};
+// Only overwrite the avatar when a new one was uploaded.
+if (input.avatarUrl) row.avatar_url = input.avatarUrl;
+
+const { error } = await supabase.from("birth_profiles").upsert(row, { onConflict: "user_id" });
+if (error) throw new Error(error.message);</code></pre>
+
+<p>
+  Both traditions are computed concurrently and written in one upsert keyed on <code>user_id</code>.
+  Because it is an upsert, a first save and an edit are the same call. The avatar is the one column
+  that is conditionally set: an edit without a new photo leaves the stored URL alone, which is the
+  behaviour the iOS <code>BirthProfileInput</code> documents from its side ("leaving this nil keeps
+  the existing photo"). A rejected write resolves with <code>error</code> rather than throwing, so the
+  function turns it into a throw; the route's catch and the action's error boundary depend on that.
+</p>
+
+<h4>getBirthProfile and the whole-sign upgrade</h4>
+
+<p>
+  <code>getBirthProfile</code> selects the caller's row with <code>maybeSingle()</code>, throws on a
+  read error, returns <code>null</code> when there is no row, and otherwise passes the row through
+  <code>ensureCurrentChart</code>. Three server-component pages read through it: home, chat and
+  profile. The chat page redirects to <code>/app/intake</code> when <code>!profile?.chart</code>; the
+  profile page redirects when there is no row; the home page renders an "Enter birth details" call
+  to action instead of redirecting.
+</p>
+
+<pre><code>// lib/astrology/derived.ts
+export function isChartStale(chart: Chart): boolean {
+  return (chart.schemaVersion ?? 1) &lt; CHART_SCHEMA_VERSION || !chart.derived;
+}</code></pre>
+
+<p>
+  <code>CHART_SCHEMA_VERSION</code> is 2. The constant's comment explains the bump: a chart stored
+  below this version "has house numbers that disagree with the rashi labels every renderer draws",
+  because house assignment for Vedic charts moved to whole-sign counting from the ascendant
+  (<code>houseFrom(ascSign, signOf(lon))</code> in <code>computeChart</code>) while Western charts
+  keep Placidus cusps. A chart with no <code>derived</code> block is also stale, since the readings
+  in 0.3.0 cite lords, aspects and dignity from it.
+</p>
+
+<p>
+  <code>ensureCurrentChart</code> is the upgrade path, and its comment is the design in four
+  sentences. Readers could always derive correct facts in process, but the kundli, the PDF and the
+  iOS app draw from the stored chart, so it has to be rewritten for them to agree. Doing it on read
+  means no migration and no backfill: a chart corrects the first time its owner uses the app. Both
+  traditions are recomputed together, so a profile is never half upgraded. And a failure is
+  swallowed, because an upgrade that cannot be written is not a reason to fail the request that
+  triggered it.
+</p>
+
+<pre><code>// lib/data/birthProfile.ts
+let stage: "compute" | "write" = "compute";
+try {
+  const birth: BirthInput = { ..., birthTime: String(profile.birth_time).slice(0, 5), ... };
+  const [vedic, western] = await Promise.all([
+    computeChart(birth, "vedic"),
+    computeChart(birth, "western"),
+  ]);
+  stage = "write";
+  const { error } = await supabase
+    .from("birth_profiles")
+    .update({ chart: { vedic, western } })
+    .eq("user_id", profile.user_id);
+  if (error) throw new Error(error.message);
+  return { ...profile, chart: { vedic, western } };
+} catch (err) {
+  const reason = stage === "compute" ? "recompute failed" : "write failed";
+  console.error(`chart upgrade skipped (${reason})`, err);
+  return profile;
+}</code></pre>
+
+<p>
+  The <code>stage</code> variable exists so the log says which half failed. The check on the
+  resolved <code>error</code> is the subtle line: without it, a write rejected by RLS would fall
+  through to the return and the function would claim an upgrade it never wrote. The test that pins
+  this is named for exactly that failure mode.
+</p>
+
+<div class="note"><b>Where the upgrade runs</b>
+Only where the stored chart is read as a whole. <code>getBirthProfile</code> runs it for the three
+web pages, and <code>app/api/kundli/route.ts</code> calls <code>ensureCurrentChart</code> itself
+before rendering the PDF. The iOS app reads the column directly from Supabase and does not run it;
+a stale chart on a phone corrects the next time its owner opens the web app or downloads the PDF,
+and the next <code>ProfileStore.load()</code> picks up the rewritten row.
+</div>
+
+<h3 id="s5-5"><span class="num">5.5</span><span>The clients</span></h3>
+
+<h4>Web: IntakeForm</h4>
+
+<p>
+  <code>components/IntakeForm.tsx</code> is a client component wrapping a plain HTML form whose
+  <code>action</code> is the server action. It takes an optional <code>initial</code>, and
+  <code>editing = !!initial</code> changes the button text from "Save &amp; build my chart" to
+  "Update my details". The place is held in state as a <code>GeoResult</code> and mirrored into four
+  hidden inputs, <code>place_name</code>, <code>lat</code>, <code>lng</code> and
+  <code>timezone</code>. The submit button is <code>disabled={!geo}</code>, so the action can only ever
+  receive a resolved place.
+</p>
+
+<p>
+  Three parts of the form are worth reading.
+</p>
+
+<ul>
+  <li><strong>PlaceAutocomplete</strong> fetches <code>/api/geocode?q=</code> on every change once
+    the query has two non-blank characters, with no debounce, and lists each result as "name ·
+    timezone". Picking one calls <code>onPick</code>, sets the input text to the picked name and
+    clears the list. Typing again clears the pick, which sets <code>geo</code> back only when a new
+    result is chosen.</li>
+  <li><strong>TimePicker</strong> is three <code>select</code>s (hour 1 to 12, minute 0 to 59, AM or
+    PM) that compute a 24-hour <code>HH:mm</code> into a hidden <code>birth_time</code> input. The
+    comment says why: it "avoids the flaky native <code>&lt;input type="time"&gt;</code>".
+    <code>parseTime</code> reverses the mapping for editing, and defaults to 12:00 PM when there is
+    nothing to parse, matching the hint "noon is fine if unknown".</li>
+  <li><strong>ManualCoords</strong> replaces the autocomplete when the person clicks "Can't find your
+    birthplace?". It takes an optional place name and two decimal inputs, and on every change calls
+    <code>resolveTimezone(lat, lng)</code> in the browser, so even a hand-typed place gets a real
+    timezone. A non-finite pair clears <code>geo</code> and disables submit again. The name falls
+    back to "<code>lat, lng</code>" when none was typed.</li>
+</ul>
+
+<p>
+  The photo control is a hidden <code>file</code> input behind a circular label, accepting png, jpeg
+  and webp, with a preview from <code>URL.createObjectURL</code>. The date input is native, with a
+  "Selected: Monday, February 9, 1998" echo under it, because a bare date field on a dark theme is
+  easy to misread.
+</p>
+
+<p>
+  <code>app/(app)/app/intake/page.tsx</code> renders the form with no initial value under the heading
+  "Your birth details". <code>app/(app)/app/profile/page.tsx</code> renders the same component with
+  <code>initial</code> built from the row (slicing <code>birth_time</code> to five characters) and
+  the same <code>saveIntake</code> action, so editing is intake with defaults. The profile chapter,
+  <a href="#ch11">chapter 11</a>, covers the rest of that page.
+</p>
+
+<h4>iOS: RootView decides who sees intake</h4>
+
+<pre><code>// mobile/Sanchara/Sources/RootView.swift
+struct SignedInView: View {
+    @State private var profile = ProfileStore()
+
+    var body: some View {
+        Group {
+            switch profile.state {
+            case .loading:      LoadingScreen()
+            case .needsIntake:  IntakeView { await profile.load() }
+            case .ready:        ChatView(profile: profile)
+            case .failed(let message): ... "Try again" and "Sign out"
+            }
+        }
+        .task { await profile.load() }
+    }
+}</code></pre>
+
+<p>
+  <code>RootView</code> switches on <code>AuthStore.state</code>; a signed-in user lands in
+  <code>SignedInView</code>, which owns a <code>ProfileStore</code> and switches on its state.
+  <code>needsIntake</code> shows <code>IntakeView</code> with an <code>onSaved</code> closure that
+  simply reloads the store, and a successful reload flips the state to <code>ready</code>, which
+  swaps the whole screen for <code>ChatView</code>. There is no navigation push and no flag to
+  clear: the store's state is the router.
+</p>
+
+<h4>iOS: ProfileStore</h4>
+
+<p>
+  <code>load()</code> first fills <code>chart</code> and <code>details</code> from
+  <code>ChartCache</code> if they are nil, so a cold launch with a cached chart draws immediately.
+  It then selects the nine detail columns from <code>birth_profiles</code> with
+  <code>.not("chart", operator: .is, value: "null")</code> and <code>limit(1)</code>: a row without a
+  chart counts as needing intake. If there is a row it saves the details to the cache and calls
+  <code>loadChart()</code>, a second select of only the <code>chart</code> column, decoded as
+  <code>ChartBundle</code>, of which the <code>vedic</code> half is kept and cached. The comment on
+  the class gives the reason for two queries: the jsonb is roughly 4 KB and changes only when the
+  details are re-saved, and the details are needed to decide the route before the chart is needed
+  to draw anything.
+</p>
+
+<p>
+  The catch is where the offline story lives. If the network call throws and both a cached chart
+  and cached details exist, the state is <code>ready</code>; only a device that has never loaded a
+  profile gets <code>failed</code> with "Could not load your chart. Check your connection and try
+  again." A failure inside <code>loadChart</code> is silent: "Keep whatever the cache gave us."
+</p>
+
+<h4>iOS: IntakeView and IntakeStore</h4>
+
+<p>
+  <code>IntakeView</code> is the native counterpart of <code>IntakeForm</code> and its doc comment says
+  so, posting to the same route. It takes an optional <code>initial: BirthProfileDetails</code>, an
+  optional <code>onCancel</code> (present only when shown as a sheet from the profile) and the
+  <code>onSaved</code> closure. The form state is an <code>@Observable</code>
+  <code>IntakeStore</code>:
+</p>
+
+<ul>
+  <li>Names default to empty, or to <code>AppleSignIn.rememberedName</code> on a first run, so a
+    person who signed in with Apple does not retype what Apple already gave.</li>
+  <li><code>birthDate</code> defaults to 25 years ago and is bounded by
+    <code>earliestBirthDate</code> (1 January 1900) and today; <code>birthTime</code> defaults to
+    12:00. Both use wheel pickers, and the time picker carries the hint "A wrong hour moves the
+    ascendant."</li>
+  <li><code>placeQuery</code> has a <code>didSet</code> that calls <code>scheduleSearch()</code>, which
+    cancels the previous task, ignores queries under two characters, sleeps 300 ms, then calls
+    <code>SancharaAPI.geocode</code>. The comment: "Debounced so a typed city name is one request,
+    not one per keystroke." A picked <code>GeoResult</code> replaces the search field with a card
+    showing name and timezone and a "Change" button.</li>
+  <li><code>isComplete</code> requires non-blank first and last names and a picked place. The save
+    button is disabled and faded otherwise.</li>
+  <li><code>prefill(from:)</code> fills the form from saved details, parsing the date and the
+    five-character time with <code>en_US_POSIX</code> formatters, and builds the place from the
+    stored coordinates and timezone rather than searching again, because "the birthplace has not
+    moved".</li>
+  <li><code>save()</code> formats the date as <code>yyyy-MM-dd</code> and the time as
+    <code>HH:mm</code> in the device's own calendar, since the picked values are wall-clock at the
+    birthplace exactly as the web form sends them, builds a <code>BirthProfileInput</code>, and calls
+    <code>SancharaAPI.saveProfile</code>. On failure, <code>errorMessage</code> is the API error's
+    description, shown above the button.</li>
+</ul>
+
+<p>
+  <code>SancharaAPI.saveProfile</code> attaches the Supabase access token as a bearer header and
+  sends a hand-built multipart body: the eight text parts, then, if <code>photoJPEG</code> is
+  non-empty, a <code>photo</code> part named <code>avatar.jpg</code> with type
+  <code>image/jpeg</code>. A 401 becomes <code>APIError.unauthorized</code> ("Your session expired.
+  Please sign in again."); any other non-2xx becomes <code>APIError.server</code> carrying the
+  response body as the message.
+</p>
+
+<h4>iOS: the photo</h4>
+
+<p>
+  <code>SancharaPhotoField</code> wraps <code>PhotosPicker</code>, which runs out of process, so the
+  app never requests photo library permission; it receives one image. The store's
+  <code>photoItem</code> setter loads the item as <code>Data</code>, decodes a <code>UIImage</code>
+  and runs <code>avatarJPEG()</code>, which scales the longest side down to 1024 points and encodes
+  at quality 0.8. The comment gives the reason: a phone photo is several megabytes and is shown at
+  72 points. <code>photoJPEG</code> stays nil unless a new image was chosen, which is what lets an
+  edit keep the existing photo. The field shows the new image if there is one, else the existing
+  avatar URL through <code>AsyncImage</code>, else "Add photo".
+</p>
+
+<h4>iOS: editing from the profile</h4>
+
+<p>
+  <code>ProfileView</code> presents <code>IntakeView(initial: profile.details, onCancel: ...)</code>
+  as a sheet, with an <code>onSaved</code> that reloads the store and dismisses. Because the store's
+  <code>load()</code> refetches both the details and the chart and rewrites the cache, an edited
+  birth time reaches the kundli, Siri and the widget through the same path as a first save.
+</p>
+
+<h3 id="s5-6"><span class="num">5.6</span><span>How it works</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 400" role="img" aria-label="Sequence from typing a birthplace to a stored chart: the client sends the query to GET /api/geocode, which calls Open-Meteo and tz-lookup and returns candidates with timezones; the person picks one; the client submits the form to the server action or POST /api/profile; the handler uploads any photo to Storage, then saveBirthProfile runs computeChart for vedic and western in parallel with the Swiss Ephemeris and upserts birth_profiles; the web redirects to /app and iOS reloads ProfileStore and caches the chart.">
+  <defs>
+    <marker id="ch05c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch05d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <rect class="box" x="20" y="20" width="130" height="34" rx="8"/><text class="lbl" x="85" y="42" text-anchor="middle">Form</text>
+  <rect class="box" x="220" y="20" width="130" height="34" rx="8"/><text class="lbl" x="285" y="42" text-anchor="middle">/api/geocode</text>
+  <rect class="box" x="420" y="20" width="130" height="34" rx="8"/><text class="lbl" x="485" y="42" text-anchor="middle">Save handler</text>
+  <rect class="box-hot" x="620" y="20" width="130" height="34" rx="8"/><text class="lbl" x="685" y="42" text-anchor="middle">saveBirthProfile</text>
+
+  <line class="wall" x1="85" y1="54" x2="85" y2="390"/>
+  <line class="wall" x1="285" y1="54" x2="285" y2="390"/>
+  <line class="wall" x1="485" y1="54" x2="485" y2="390"/>
+  <line class="wall" x1="685" y1="54" x2="685" y2="390"/>
+
+  <path class="flow" d="M85 84 L 279 84" marker-end="url(#ch05c)"/>
+  <text class="lbl-sm" x="95" y="78">1 ?q=Mumb (web: each keystroke; iOS: after 300 ms)</text>
+  <path class="flow-dash" d="M285 106 L 380 106" marker-end="url(#ch05c)"/>
+  <text class="lbl-sm" x="292" y="100">2 Open-Meteo, count=5</text>
+  <text class="lbl-sm" x="292" y="126">3 tz-lookup per result, in process</text>
+  <path class="flow" d="M279 146 L 91 146" marker-end="url(#ch05c)"/>
+  <text class="lbl-sm" x="95" y="140">4 [{name, lat, lng, timezone, country}]</text>
+
+  <text class="lbl-sm" x="95" y="176">5 pick one; hidden fields filled; submit enables</text>
+
+  <path class="flow-hot" d="M85 206 L 479 206" marker-end="url(#ch05d)"/>
+  <text class="lbl-hot" x="95" y="200">6 FormData: 8 fields + optional photo (cookie or bearer)</text>
+  <text class="lbl-sm" x="492" y="228">7 401 if no user; 400 if a field is missing (route only)</text>
+  <text class="lbl-sm" x="492" y="246">8 photo to avatars bucket, upsert, ?v= cache-bust</text>
+
+  <path class="flow-hot" d="M485 268 L 679 268" marker-end="url(#ch05d)"/>
+  <text class="lbl-hot" x="492" y="262">9 input + avatarUrl</text>
+  <text class="lbl-sm" x="692" y="290">10 computeChart vedic</text>
+  <text class="lbl-sm" x="692" y="306">and western, in parallel</text>
+  <text class="lbl-sm" x="692" y="326">11 upsert on user_id</text>
+
+  <path class="flow" d="M679 348 L 491 348" marker-end="url(#ch05c)"/>
+  <text class="lbl-sm" x="500" y="342">12 resolves, or throws</text>
+  <path class="flow" d="M479 372 L 91 372" marker-end="url(#ch05c)"/>
+  <text class="lbl-sm" x="95" y="366">13 web: redirect /app. iOS: {ok:true}, ProfileStore.load(), ChartCache.save</text>
+</svg>
+<figcaption>
+  From a typed city to a stored chart. The place is resolved before submit, so the save handler
+  never geocodes. The Swiss Ephemeris runs twice, once per tradition, inside one request.
+</figcaption>
+</figure>
+
+<h4>First intake</h4>
+
+<ol>
+  <li>A signed-in user with no row is routed to intake. On the web, <code>/app</code> shows the
+    "Enter birth details" link, and <code>/app/chat</code> and <code>/app/profile</code> redirect. On
+    iOS, <code>ProfileStore.load()</code> finds no row with a chart and <code>SignedInView</code>
+    renders <code>IntakeView</code>.</li>
+  <li>They type a city. The web fetches on every change; iOS waits 300 ms after the last keystroke.
+    Both hit <code>GET /api/geocode</code>, which calls Open-Meteo and stamps a timezone on each
+    candidate with <code>tz-lookup</code>.</li>
+  <li>They pick a candidate. The web fills four hidden inputs; iOS sets <code>place</code>. Submit
+    becomes enabled.</li>
+  <li>They submit. The web posts the form to <code>saveIntake</code> with the session cookie; iOS
+    posts multipart to <code>/api/profile</code> with a bearer token. Either handler uploads a photo
+    if there is one and calls <code>saveBirthProfile</code>.</li>
+  <li><code>saveBirthProfile</code> converts local birth time to UT in the given zone, runs the
+    ephemeris for both traditions, and upserts the row.</li>
+  <li>The web redirects to <code>/app</code>, which now finds a profile and greets the person by first
+    name. iOS receives <code>{ ok: true }</code>, calls <code>profile.load()</code>, which fetches the
+    details and the chart, writes both to <code>ChartCache</code>, and sets <code>ready</code>; the
+    root switches to <code>ChatView</code>.</li>
+</ol>
+
+<h4>Editing</h4>
+
+<p>
+  The same path with defaults. The web profile page passes <code>initial</code>; iOS passes the
+  cached <code>BirthProfileDetails</code>. A submit without a new photo carries no photo part, so
+  <code>avatarUrl</code> is null and the stored URL survives the upsert. A submit with changed birth
+  data recomputes both charts, which both pages tell the person in advance: "Changing your birth
+  data recomputes your chart."
+</p>
+
+<h4>The upgrade on read</h4>
+
+<p>
+  A row written before version 2 of the chart schema is read by <code>getBirthProfile</code> or the
+  kundli route, found stale by <code>isChartStale</code>, recomputed from its own stored details,
+  and updated in place. The caller gets the new chart in the same request. If the recompute or the
+  write fails, the caller gets the old row and a log line naming the stage. No cron job, no
+  migration, and no request ever fails because of it.
+</p>
+
+<h3 id="s5-7"><span class="num">5.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>Two ephemeris runs per save, in parallel.</strong> <code>Promise.all</code> over the two
+    <code>computeChart</code> calls. The WebAssembly module is loaded once per function instance
+    through <code>getSwe()</code>; the save is the only place in intake that touches it.</li>
+  <li><strong>The Node runtime, not Edge.</strong> The route declares <code>runtime = "nodejs"</code>
+    because the WASM ephemeris needs it. The geocode route makes no such declaration, since it only
+    fetches and runs a lookup table.</li>
+  <li><strong>Geocoding is free and keyless.</strong> Open-Meteo's search endpoint takes no API key,
+    and <code>tz-lookup</code> resolves timezones in process, so a search costs one outbound HTTP
+    call and no third-party account.</li>
+  <li><strong>Request volume differs by client.</strong> The web autocomplete fetches per keystroke
+    after two characters; a six-letter city is up to five requests. iOS debounces to one. Neither
+    caches results.</li>
+  <li><strong>The photo is shrunk on the phone.</strong> 1024 points on the long side at JPEG 0.8
+    before upload. The web sends whatever the file input received; the bucket stores it as-is.</li>
+  <li><strong>One read, one small column.</strong> The iOS store fetches the details and the chart in
+    two selects but caches both, so a warm launch reads from disk and the network refresh is
+    additive. The chart is about 4 KB.</li>
+  <li><strong>Upgrades are amortised.</strong> A stale chart costs one extra pair of ephemeris runs
+    and one update, once, on the first read after the schema bump, and only for the rows that are
+    actually read.</li>
+</ul>
+
+<h3 id="s5-8"><span class="num">5.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>No session on the route</td><td>401 before the body is read; <code>saveBirthProfile</code> is never called</td></tr>
+<tr><td>No session on the server action</td><td>Redirect to <code>/login</code></td></tr>
+<tr><td>A required field missing or blank (route)</td><td>400 naming the field; nothing saved</td></tr>
+<tr><td><code>lat</code> or <code>lng</code> not a finite number (route)</td><td>400 "lat and lng must be numbers"</td></tr>
+<tr><td>Birthplace not found by the geocoder</td><td>Empty list; the web offers manual coordinates, with the timezone still derived in the browser</td></tr>
+<tr><td>Query under two characters, or Open-Meteo returns non-2xx</td><td><code>geocodePlace</code> returns <code>[]</code>, never throws</td></tr>
+<tr><td>Birth time unknown</td><td>Both forms default to 12:00 and say noon is fine; the ascendant will be approximate and the iOS hint says so</td></tr>
+<tr><td>Photo upload fails</td><td><code>uploadAvatar</code> returns null; the profile is saved without a photo</td></tr>
+<tr><td>Edit without a new photo</td><td><code>avatar_url</code> is left out of the upsert row, so the stored URL stays</td></tr>
+<tr><td>Replaced photo served from cache</td><td>The public URL carries <code>?v=&lt;timestamp&gt;</code></td></tr>
+<tr><td>Ephemeris throws during save</td><td>Route: 500 "Could not compute your chart. Please try again." Action: the error propagates to Next.js</td></tr>
+<tr><td>Upsert rejected by RLS or a constraint</td><td>The resolved <code>error</code> is turned into a throw, so it is not reported as success</td></tr>
+<tr><td>Stored chart is schema 1 or lacks <code>derived</code></td><td>Recomputed and rewritten on read; both traditions together</td></tr>
+<tr><td>Upgrade recompute or write fails</td><td>Logged as "recompute failed" or "write failed"; the original row is returned; the request succeeds</td></tr>
+<tr><td>Read of <code>birth_profiles</code> fails</td><td><code>getBirthProfile</code> throws rather than returning null, so an outage is not shown as "no profile"</td></tr>
+<tr><td>Row exists but <code>chart</code> is null</td><td>Web chat redirects to intake; iOS <code>ProfileStore</code> filters such rows out and shows intake</td></tr>
+<tr><td>iOS offline at launch, cache present</td><td>State is <code>ready</code> from the cache; the refresh failure is swallowed</td></tr>
+<tr><td>iOS offline at launch, no cache</td><td><code>failed</code> with "Try again" and "Sign out"</td></tr>
+<tr><td>Photo the phone cannot decode</td><td>"That image could not be read. Try another." and <code>photoJPEG</code> stays nil</td></tr>
+<tr><td>Simulator build without the App Group entitlement</td><td><code>ChartCache</code> falls back to the caches directory; the app works, the widget does not share</td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<p>All Vitest, all passing without a network, a database or the ephemeris on the route side:</p>
+
+<ul>
+  <li><code>lib/geo.test.ts</code>: <code>resolveTimezone</code> "maps New Delhi coordinates to
+    Asia/Kolkata" and "maps New York coordinates to America/New_York". The lookup table is real; only
+    the geocoder is untested, since it is an HTTP call.</li>
+  <li><code>app/api/profile/route.test.ts</code>, with <code>createRouteSupabase</code> and
+    <code>saveBirthProfile</code> mocked: "returns 401 when there is no user", "saves the profile and
+    returns 200 for a valid payload" (asserting the lib received <code>lat</code> as the number
+    19.076 and the timezone string), "returns 400 when a required field is missing" (the timezone is
+    omitted), and "returns 400 when lat is not a number".</li>
+  <li><code>lib/data/birthProfile.test.ts</code>, with a fake <code>Db</code> and the real
+    <code>computeChart</code>. For <code>ensureCurrentChart</code>: "returns the profile unchanged when
+    there is no stored vedic chart", "returns the profile unchanged when the stored chart is already
+    current", "recomputes and writes both traditions together for a stale chart" (asserting the
+    written <code>schemaVersion</code> equals <code>CHART_SCHEMA_VERSION</code>), "swallows a thrown
+    compute/write exception and returns the original profile", and "swallows a resolved write error
+    (RLS/constraint) and returns the original profile unchanged", which asserts the log says "write
+    failed". For <code>getBirthProfile</code>: "returns an upgraded profile when the stored chart is
+    stale", "returns the original profile unchanged when the stored chart is already current",
+    "returns null when there is no stored profile", and "throws on a genuine read failure instead of
+    reporting it as no profile".</li>
+</ul>
+
+<p>
+  The iOS intake has no unit tests of its own. <code>IntakeStore</code>'s formatting and debounce
+  are exercised only by hand; the Swift test target covers the kundli
+  (<a href="#ch07">chapter 7</a>) and the chart facts, not this form.
+</p>
+
+<h3 id="s5-9"><span class="num">5.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>supabase/migrations/0001_init.sql</code>, the <code>birth_profiles</code> table and its policy.</li>
+  <li><code>lib/data/birthProfile.ts</code>, the save, the read, and the upgrade on read.</li>
+  <li><code>lib/data/birthProfile.test.ts</code>, especially the resolved-error test and its comment.</li>
+  <li><code>lib/geo.ts</code>, how a place becomes coordinates and a timezone.</li>
+  <li><code>app/api/profile/route.ts</code>, then <code>app/(app)/app/intake/actions.ts</code>, the two doors.</li>
+  <li><code>components/IntakeForm.tsx</code>, the hidden fields, the time picker and manual coordinates.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Intake/ProfileStore.swift</code>, cache first, then network.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Intake/IntakeView.swift</code>, the debounce and the save.</li>
+  <li><code>mobile/Sanchara/Sources/RootView.swift</code>, how the store's state routes the screen.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why does the form, not the server, resolve the timezone?</p>
+<p class="a">Because the person must see and confirm it. The candidate list shows the timezone
+beside each place, and the manual path derives one in the browser, so what reaches the ephemeris is
+what the person saw. The server trusts the five values it is given and never geocodes.</p>
+<p class="q">Why are both charts recomputed when only the Vedic house rule changed?</p>
+<p class="a">So a profile is never half upgraded. <code>ensureCurrentChart</code> writes
+<code>{ vedic, western }</code> as one value; a partial rewrite would leave two charts from two
+different computations under one <code>schemaVersion</code> check.</p>
+<p class="q">What would go wrong if <code>ensureCurrentChart</code> ignored the resolved <code>error</code>?</p>
+<p class="a">supabase-js resolves rather than throws on a rejected write. The function would return
+the recomputed chart as if it were stored, the PDF would draw from it, and the row would still hold
+the stale one; the next read would repeat the whole recompute.</p>
+<p class="q">Why does <code>ProfileStore</code> fetch the details and the chart separately?</p>
+<p class="a">The details decide the route (intake or chat) and are small; the chart is about 4 KB and
+only needed to draw. Fetching them apart lets the screen appear before the chart lands, and lets a
+chart fetch fail quietly while the cached copy stands in.</p>
+<p class="q">Why does <code>getBirthProfile</code> throw on a read error instead of returning null?</p>
+<p class="a">Three pages treat null as "never completed intake" and send the person to the form. A
+database outage rendered as null would ask an existing user to re-enter their birth details.</p>
+<p class="q">Why is the avatar column only written when a new photo arrived?</p>
+<p class="a">The save is an upsert of the whole row. Writing <code>avatar_url: null</code> on every
+edit would erase the photo whenever someone corrected a birth time.</p>
+</div>
+</section>

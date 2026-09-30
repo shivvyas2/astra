@@ -1,0 +1,693 @@
+<section class="chapter" id="ch12" data-hue="web">
+<p class="chapter-kicker">Chapter twelve</p>
+<h2><span class="num">12</span><span>The landing page and the web shell</span></h2>
+
+<p class="lede">
+  Four colours on <code>:root</code>, one photograph of a planet, and a sidebar that lists past
+  readings. Everything a person sees before and around a reading is in this chapter, and the
+  native app copies its tokens from the same stylesheet so that a screen on the phone and a page in
+  the browser read as one product.
+</p>
+
+<p>
+  This chapter describes the web surface of Sanchara as it is on <code>main</code> on
+  30 September 2026, version 0.3.0. It covers the root layout, the marketing page at <code>/</code>,
+  the signed-in shell under <code>/app</code>, the auth form, the two build-time configuration files
+  that shape the whole site, and, for comparison, the iOS design system that translates the site's
+  tokens into SwiftUI. The chapters before this one each own a feature; this one owns the frame the
+  features sit in.
+</p>
+
+<h3 id="s12-1"><span class="num">12.1</span><span>Intent</span></h3>
+
+<p>
+  The web app has two audiences and one theme. A stranger arriving at <code>/</code> should
+  understand in one screen that the astrology is computed, not guessed, and be one tap from an
+  account. A signed-in person should never see the marketing again: <code>/</code> sends them
+  straight to <code>/app</code>, where the shell shows their readings, a button to start another,
+  and a link to their profile. Both audiences see the same dark cosmic theme, because there is only
+  one. The site has no light mode, and the iOS app is pinned dark in its <code>Info.plist</code> for
+  the same reason: a reading card that turned white inside Siri while the app stayed black would
+  look like someone else's product.
+</p>
+
+<p>
+  Three decisions shaped the code. The theme is four CSS custom properties and nothing else, so it
+  can be copied by hand into Swift and checked by a test. The landing page's animation is loaded on
+  the client only, after the HTML has arrived, so the first paint is a photograph and never a blank
+  canvas. And the shell is the only client component in the signed-in frame; every page inside it is
+  a server component that reads Supabase directly and hands props down.
+</p>
+
+<h3 id="s12-2"><span class="num">12.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">app/
+├── layout.tsx                   html, body, metadata, viewport; imports globals.css
+├── globals.css                  Tailwind 4 import, the four tokens, animations, .prose-reading
+├── page.tsx                     "/": redirect to /app when signed in, else the landing
+├── (auth)/
+│   ├── layout.tsx               centred card with the glow behind it
+│   ├── actions.ts               authenticate, sendMagicLink, resendConfirmation, signOut
+│   ├── login/page.tsx           AuthForm, "Welcome to Sanchara"
+│   ├── signup/page.tsx          AuthForm, "Create your account" (same action)
+│   └── check-email/page.tsx     confirmation screen with a resend button
+├── (app)/
+│   ├── layout.tsx               force-dynamic; lists conversations; renders AppShell
+│   └── app/
+│       ├── page.tsx             the signed-in home
+│       ├── chat/page.tsx        Chapter 6
+│       ├── intake/              Chapter 5
+│       └── profile/page.tsx     Chapter 11
+├── admin/                       AdminShell and the admin pages (Chapter 4)
+├── api/                         route handlers, one folder per feature
+└── auth/callback/route.ts       exchanges the magic-link code for a session
+
+components/
+├── AppShell.tsx                 client: sidebar, mobile drawer, sign-out form
+├── AuthForm.tsx                 server: one form, two server actions
+└── marketing/
+    ├── CosmicLanding.tsx        client: dynamic import of CosmicHero, ssr off
+    ├── CosmicHero.tsx           client: GSAP intro and scroll reveals
+    ├── Hero.tsx                 unused since the cinematic hero landed
+    ├── HowItWorks.tsx           unused
+    └── CTA.tsx                  unused
+
+middleware.ts                    refreshes the session cookie; guards /app and /admin
+next.config.ts                   swisseph-wasm external; AASA content-type header
+postcss.config.mjs               one plugin: @tailwindcss/postcss
+public/images/planet-sun.jpg     the hero photograph (141,888 bytes)
+public/images/starfield.jpg      used only by the unused components (76,229 bytes)
+
+mobile/Sanchara/Sources/Design/
+├── Theme.swift                  the four tokens, hairline, field fill, radius, easing
+├── Components.swift             SancharaField, SancharaPrimaryButton, SancharaSecondaryButton, SancharaSecureField
+└── ReadingCard.swift            the card shared by the Siri snippet and the widget
+mobile/Sanchara/Tests/ThemeTests.swift   four tests, one per token</pre>
+
+<p>
+  Three files in <code>components/marketing/</code> are dead. <code>Hero.tsx</code>,
+  <code>HowItWorks.tsx</code> and <code>CTA.tsx</code> are the first landing page, built with
+  <code>next/image</code>; nothing imports them today. The history of the folder tells the story:
+  a WebGL scene built with three.js and GSAP replaced them, then commit <code>c0a209d</code>
+  ("Hero: remove 3D WebGL, keep planet image with animated text") took the scene out again and kept
+  the photograph and the animated headline. <code>three</code> and <code>@types/three</code> are
+  still in <code>package.json</code>, and the comment at the top of <code>CosmicLanding.tsx</code>
+  still says WebGL, but no file imports three.js, so nothing of it reaches a bundle.
+</p>
+
+<h3 id="s12-3"><span class="num">12.3</span><span>Model</span></h3>
+
+<h4>The theme is four numbers</h4>
+
+<pre><code>/* app/globals.css */
+@import "tailwindcss";
+
+:root {
+  --bg: #0a0a0b;
+  --fg: #f4f1ea;
+  --muted: #9a978f;
+  --accent: #e8663d;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+}</code></pre>
+
+<p>
+  Near-black, warm off-white, a grey with the same warmth, and one orange. The <code>@theme
+  inline</code> block is how Tailwind 4 learns about them: it turns each <code>--color-*</code>
+  variable into a utility family, so <code>bg-bg</code>, <code>text-fg</code>,
+  <code>text-muted</code> and <code>bg-accent</code> exist without a configuration file. There is
+  no <code>tailwind.config.*</code> in the repo. <code>postcss.config.mjs</code> is one line,
+  registering <code>@tailwindcss/postcss</code>, and everything else about the theme is CSS.
+</p>
+
+<p>
+  The rest of <code>globals.css</code> is small and each rule carries its reason. <code>html,
+  body</code> set the background and foreground from the tokens and <code>overflow-x: hidden</code>
+  with <code>max-width: 100%</code>, because a landing page with a headline wider than a phone
+  otherwise scrolls sideways. Form controls get <code>max-width: 100%; min-width: 0</code>, with the
+  comment that iOS date and time inputs have a large intrinsic width that otherwise overflows the
+  screen. Below 768 pixels every input is forced to <code>16px</code>, because iOS Safari zooms the
+  page when a smaller control takes focus. Then the animations: <code>fade-up</code>,
+  <code>fade-in</code>, <code>glow-pulse</code>, <code>heartbeat</code>, <code>blink</code> and
+  <code>shimmer</code>, exposed as <code>.animate-*</code> classes with three delay steps of 0.08,
+  0.16 and 0.24 seconds. <code>.prose-reading</code> styles the Markdown that the chat renders
+  (<a href="#ch06">chapter 6</a>). A <code>prefers-reduced-motion</code> block turns off
+  <code>fade-up</code>, <code>fade-in</code> and <code>glow</code>; the heartbeat, shimmer and caret
+  animations are not in that block and keep running.
+</p>
+
+<h4>The Swift copy</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Design/Theme.swift
+enum Theme {
+    /// `--bg: #0a0a0b`
+    static let bg = Color(hex: 0x0A0A0B)
+    /// `--fg: #f4f1ea`
+    static let fg = Color(hex: 0xF4F1EA)
+    /// `--muted: #9a978f`
+    static let muted = Color(hex: 0x9A978F)
+    /// `--accent: #e8663d`
+    static let accent = Color(hex: 0xE8663D)
+
+    /// Tailwind `border-white/10`, used for every hairline on the site.
+    static let hairline = Color.white.opacity(0.10)
+    /// Tailwind `bg-white/[0.04]`, the fill behind form controls.
+    static let fieldFill = Color.white.opacity(0.04)
+    /// Tailwind `rounded-lg` is 0.5rem.
+    static let cornerRadius: CGFloat = 8
+    static let chartLine = Color.white.opacity(0.22)
+    /// The site's easing: `cubic-bezier(0.22, 1, 0.36, 1)`.
+    static let ease = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.6)
+}</code></pre>
+
+<p>
+  The file's own header says it is "translated verbatim from <code>app/globals.css</code>", and the
+  doc comment above each token quotes the CSS line it copies. The <code>Color(hex:)</code>
+  initialiser exists so a token can be written the way it appears in CSS, as a 24-bit literal in
+  sRGB. Two things are added that the CSS never names as tokens: the hairline and the field fill are
+  Tailwind opacity utilities on the site (<code>border-white/10</code>,
+  <code>bg-white/[0.04]</code>), and Swift has to give them a name. <code>chartLine</code> is
+  heavier than the hairline, at 0.22 white, and the comment explains why: the kundli square "all but
+  vanished on an OLED screen in daylight" at 0.10. <code>Text.eyebrow()</code> reproduces the site's
+  eyebrow style (<code>text-xs uppercase tracking-[0.3em] text-muted</code>) as 12 points with 3.6
+  points of tracking, which is 0.3em at that size.
+</p>
+
+<h4>The route tree</h4>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 560" role="img" aria-label="The route tree of the app directory: a root layout at the top; beneath it the landing page, the auth group, the app group, the admin folder and the api folder; each with its pages and route handlers listed beneath it; the middleware guards the app and admin branches.">
+  <defs>
+    <marker id="ch12a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch12b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+
+  <rect class="box-hot" x="320" y="16" width="220" height="44" rx="10"/>
+  <text class="lbl" x="430" y="35" text-anchor="middle">app/layout.tsx</text>
+  <text class="lbl-hot" x="430" y="52" text-anchor="middle">html, body, globals.css</text>
+
+  <text class="lbl-sm" x="20" y="96">PUBLIC</text>
+  <text class="lbl-sm" x="190" y="96">(auth)</text>
+  <text class="lbl-sm" x="360" y="96">(app)</text>
+  <text class="lbl-sm" x="530" y="96">admin/</text>
+  <text class="lbl-sm" x="700" y="96">api/</text>
+
+  <rect class="box" x="20" y="104" width="150" height="34" rx="8"/><text class="lbl" x="95" y="126" text-anchor="middle">page.tsx  "/"</text>
+  <rect class="box" x="190" y="104" width="150" height="34" rx="8"/><text class="lbl" x="265" y="126" text-anchor="middle">layout.tsx (glow)</text>
+  <rect class="box-hot" x="360" y="104" width="150" height="34" rx="8"/><text class="lbl" x="435" y="126" text-anchor="middle">layout.tsx (shell)</text>
+  <rect class="box" x="530" y="104" width="150" height="34" rx="8"/><text class="lbl" x="605" y="126" text-anchor="middle">layout.tsx (bare)</text>
+  <rect class="box" x="700" y="104" width="140" height="34" rx="8"/><text class="lbl" x="770" y="126" text-anchor="middle">route handlers</text>
+
+  <path class="flow" d="M430 60 L 430 80 L 95 80 L 95 98" marker-end="url(#ch12a)"/>
+  <path class="flow" d="M430 60 L 430 80 L 265 80 L 265 98" marker-end="url(#ch12a)"/>
+  <path class="flow-hot" d="M430 60 L 435 98" marker-end="url(#ch12b)"/>
+  <path class="flow" d="M430 60 L 430 80 L 605 80 L 605 98" marker-end="url(#ch12a)"/>
+  <path class="flow" d="M430 60 L 430 80 L 770 80 L 770 98" marker-end="url(#ch12a)"/>
+
+  <rect class="box-alt" x="20" y="160" width="150" height="30" rx="8"/><text class="lbl" x="95" y="180" text-anchor="middle">CosmicLanding</text>
+  <rect class="box-alt" x="20" y="206" width="150" height="30" rx="8"/><text class="lbl" x="95" y="226" text-anchor="middle">CosmicHero (GSAP)</text>
+  <rect class="box" x="20" y="256" width="150" height="30" rx="8"/><text class="lbl" x="95" y="276" text-anchor="middle">auth/callback</text>
+  <path class="flow-dash" d="M95 138 L 95 154" marker-end="url(#ch12a)"/>
+  <path class="flow-dash" d="M95 190 L 95 200" marker-end="url(#ch12a)"/>
+
+  <rect class="box" x="190" y="160" width="150" height="30" rx="8"/><text class="lbl" x="265" y="180" text-anchor="middle">/login</text>
+  <rect class="box" x="190" y="198" width="150" height="30" rx="8"/><text class="lbl" x="265" y="218" text-anchor="middle">/signup</text>
+  <rect class="box" x="190" y="236" width="150" height="30" rx="8"/><text class="lbl" x="265" y="256" text-anchor="middle">/check-email</text>
+  <rect class="box-alt" x="190" y="274" width="150" height="30" rx="8"/><text class="lbl" x="265" y="294" text-anchor="middle">actions.ts</text>
+  <path class="flow" d="M265 138 L 265 154" marker-end="url(#ch12a)"/>
+
+  <rect class="box-alt" x="360" y="160" width="150" height="30" rx="8"/><text class="lbl" x="435" y="180" text-anchor="middle">AppShell (client)</text>
+  <rect class="box" x="360" y="198" width="150" height="30" rx="8"/><text class="lbl" x="435" y="218" text-anchor="middle">/app  home</text>
+  <rect class="box" x="360" y="236" width="150" height="30" rx="8"/><text class="lbl" x="435" y="256" text-anchor="middle">/app/chat</text>
+  <rect class="box" x="360" y="274" width="150" height="30" rx="8"/><text class="lbl" x="435" y="294" text-anchor="middle">/app/intake</text>
+  <rect class="box" x="360" y="312" width="150" height="30" rx="8"/><text class="lbl" x="435" y="332" text-anchor="middle">/app/profile</text>
+  <path class="flow-hot" d="M435 138 L 435 154" marker-end="url(#ch12b)"/>
+
+  <rect class="box" x="530" y="160" width="150" height="30" rx="8"/><text class="lbl" x="605" y="180" text-anchor="middle">/admin</text>
+  <rect class="box" x="530" y="198" width="150" height="30" rx="8"/><text class="lbl" x="605" y="218" text-anchor="middle">/admin/login</text>
+  <rect class="box" x="530" y="236" width="150" height="30" rx="8"/><text class="lbl" x="605" y="256" text-anchor="middle">/admin/users/[id]</text>
+  <rect class="box" x="530" y="274" width="150" height="30" rx="8"/><text class="lbl" x="605" y="294" text-anchor="middle">/admin/conversations/[id]</text>
+  <path class="flow" d="M605 138 L 605 154" marker-end="url(#ch12a)"/>
+
+  <rect class="box" x="700" y="160" width="140" height="30" rx="8"/><text class="lbl" x="770" y="180" text-anchor="middle">chat</text>
+  <rect class="box" x="700" y="198" width="140" height="30" rx="8"/><text class="lbl" x="770" y="218" text-anchor="middle">kundli</text>
+  <rect class="box" x="700" y="236" width="140" height="30" rx="8"/><text class="lbl" x="770" y="256" text-anchor="middle">profile</text>
+  <rect class="box" x="700" y="274" width="140" height="30" rx="8"/><text class="lbl" x="770" y="294" text-anchor="middle">account</text>
+  <rect class="box" x="700" y="312" width="140" height="30" rx="8"/><text class="lbl" x="770" y="332" text-anchor="middle">devices</text>
+  <rect class="box" x="700" y="350" width="140" height="30" rx="8"/><text class="lbl" x="770" y="370" text-anchor="middle">geocode</text>
+  <rect class="box" x="700" y="388" width="140" height="30" rx="8"/><text class="lbl" x="770" y="408" text-anchor="middle">life-events</text>
+  <rect class="box" x="700" y="426" width="140" height="30" rx="8"/><text class="lbl" x="770" y="446" text-anchor="middle">timeline, explain, scan</text>
+  <rect class="box-alt" x="700" y="464" width="140" height="30" rx="8"/><text class="lbl" x="770" y="484" text-anchor="middle">cron/daily, cron/alerts</text>
+  <path class="flow" d="M770 138 L 770 154" marker-end="url(#ch12a)"/>
+
+  <line class="wall" x1="350" y1="350" x2="690" y2="350"/>
+  <text class="lbl-sm" x="360" y="372">middleware.ts: no session on /app or /admin (except /admin/login)</text>
+  <text class="lbl-sm" x="360" y="388">redirects to /login or /admin/login before any page renders</text>
+
+  <text class="lbl-sm" x="20" y="520">Muted boxes are client components, server actions, or the cron routes only Vercel calls. Every page is a server component.</text>
+  <text class="lbl-sm" x="20" y="540">The api/ branch is covered feature by feature in chapters 5 to 11; cron/ is chapter 9.</text>
+</svg>
+<figcaption>
+  One root layout, then five branches. The two route groups in parentheses add a layout without
+  adding a path segment: <code>(auth)</code> centres a card, <code>(app)</code> wraps every page in
+  the shell. The admin layout is a passthrough so the login page renders bare.
+</figcaption>
+</figure>
+
+<h3 id="s12-4"><span class="num">12.4</span><span>The server side</span></h3>
+
+<h4>The root layout</h4>
+
+<pre><code>// app/layout.tsx
+export const metadata: Metadata = {
+  title: "Sanchara: Your chart, read by the stars",
+  description: "Sign up, share your birth details, and chat with an astrologer powered by your real birth chart.",
+};
+
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    &lt;html lang="en"&gt;
+      &lt;body className="min-h-screen antialiased"&gt;{children}&lt;/body&gt;
+    &lt;/html&gt;
+  );
+}</code></pre>
+
+<p>
+  That is the whole file, plus the <code>import "./globals.css"</code> above it. It is a server
+  component with no data access; the title and description are the only metadata the site declares,
+  and no page overrides them. The viewport export is what keeps iOS from rendering the site at a
+  desktop width and shrinking it.
+</p>
+
+<h4>The landing route</h4>
+
+<pre><code>// app/page.tsx
+export default async function Landing() {
+  const supabase = await createServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) redirect("/app");
+  return &lt;CosmicLanding /&gt;;
+}</code></pre>
+
+<p>
+  <code>/</code> is a server component that does one thing before rendering: it asks Supabase who
+  the visitor is, using the cookie client from <code>lib/supabase/server.ts</code>. A signed-in
+  visitor is redirected on the server and never receives the landing HTML. Everyone else receives
+  <code>&lt;CosmicLanding /&gt;</code>, which is a client component, so the server's contribution to
+  the page is the root layout and whatever the client component's fallback renders on the server
+  (<a href="#s12-5">12.5</a>).
+</p>
+
+<h4>The middleware</h4>
+
+<p>
+  <code>middleware.ts</code> runs <code>updateSession</code> from
+  <code>lib/supabase/middleware.ts</code> on every request except static assets, images, the favicon
+  and <code>.well-known/</code>. It creates a server client over the request cookies, calls
+  <code>getUser()</code> so the session cookie is refreshed, and then applies one rule: a request to
+  a path starting with <code>/app</code>, or with <code>/admin</code> other than
+  <code>/admin/login</code>, with no user is redirected to <code>/login</code> or
+  <code>/admin/login</code>. This is why none of the pages under <code>(app)</code> check for a
+  session themselves. They check for a birth profile, which is a different question, and one the
+  middleware cannot answer.
+</p>
+
+<h4>The signed-in layout and home</h4>
+
+<pre><code>// app/(app)/layout.tsx
+export const dynamic = "force-dynamic";
+
+export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const conversations = await listConversations();
+  return &lt;AppShell conversations={conversations as never}&gt;{children}&lt;/AppShell&gt;;
+}</code></pre>
+
+<p>
+  <code>force-dynamic</code> tells Next never to cache any page under this layout; every request
+  renders fresh, which is right for a frame whose sidebar lists the person's own conversations.
+  <code>listConversations</code> (in <code>lib/data/chat.ts</code>) selects
+  <code>id, tradition, title, created_at</code> ordered newest first, with no user filter in the
+  query: Row Level Security supplies it (<a href="#ch13">chapter 13</a>). The <code>as never</code>
+  cast is there because the query returns loosely typed rows and the shell declares a stricter
+  <code>Conv</code> type; it is a cast, not a validation, and if a column were renamed the shell
+  would receive <code>undefined</code> rather than an error.
+</p>
+
+<p>
+  The home at <code>app/(app)/app/page.tsx</code> calls <code>getBirthProfile()</code> and branches
+  on the result. With no profile it shows "Let's build your chart" and a button to
+  <code>/app/intake</code> in the foreground colour. With a profile it shows the avatar if there is
+  one, "Hello," followed by the first name, an accent-coloured "Start a reading" button to
+  <code>/app/chat</code>, and a plain link to <code>/api/kundli</code> that downloads the PDF
+  (<a href="#ch07">chapter 7</a>). The avatar is a plain <code>&lt;img&gt;</code>, with an ESLint
+  disable comment above it, because it is a public Supabase Storage URL and
+  <code>next/image</code> would need the host allow-listed. Behind both states sits
+  <code>Glow</code>, a blurred radial gradient from a violet at 22% opacity through the accent at 6%
+  to transparent. The same gradient string appears in <code>app/(auth)/layout.tsx</code> and
+  <code>app/(app)/app/intake/page.tsx</code>; it is copied, not shared.
+</p>
+
+<h4>The two configuration files</h4>
+
+<pre><code>// next.config.ts
+const nextConfig: NextConfig = {
+  // swisseph-wasm ships a .wasm binary; keep it external so Next bundles it for the server runtime.
+  serverExternalPackages: ["swisseph-wasm"],
+
+  async headers() {
+    return [
+      {
+        source: "/.well-known/apple-app-site-association",
+        headers: [{ key: "content-type", value: "application/json" }],
+      },
+    ];
+  },
+};</code></pre>
+
+<p>
+  Two settings, each for a different chapter. <code>serverExternalPackages</code> keeps the Swiss
+  Ephemeris package out of the bundler so its <code>.wasm</code> file is loaded from
+  <code>node_modules</code> at run time (<a href="#ch02">chapter 2</a>). The header fixes a
+  platform quirk: Apple requires the app-site-association file to be served as JSON, the file has no
+  extension, and Next would otherwise serve it as <code>application/octet-stream</code>. That file is
+  what lets iOS open universal links in the app (<a href="#ch14">chapter 14</a>). The middleware
+  matcher excludes <code>.well-known/</code> so the session code never runs for it.
+</p>
+
+<h3 id="s12-5"><span class="num">12.5</span><span>The clients</span></h3>
+
+<h4>The landing, in two client components</h4>
+
+<pre><code>// components/marketing/CosmicLanding.tsx
+"use client";
+import dynamic from "next/dynamic";
+
+const CosmicHero = dynamic(() =&gt; import("./CosmicHero"), {
+  ssr: false,
+  loading: () =&gt; (
+    &lt;div className="min-h-[100svh] bg-cover bg-center" style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} /&gt;
+  ),
+});
+
+export function CosmicLanding() {
+  return &lt;CosmicHero /&gt;;
+}</code></pre>
+
+<p>
+  <code>CosmicLanding</code> exists only to do this import. <code>ssr: false</code> means the
+  server never renders <code>CosmicHero</code>; the HTML for <code>/</code> contains the
+  <code>loading</code> element, a full-height div with the planet photograph as its background, and
+  nothing else. The browser downloads the hero's chunk, which carries GSAP and its ScrollTrigger
+  plugin, and swaps it in. The design intent in the file's comment is that "nothing looks blank"
+  while that happens, and the photograph does that job.
+</p>
+
+<p>
+  <code>CosmicHero</code> is data plus one effect. The data is a <code>HERO</code> constant (eyebrow
+  "Computed astrology, never guessed", title "SANCHARA", one line of copy, two links: "Get your
+  reading" to <code>/signup</code> and "Log in" to <code>/login</code>) and three
+  <code>SECTIONS</code> ("THE SCIENCE", "YOUR CHART", "YOUR FUTURE"), the last with a
+  "Create your free account" button. The hero section is <code>min-h-[100svh]</code> with the
+  planet photograph as a CSS background; each dark section is another full viewport in
+  <code>bg-bg</code>. The title is split into one <code>&lt;span class="ch"&gt;</code> per character
+  and starts with <code>visibility: hidden</code> as an inline style, so the letters are not seen
+  before they animate.
+</p>
+
+<pre><code>// components/marketing/CosmicHero.tsx
+useEffect(() =&gt; {
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) {
+    if (titleRef.current) titleRef.current.style.visibility = "visible";
+    return;
+  }
+  gsap.registerPlugin(ScrollTrigger);
+  const ctx = gsap.context(() =&gt; {
+    if (titleRef.current) {
+      gsap.set(titleRef.current, { visibility: "visible" });
+      gsap.from(titleRef.current.querySelectorAll(".ch"), {
+        y: 120, opacity: 0, duration: 1.1, stagger: 0.05, ease: "power4.out",
+      });
+    }
+    gsap.utils.toArray&lt;HTMLElement&gt;(".reveal").forEach((el) =&gt; {
+      gsap.from(el.children, {
+        y: 60, opacity: 0, duration: 1, stagger: 0.12, ease: "power3.out",
+        scrollTrigger: { trigger: el, start: "top 78%" },
+      });
+    });
+  }, root);
+  return () =&gt; ctx.revert();
+}, []);</code></pre>
+
+<p>
+  The effect reads the reduced-motion preference first and, if set, makes the title visible and does
+  nothing else: no plugin registration, no tweens, no scroll listeners. Otherwise the eight letters
+  rise 120 pixels over 1.1 seconds with a 50 millisecond stagger, and each <code>.reveal</code>
+  block's children rise 60 pixels when the block's top crosses 78% of the viewport height. Everything
+  is created inside <code>gsap.context</code> scoped to the root element, so the cleanup is one call
+  to <code>ctx.revert()</code> when the component unmounts. No three.js scene is created anywhere;
+  the "cosmic" in the name is the photograph and the black sections.
+</p>
+
+<h4>The shell</h4>
+
+<p>
+  <code>AppShell</code> is the one client component in the signed-in frame, and it is a client
+  component for three reasons only: it holds the open state of the mobile drawer, it reads the
+  <code>?c=</code> search parameter to highlight the active conversation, and it reads the pathname
+  to highlight Profile. It receives the conversation list as a prop and fetches nothing.
+</p>
+
+<p>
+  The navigation column is built once as <code>nav</code> and placed twice. On a medium screen and
+  up it is a 256 pixel aside with a hairline right border. Below that it is hidden, a header with a
+  hamburger button (labelled "Open menu" for assistive technology) appears, and tapping it renders a
+  fixed overlay: a 60% black backdrop that closes on click, and a drawer 288 pixels wide, capped at
+  82% of the screen. Every link in the column closes the drawer on click, so navigating on a phone
+  never leaves it open over the new page. The column holds the brand link to <code>/app</code>, a
+  "New reading" link to <code>/app/chat</code>, a Profile link, the "Past readings" list, and a
+  sign-out form whose <code>action</code> is the <code>signOut</code> server action imported from
+  <code>app/(auth)/actions.ts</code>. A conversation is highlighted when its id matches
+  <code>?c=</code> and the pathname is exactly <code>/app/chat</code>; a conversation with no title
+  is shown as "Reading". The outer frame is <code>h-dvh</code> with <code>overflow-hidden</code>,
+  and <code>&lt;main&gt;</code> is <code>min-h-0 flex-1</code>, which is what lets the chat transcript
+  scroll inside the frame instead of the page scrolling under the sidebar.
+</p>
+
+<h4>The auth form</h4>
+
+<pre><code>// components/AuthForm.tsx (props)
+{
+  title: string;
+  subtitle?: string;
+  primaryLabel: string;
+  primaryAction: (fd: FormData) =&gt; void;
+  magicAction?: (fd: FormData) =&gt; void;
+  footer: React.ReactNode;
+  error?: string;
+  notice?: string;
+}</code></pre>
+
+<p>
+  <code>AuthForm</code> has no <code>"use client"</code> directive and no state. It is a server
+  component rendering one form with an email field, a password field, a primary button with
+  <code>formAction={primaryAction}</code> and, when <code>magicAction</code> is given, a second
+  button "Email me a magic link instead" with its own <code>formAction</code>. Two buttons in one
+  form, each bound to a different server action, is how a single email field serves both a password
+  sign-in and a magic link without any client JavaScript. <code>/login</code> and
+  <code>/signup</code> both render it with the same <code>authenticate</code> action; only the title
+  and subtitle differ, because the action itself decides whether to sign in or sign up
+  (<a href="#ch04">chapter 4</a>). Errors arrive as <code>?error=</code> in the URL and are printed
+  in the accent colour above the form; <code>?sent=1</code> prints the magic-link notice in muted
+  text. The inputs use the same recipe as every field on the site: <code>bg-white/[0.04]</code>,
+  <code>border-white/10</code>, <code>rounded-lg</code>, and the border turns accent on focus.
+</p>
+
+<h4>The iOS design system</h4>
+
+<p>
+  The Swift files under <code>mobile/Sanchara/Sources/Design/</code> are the same recipe written
+  for SwiftUI. <code>SancharaField</code> is the input: 16 point text, 12 by 14 points of padding,
+  <code>Theme.fieldFill</code> behind it, a <code>Theme.hairline</code> stroke, and an 8 point
+  radius. Its doc comment notes that the web forces 16 pixels on phones so Safari does not zoom,
+  that native has no such bug, and that "the size is the look". <code>SancharaPrimaryButton</code>
+  is <code>bg-fg text-bg rounded-lg</code>: foreground fill, background-coloured text, full width, a
+  spinner in place of the label while loading and disabled while it shows.
+  <code>SancharaSecondaryButton</code> is the outlined button with white at 0.15 for its stroke and
+  muted 14 point text. <code>SancharaSecureField</code> adds an eye toggle the web form does not
+  have, with the comment that choosing a password you cannot see "is the most common reason a
+  sign-up attempt fails twice".
+</p>
+
+<p>
+  <code>ReadingCard</code> is the one component shared by the Siri snippet and the Home Screen
+  widget (<a href="#ch10">chapter 10</a>): an eyebrow at 10 points with 2 points of tracking, a
+  serif headline in <code>Theme.fg</code>, and body text at 13 points in <code>Theme.muted</code>
+  with a line limit that defaults to 6 because "widgets get less room than a Siri snippet does". It
+  sets its own colours rather than reading the environment, and its header comment gives the reason
+  this chapter opened with: the app is dark-only by design, <code>UIUserInterfaceStyle: Dark</code>
+  in <code>Info.plist</code> and in <code>mobile/project.yml</code>, and a card that went light
+  inside Siri would read as a different product. Its accessibility label concatenates the three
+  strings so VoiceOver reads the card as one element.
+</p>
+
+<h3 id="s12-6"><span class="num">12.6</span><span>How it works</span></h3>
+
+<h4>An anonymous visit to /</h4>
+
+<ol>
+  <li>The middleware runs. There is no session cookie, the path is not under <code>/app</code> or
+    <code>/admin</code>, so the request passes through.</li>
+  <li><code>app/page.tsx</code> renders on the server, calls <code>getUser()</code>, finds nobody,
+    and returns <code>&lt;CosmicLanding /&gt;</code>.</li>
+  <li>The HTML that leaves the server is the root layout around the <code>loading</code>
+    fallback: a full-viewport div showing <code>planet-sun.jpg</code>. No headline, no links.</li>
+  <li>The browser hydrates, requests the <code>CosmicHero</code> chunk, and mounts it. The title's
+    spans exist but are hidden.</li>
+  <li>The effect runs. Without a reduced-motion preference GSAP makes the title visible and the
+    letters rise; three ScrollTriggers wait for the dark sections. With the preference set, the
+    title is simply shown.</li>
+  <li>"Get your reading" and "Log in" are ordinary <code>next/link</code> anchors to
+    <code>/signup</code> and <code>/login</code>. Both routes render <code>AuthForm</code> inside
+    the <code>(auth)</code> layout's centred grid with the glow behind it.</li>
+</ol>
+
+<h4>A signed-in visit to /</h4>
+
+<ol>
+  <li>The middleware refreshes the session cookie by calling <code>getUser()</code>.</li>
+  <li><code>app/page.tsx</code> calls <code>getUser()</code> again, finds a user, and
+    <code>redirect("/app")</code> throws before any component renders. The landing chunk is never
+    requested.</li>
+  <li><code>app/(app)/layout.tsx</code> renders: <code>listConversations()</code> runs under RLS
+    for that user and the result is handed to <code>AppShell</code>.</li>
+  <li><code>app/(app)/app/page.tsx</code> renders inside it: <code>getBirthProfile()</code> runs,
+    and if the stored Vedic chart predates the whole-sign change,
+    <code>ensureCurrentChart</code> recomputes both traditions and rewrites the row before the page
+    is returned (<a href="#ch02">chapter 2</a>).</li>
+  <li>The home shows either the intake prompt or the greeting with "Start a reading".</li>
+</ol>
+
+<h4>Signing out from the shell</h4>
+
+<p>
+  The "Sign out" button is inside a <code>&lt;form action={signOut}&gt;</code>. Submitting it calls
+  the server action, which creates the cookie client, calls <code>supabase.auth.signOut()</code>, and
+  <code>redirect("/login")</code>. The next request to anything under <code>/app</code> has no
+  session and the middleware sends it to <code>/login</code> as well. No client code is involved
+  beyond the form submission.
+</p>
+
+<h3 id="s12-7"><span class="num">12.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>The landing ships one animation library.</strong> The client chunk for the hero carries
+    GSAP 3.15 and ScrollTrigger and nothing else of note. three.js 0.169 is installed and unused, and
+    Next bundles only what is imported, so it costs install time, not bytes on the wire. Removing it
+    from <code>package.json</code> would be a one-line cleanup with no behaviour change.</li>
+  <li><strong>The first paint is a 141,888 byte JPEG.</strong> <code>CosmicHero</code> and its
+    fallback both load <code>planet-sun.jpg</code> as a CSS background, so <code>next/image</code>
+    does no resizing or format conversion for it. The unused <code>Hero.tsx</code> did use
+    <code>next/image</code> with <code>priority</code>; that optimisation went away with the
+    component. <code>starfield.jpg</code> is referenced only by the unused components and is never
+    requested.</li>
+  <li><strong>Nothing above the fold is server-rendered on /.</strong> With <code>ssr: false</code>
+    the headline and the two calls to action exist only after hydration. A crawler that does not run
+    JavaScript sees a photograph and the metadata title. That is a trade the code makes for a paint
+    that is never blank; it is worth knowing when reading a search report.</li>
+  <li><strong>Two session checks per request.</strong> The middleware calls <code>getUser()</code> on
+    every matched request and <code>app/page.tsx</code> calls it again. With a session cookie
+    present, each is a verification round trip to Supabase Auth.</li>
+  <li><strong>Every /app page is dynamic.</strong> <code>force-dynamic</code> on the layout means
+    each render runs <code>listConversations()</code>; the home, chat and profile pages each add
+    <code>getBirthProfile()</code>. Two queries per navigation, both indexed
+    (<code>conversations (user_id, created_at desc)</code>, <code>birth_profiles</code> unique on
+    <code>user_id</code>), and the shell itself makes no client fetch.</li>
+  <li><strong>The chart upgrade is on the read path.</strong> A stale stored chart costs two Swiss
+    Ephemeris computations and one update the first time its owner loads any page that reads the
+    profile. It happens once per profile.</li>
+  <li><strong>Reduced motion is free.</strong> The preference short-circuits the effect before
+    GSAP registers its plugin, so nothing is created that then has to be reverted.</li>
+  <li><strong>The theme costs nothing to keep in sync.</strong> Four hex values copied by hand and
+    pinned by four unit tests. There is no build step between the CSS and the Swift.</li>
+</ul>
+
+<h3 id="s12-8"><span class="num">12.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>Signed-in person opens /</td><td>Server redirect to <code>/app</code>; the landing chunk is never sent</td></tr>
+<tr><td>Signed-out person opens /app/anything</td><td>Middleware redirects to <code>/login</code> before the page renders</td></tr>
+<tr><td>Signed-out person opens /admin/login</td><td>Allowed; every other <code>/admin</code> path redirects there</td></tr>
+<tr><td>Signed in, no birth profile</td><td>Home shows the intake prompt; <code>/app/chat</code> redirects to <code>/app/intake</code> when <code>profile.chart</code> is missing</td></tr>
+<tr><td>Signed in, profile without an avatar</td><td>The <code>&lt;img&gt;</code> is not rendered at all, so there is no broken image</td></tr>
+<tr><td>Conversation with a null title</td><td>Listed as "Reading" in the sidebar and in the link's <code>title</code> attribute</td></tr>
+<tr><td>prefers-reduced-motion</td><td>The hero shows the title without GSAP; CSS disables <code>fade-up</code>, <code>fade-in</code> and <code>glow</code>. <code>heartbeat</code>, <code>shimmer</code> and the caret <code>blink</code> are not disabled</td></tr>
+<tr><td>JavaScript disabled, or before hydration</td><td>/ shows the planet photograph only; no headline or links are in the HTML</td></tr>
+<tr><td>Phone narrower than 768px</td><td>Sidebar hidden; hamburger opens a drawer capped at 82% width; any link closes it</td></tr>
+<tr><td>iOS date or time input</td><td><code>max-width: 100%</code> and <code>appearance: none</code> stop the intrinsic width overflowing; 16px text stops Safari zooming on focus</td></tr>
+<tr><td>Headline wider than the viewport</td><td><code>break-words</code> on the title plus <code>overflow-x: hidden</code> on <code>body</code>; no sideways scroll</td></tr>
+<tr><td>Request for /.well-known/apple-app-site-association</td><td>Served as <code>application/json</code>; the middleware does not run for it</td></tr>
+<tr><td>The Next data cache</td><td>Never used under <code>/app</code>: <code>force-dynamic</code> on the layout</td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<ul>
+  <li><code>app/smoke.test.ts</code>: one test, "layout module loads", which imports the default
+    export of <code>app/layout.tsx</code> and asserts it is a function. The import is named
+    <code>metadata</code> in the test, but it is the default export, which is
+    <code>RootLayout</code>; the metadata object itself is not asserted on. This is the only web test
+    that touches anything in this chapter.</li>
+  <li><code>mobile/Sanchara/Tests/ThemeTests.swift</code>: <code>testBackgroundMatchesCSSToken</code>,
+    <code>testForegroundMatchesCSSToken</code>, <code>testMutedMatchesCSSToken</code> and
+    <code>testAccentMatchesCSSToken</code>. Each converts the SwiftUI <code>Color</code> to a
+    <code>UIColor</code>, reads its components, rounds them to 0 to 255, and compares with the hex
+    bytes from <code>globals.css</code>. The class comment states the premise: a careless edit to
+    <code>Theme.swift</code> "fails the build rather than quietly drifting". The tests pin the Swift
+    side only; an edit to the CSS would not fail them.</li>
+  <li>No test renders <code>CosmicHero</code>, <code>AppShell</code> or <code>AuthForm</code>. The
+    behaviour in the table above is read from the code, not proven by a suite.</li>
+</ul>
+
+<h3 id="s12-9"><span class="num">12.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>app/globals.css</code>, for the four tokens and every rule that exists because of a phone.</li>
+  <li><code>app/layout.tsx</code> and <code>app/page.tsx</code>, the whole server side of the public site in thirty lines.</li>
+  <li><code>components/marketing/CosmicLanding.tsx</code>, then <code>CosmicHero.tsx</code>, for the dynamic import and the one effect.</li>
+  <li><code>middleware.ts</code> and <code>lib/supabase/middleware.ts</code>, the guard that lets the pages skip their own session checks.</li>
+  <li><code>app/(app)/layout.tsx</code> and <code>components/AppShell.tsx</code>, the frame and why it is the only client component in it.</li>
+  <li><code>app/(app)/app/page.tsx</code>, the two states of the home.</li>
+  <li><code>components/AuthForm.tsx</code> with <code>app/(auth)/login/page.tsx</code>, two buttons and two server actions in one form.</li>
+  <li><code>mobile/Sanchara/Sources/Design/Theme.swift</code> and <code>ThemeTests.swift</code>, the copy and the test that pins it.</li>
+  <li><code>next.config.ts</code>, last, because both of its settings belong to other chapters.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why is the hero loaded with <code>ssr: false</code>, and what does the visitor lose?</p>
+<p class="a">GSAP needs the DOM and the code was written for a browser-only scene, so the component is rendered only on the client. The visitor loses server-rendered headline text: before hydration the page is the photograph alone.</p>
+<p class="q">Where does the sidebar's list of readings come from, and why does the query have no <code>user_id</code> filter?</p>
+<p class="a">From <code>listConversations()</code> in the <code>(app)</code> layout, run on the server with the cookie client. Row Level Security restricts the rows to the signed-in user, so the query does not need to.</p>
+<p class="q">Why do the <code>(app)</code> pages not check for a session?</p>
+<p class="a">The middleware redirects any request under <code>/app</code> without a user to <code>/login</code> before a page renders. The pages check for a birth profile instead, which is the question the middleware cannot answer.</p>
+<p class="q">What would happen if someone changed <code>--accent</code> in <code>globals.css</code>?</p>
+<p class="a">The site would change and the iOS app would not. <code>ThemeTests</code> compare Swift against constants copied from the CSS, not against the CSS itself, so the test would still pass until <code>Theme.swift</code> was edited to match.</p>
+<p class="q">Why are there two <code>getUser()</code> calls on a signed-in visit to <code>/</code>?</p>
+<p class="a">The middleware calls one to refresh the cookie and decide whether to redirect protected paths; <code>app/page.tsx</code> calls another to decide whether to redirect the landing itself. The landing is not a protected path, so the middleware cannot make that second decision.</p>
+<p class="q">Why is the reading card in iOS given explicit colours instead of the environment's?</p>
+<p class="a">It renders inside Siri and inside a widget, where the environment's colour scheme may be light. The app is dark-only, and a card that changed with its host would look like another product.</p>
+</div>
+</section>

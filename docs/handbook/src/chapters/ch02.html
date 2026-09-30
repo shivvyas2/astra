@@ -1,0 +1,951 @@
+<section class="chapter" id="ch02" data-hue="chart">
+<p class="chapter-kicker">Chapter two</p>
+<h2><span class="num">2</span><span>The chart engine</span></h2>
+
+<p class="lede">
+  Nothing about a chart is guessed. <code>lib/astrology/</code> turns a date, a time and a place
+  into planets, houses, nakshatras, dashas, doshas and transits with the Swiss Ephemeris, and
+  every later chapter reads from that output. Claude interprets these numbers; it never
+  produces them.
+</p>
+
+<p>
+  This chapter describes the engine as it is on <code>main</code> on 30 September 2026, version
+  0.3.0. It is a pure computation layer: no database, no network beyond one geocoding call on
+  the input side, no interpretation. The same nine files serve the web app, the iOS app, the
+  kundli PDF, the timeline, the twice-daily alerts job and the chat. If a number in a reading
+  is wrong, this is where it went wrong, and the tests in <a href="#s2-10">section 2.10</a> are
+  how you find out.
+</p>
+
+<h3 id="s2-1"><span class="num">2.1</span><span>What a chart is here</span></h3>
+
+<p>
+  A birth chart is the sky at one moment, seen from one place on Earth, projected onto the
+  ecliptic and cut into twelve signs of 30 degrees. The engine computes it in two traditions,
+  and almost everything that follows depends on which one is asked for.
+</p>
+
+<ul>
+  <li><strong>Tropical and sidereal.</strong> Western astrology measures longitude from the
+    vernal equinox (tropical). Vedic astrology measures it from the fixed stars (sidereal). The
+    two zodiacs drift apart by about 50 arcseconds a year and the gap today is roughly
+    24 degrees. That gap is the <strong>ayanamsa</strong>; the engine uses Lahiri's value, the
+    one Indian almanacs use. A Sun at 10 degrees Capricorn tropical is at about 16 degrees
+    Sagittarius sidereal, which is why one birth has a different Sun sign in each tradition.</li>
+  <li><strong>The ascendant</strong> (lagna in Vedic usage) is the point of the ecliptic rising
+    in the east at the birth moment. It passes through all twelve signs every day, which is why
+    the birth time matters.</li>
+  <li><strong>Houses</strong> divide the sky into twelve regions of life, counted from the
+    ascendant. In the <strong>whole-sign</strong> system the ascendant's sign is house 1, the
+    next sign house 2, and so on. In <strong>Placidus</strong> the houses are unequal arcs
+    computed from the latitude and the sidereal time, and one can span parts of two signs.
+    Vedic charts here are whole-sign, Western charts Placidus; <a href="#s2-4">section 2.4</a>
+    explains why the engine once got that wrong and how a stored chart is corrected.</li>
+  <li><strong>Nakshatras</strong> are the 27 lunar mansions of the sidereal zodiac, each
+    13 degrees 20 minutes wide. The Moon's nakshatra at birth decides the dasha.</li>
+  <li><strong>Dashas</strong> are planetary periods. The Vimshottari system assigns 120 years
+    of life to nine lords in a fixed order; the <strong>mahadasha</strong> is the major period
+    and the <strong>antardasha</strong> the sub-period inside it. Where you are in that
+    sequence is what "which dasha am I in" asks.</li>
+  <li><strong>Doshas</strong> (and the yogas the code files alongside them) are named
+    afflictions read from positions: Mars in certain houses, every planet on one side of the
+    nodes, and so on.</li>
+  <li><strong>Gochara</strong> is transit: today's sky read against the birth chart, by the
+    house each moving planet occupies counted from the ascendant and from the natal Moon.
+    Sade Sati, Saturn's seven and a half years around the natal Moon, is the best known.</li>
+</ul>
+
+<p>The whole output is one JSON value, typed in <code>lib/astrology/types.ts</code>:</p>
+
+<pre><code>// lib/astrology/types.ts
+export type Chart = {
+  tradition: Tradition;                 // "vedic" | "western"
+  ascendant: { sign: string; degree: number };
+  houses: number[];                     // 12 cusp longitudes
+  planets: Planet[];                    // name, sign, degree, house, retrograde, nakshatra?
+  moonSign: string;
+  sunSign: string;
+  ayanamsa?: number;
+  dasha?: DashaInfo;                    // Vedic only: current mahadasha and antardasha
+  /** Bumped when the computation changes in a way that moves stored values. */
+  schemaVersion?: number;
+  /** Classical readings of the positions above. See lib/astrology/derived.ts. */
+  derived?: Derived;
+};</code></pre>
+
+<p>
+  Three things about this shape decide the rest of the chapter. A planet is stored as a sign
+  and a degree within that sign (0 to 30), not as an absolute longitude; every module that
+  needs the longitude rebuilds it as <code>signIndex(sign) * 30 + degree</code>. The
+  <code>houses</code> array is always the twelve Placidus cusps, even for a Vedic chart, and
+  nothing renders from it. And <code>dasha</code> and <code>derived</code> exist only for Vedic,
+  because every technique in them is Vedic doctrine.
+</p>
+
+<h3 id="s2-2"><span class="num">2.2</span><span>Files and the input side</span></h3>
+
+<pre class="tree">lib/astrology/
+├── types.ts          BirthInput, Planet, Chart, DashaInfo, Tradition, ChatMode
+├── constants.ts      SIGNS, NAKSHATRAS, signOf, degreeInSign, nakshatraOf,
+│                     houseFrom, ORDINAL, CHART_SCHEMA_VERSION
+├── chart.ts          computeChart: the ephemeris, houses, Ketu, dasha, derived
+├── dasha.ts          Vimshottari: startingDashaLord, computeVimshottari, vimshottariTimeline
+├── derived.ts        lords, dignity, combustion, aspects, deriveFacts, factsFor, isChartStale
+├── doshas.ts         detectNatalDoshas, detectTransitAfflictions, Condition, highestSeverity
+├── transits.ts       transitChart (cached), describeGochara, describeToday
+├── numerology.ts     mulank, bhagyank, name number, personal cycle, Lo Shu, relationships
+└── prompt.ts         renders all of the above as text for the model (chapter 3)
+
+lib/geo.ts            geocodePlace (Open-Meteo), resolveTimezone (tz-lookup)
+app/api/geocode/      GET ?q= wraps geocodePlace for the intake forms
+lib/data/birthProfile.ts   saveBirthProfile computes both charts; ensureCurrentChart upgrades</pre>
+
+<p>
+  The engine's input is a <code>BirthInput</code>: a date as <code>YYYY-MM-DD</code>, a time as
+  <code>HH:mm</code>, a latitude, a longitude and an IANA time zone name. The place name a
+  person types never reaches the engine. <code>lib/geo.ts</code> turns it into those numbers.
+</p>
+
+<pre><code>// lib/geo.ts
+export function resolveTimezone(lat: number, lng: number): string {
+  return tzlookup(lat, lng);
+}
+
+export async function geocodePlace(query: string): Promise&lt;GeoResult[]&gt; {
+  const q = query.trim();
+  if (q.length &lt; 2) return [];
+  const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&amp;count=5&amp;language=en&amp;format=json`;
+  const res = await fetch(url, { headers: { accept: "application/json" } });
+  if (!res.ok) return [];
+  ...
+  return (data.results ?? []).map((r) =&gt; ({
+    name: [r.name, r.admin1, r.country].filter(Boolean).join(", "),
+    lat: r.latitude,
+    lng: r.longitude,
+    timezone: resolveTimezone(r.latitude, r.longitude),
+    country: r.country ?? "",
+  }));
+}</code></pre>
+
+<p>
+  Two choices are worth naming. The geocoder is Open-Meteo's free endpoint, called without a
+  key and capped at five results, and any failure (a short query, a non-2xx response) returns an
+  empty list rather than an error. And the time zone is not taken from the geocoder:
+  <code>tz-lookup</code> resolves it offline from the coordinates, so the zone is consistent with
+  the point actually chosen. That is why the only test in <code>lib/geo.test.ts</code> is two
+  coordinate pairs, New Delhi to <code>Asia/Kolkata</code> and New York to
+  <code>America/New_York</code>. The offset in force on the birth date, daylight saving included,
+  is then luxon's job inside <code>computeChart</code>.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 330" role="img" aria-label="A place name and a date and time on the left are resolved by geocodePlace and resolveTimezone into a BirthInput; computeChart converts local time to UT and a Julian day with luxon, asks swisseph-wasm for positions and house cusps, adds the Vimshottari dasha and derived facts for Vedic, and returns Chart JSON, which saveBirthProfile stores as a vedic and a western pair.">
+  <defs>
+    <marker id="ch02a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch02b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">TYPED</text>
+  <text class="lbl-sm" x="200" y="24">RESOLVED</text>
+  <text class="lbl-sm" x="410" y="24">computeChart</text>
+  <text class="lbl-sm" x="670" y="24">STORED</text>
+
+  <rect class="box" x="20" y="40" width="140" height="34" rx="8"/><text class="lbl" x="90" y="62" text-anchor="middle">Place name</text>
+  <rect class="box" x="20" y="120" width="140" height="34" rx="8"/><text class="lbl" x="90" y="142" text-anchor="middle">Date and time</text>
+
+  <rect class="box" x="200" y="40" width="170" height="34" rx="8"/><text class="lbl" x="285" y="62" text-anchor="middle">geocodePlace</text>
+  <rect class="box" x="200" y="82" width="170" height="34" rx="8"/><text class="lbl" x="285" y="104" text-anchor="middle">resolveTimezone</text>
+  <rect class="box-hot" x="200" y="160" width="170" height="60" rx="10"/><text class="lbl" x="285" y="184" text-anchor="middle">BirthInput</text><text class="lbl-hot" x="285" y="204" text-anchor="middle">date, time, lat, lng, zone</text>
+
+  <rect class="box" x="410" y="40" width="220" height="34" rx="8"/><text class="lbl" x="520" y="62" text-anchor="middle">luxon: local to UT, julday</text>
+  <rect class="box-hot" x="410" y="96" width="220" height="60" rx="10"/><text class="lbl" x="520" y="120" text-anchor="middle">swisseph-wasm</text><text class="lbl-hot" x="520" y="140" text-anchor="middle">calc_ut x 8, houses_ex "P"</text>
+  <rect class="box" x="410" y="178" width="220" height="34" rx="8"/><text class="lbl" x="520" y="200" text-anchor="middle">Ketu, signs, houses, nakshatras</text>
+  <rect class="box-alt" x="410" y="234" width="220" height="34" rx="8"/><text class="lbl" x="520" y="256" text-anchor="middle">dasha.ts + derived.ts (Vedic)</text>
+
+  <rect class="box-hot" x="670" y="96" width="170" height="60" rx="10"/><text class="lbl" x="755" y="120" text-anchor="middle">Chart JSON</text><text class="lbl-hot" x="755" y="140" text-anchor="middle">schemaVersion 2</text>
+  <rect class="box" x="670" y="234" width="170" height="50" rx="10"/><text class="lbl" x="755" y="256" text-anchor="middle">birth_profiles.chart</text><text class="lbl-sm" x="755" y="274" text-anchor="middle">{ vedic, western }</text>
+
+  <path class="flow" d="M160 57 L 194 57" marker-end="url(#ch02a)"/>
+  <path class="flow" d="M370 57 L 390 57 L 390 99 L 370 99" marker-end="url(#ch02a)"/>
+  <path class="flow" d="M285 116 L 285 154" marker-end="url(#ch02a)"/>
+  <path class="flow" d="M160 137 L 180 137 L 180 190 L 194 190" marker-end="url(#ch02a)"/>
+  <path class="flow-hot" d="M370 190 L 390 190 L 390 57 L 404 57" marker-end="url(#ch02b)"/>
+  <path class="flow" d="M520 74 L 520 90" marker-end="url(#ch02a)"/>
+  <path class="flow" d="M520 156 L 520 172" marker-end="url(#ch02a)"/>
+  <path class="flow-dash" d="M520 212 L 520 228" marker-end="url(#ch02a)"/>
+  <path class="flow-hot" d="M630 195 L 650 195 L 650 126 L 664 126" marker-end="url(#ch02b)"/>
+  <path class="flow-dash" d="M630 251 L 650 251 L 650 140 L 664 140" marker-end="url(#ch02a)"/>
+  <path class="flow" d="M755 156 L 755 228" marker-end="url(#ch02a)"/><text class="lbl-sm" x="763" y="196">saveBirthProfile, twice</text>
+
+  <line class="wall" x1="182" y1="30" x2="182" y2="300"/>
+  <text class="lbl-sm" x="20" y="316">Left of the line is a form. Everything right of it runs inside a route handler; the WASM ephemeris is in-process, and the only network call is the geocoder.</text>
+</svg>
+<figcaption>
+  From typed birth details to stored JSON. <code>saveBirthProfile</code> calls
+  <code>computeChart</code> twice, once per tradition, and writes the pair in one row. The dashed
+  edges exist only for a Vedic chart.
+</figcaption>
+</figure>
+
+<h3 id="s2-3"><span class="num">2.3</span><span>Positions: the ephemeris</span></h3>
+
+<p>
+  The Swiss Ephemeris is the standard high-precision planetary library, here as the
+  <code>swisseph-wasm</code> package, which compiles it to WebAssembly so that it runs inside a
+  Next.js route handler with no native binary. <code>chart.ts</code> initialises it once per
+  server process and keeps the promise, so concurrent first requests share one
+  initialisation rather than racing to build two:
+</p>
+
+<pre><code>// lib/astrology/chart.ts
+let swePromise: Promise&lt;InstanceType&lt;typeof SwissEph&gt;&gt; | null = null;
+async function getSwe() {
+  if (!swePromise) {
+    swePromise = (async () =&gt; {
+      const swe = new SwissEph();
+      await swe.initSwissEph();
+      return swe;
+    })();
+  }
+  return swePromise;
+}</code></pre>
+
+<p><code>computeChart(input, tradition)</code> then runs four numbered steps, which the file itself labels.</p>
+
+<h4>1. Local time to Universal Time</h4>
+
+<p>
+  luxon parses <code>"${birthDate}T${birthTime}"</code> in the input's IANA zone, converts it to
+  UTC, and the engine asks for the Julian day of that instant with
+  <code>swe.julday(year, month, day, decimalHour)</code>. A birth at 06:30 in Kolkata and one at
+  06:30 in New York are different skies, and luxon knows what offset was in force on that date.
+</p>
+
+<h4>2. Flags</h4>
+
+<p>
+  Every call passes <code>SEFLG_SWIEPH | SEFLG_SPEED</code>: use the Swiss Ephemeris data files,
+  and return velocities, because retrograde is read from speed. For a Vedic chart the engine
+  also calls <code>set_sid_mode(SE_SIDM_LAHIRI, 0, 0)</code>, adds <code>SEFLG_SIDEREAL</code>, and
+  records <code>get_ayanamsa_ut(jd)</code> to three decimals as the chart's <code>ayanamsa</code>.
+  A Western chart is tropical and has none.
+</p>
+
+<h4>3. Houses and the ascendant</h4>
+
+<p>
+  <code>houses_ex(jd, iflag, lat, lng, "P")</code> returns thirteen cusps (index 1 to 12 used) and
+  an <code>ascmc</code> array whose first element is the ascendant longitude. The letter is
+  Placidus, in both traditions. The file's comment records the subtlety that makes this usable
+  for Vedic: "In sidereal mode swisseph applies ayanamsa to cusps too", so the ascendant comes
+  back sidereal and <code>signOf(ascLon)</code> is the lagna sign. The cusps become
+  <code>chart.houses</code>, rounded to two decimals; for Vedic they are carried but never used
+  to place a planet.
+</p>
+
+<h4>4. Planets</h4>
+
+<p>
+  Eight bodies are asked for, in the order Sun, Moon, Mercury, Venus, Mars, Jupiter, Saturn
+  and Rahu, where Rahu is <code>SE_MEAN_NODE</code>, the mean lunar north node. Each
+  <code>calc_ut</code> returns <code>[lon, lat, dist, lonSpeed, ...]</code>; the engine keeps the
+  longitude and the longitude speed, and a planet is <code>retrograde</code> exactly when that
+  speed is negative. The Moon's normalised absolute longitude is kept aside for the dasha
+  calculation. Each planet is stored as:
+</p>
+
+<pre><code>planets.push({
+  name: body.name,
+  sign: signOf(lon),
+  degree: Number(degreeInSign(lon).toFixed(2)),
+  house: tradition === "vedic" ? houseFrom(ascSign, signOf(lon)) : houseOf(lon, cusps),
+  retrograde: speed &lt; 0,
+  nakshatra: tradition === "vedic" ? nakshatraOf(lon) : undefined,
+});</code></pre>
+
+<p>
+  Ketu is not an ephemeris body. It is the south node, always exactly opposite Rahu, so the
+  engine rebuilds Rahu's longitude from its stored sign and rounded degree, adds 180, and pushes
+  a ninth planet with <code>retrograde: true</code> (the mean nodes always move backwards).
+  Rounding first can move Ketu by up to a hundredth of a degree, well below anything rendered.
+</p>
+
+<p>
+  The helpers in <code>constants.ts</code> are one-line modular arithmetic on a longitude
+  normalised into 0 to 360: <code>signOf</code> divides by 30, <code>degreeInSign</code> takes the
+  remainder, <code>nakshatraOf</code> divides by 360/27. The chart then records
+  <code>sunSign</code> and <code>moonSign</code>, the dasha for Vedic, the schema version, and,
+  for Vedic only, the derived block (<a href="#s2-6">section 2.6</a>).
+</p>
+
+<div class="note"><b>Cost</b>
+A chart is eight <code>calc_ut</code> calls and one <code>houses_ex</code> on an in-process WASM
+module: milliseconds after the first request, more on the cold start that initialises the
+module. <code>chart.test.ts</code> computes six full charts in about 50 ms. There is no
+per-chart cost beyond CPU.
+</div>
+
+<h3 id="s2-4"><span class="num">2.4</span><span>Houses: whole-sign and Placidus</span></h3>
+
+<p>Two functions place a planet in a house, and which one runs is decided by the tradition.</p>
+
+<pre><code>// lib/astrology/constants.ts
+/** The 1-indexed house of `sign` counted from `from`, the classical "Nth from". */
+export function houseFrom(from: string, sign: string): number {
+  const a = signIndex(from);
+  const b = signIndex(sign);
+  if (a &lt; 0 || b &lt; 0) return 0;
+  return ((b - a + 12) % 12) + 1;
+}
+
+// lib/astrology/chart.ts
+function houseOf(longitude: number, cusps: number[]): number {
+  const lon = ((longitude % 360) + 360) % 360;
+  for (let i = 0; i &lt; 12; i++) {
+    const start = cusps[i];
+    const end = cusps[(i + 1) % 12];
+    if (start &lt;= end) {
+      if (lon &gt;= start &amp;&amp; lon &lt; end) return i + 1;
+    } else {
+      // wraps past 360°
+      if (lon &gt;= start || lon &lt; end) return i + 1;
+    }
+  }
+  return 1;
+}</code></pre>
+
+<p>
+  <code>houseFrom</code> is whole-sign counting and it is the most-called function in the
+  engine: the chart, the derived facts, every dosha detector and every transit line use it,
+  with the ascendant sign or the natal Moon's sign as <code>from</code>. It returns 0 for an
+  unknown name so a caller can tell the failure apart from house 1. <code>houseOf</code> walks
+  the Placidus cusps, handling the one pair that wraps through 0 degrees Aries, and is used
+  only for Western charts.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th></th><th>Vedic</th><th>Western</th></tr></thead>
+<tbody>
+<tr><td>Zodiac</td><td>Sidereal, Lahiri ayanamsa</td><td>Tropical</td></tr>
+<tr><td>Ascendant</td><td><code>ascmc[0]</code>, sidereal</td><td><code>ascmc[0]</code>, tropical</td></tr>
+<tr><td>Planet house</td><td><code>houseFrom(ascSign, sign)</code>: whole-sign</td><td><code>houseOf(lon, cusps)</code>: Placidus</td></tr>
+<tr><td><code>chart.houses</code></td><td>Placidus cusps, carried, unused</td><td>Placidus cusps, the truth</td></tr>
+<tr><td>Nakshatra</td><td>Per planet</td><td>Absent</td></tr>
+<tr><td><code>dasha</code>, <code>derived</code></td><td>Present</td><td>Absent</td></tr>
+</tbody></table></div>
+
+<h4>The upgrade of stored charts</h4>
+
+<p>
+  Until the change recorded in <code>docs/design/2026-09-17-specific-readings.md</code>, section 0,
+  Vedic planets were placed by <code>houseOf</code> too. The kundli renderers and the PDF had
+  always drawn the houses whole-sign (house 1 labelled with the lagna's sign) and then filled
+  them by the stored Placidus number, so a planet could be drawn inside a house labelled with a
+  sign it was not in. Placidus also lets two houses carry the same sign and one sign appear in
+  none, which leaves "the lord of the 7th" undefined, and every technique in
+  <code>derived.ts</code> rests on lordship. So Vedic became whole-sign:
+</p>
+
+<pre><code>// lib/astrology/constants.ts
+/**
+ * Version 2 moved Vedic charts from Placidus to whole-sign houses. A stored
+ * chart below this version has house numbers that disagree with the rashi
+ * labels every renderer draws, so readers upgrade it before use.
+ */
+export const CHART_SCHEMA_VERSION = 2;</code></pre>
+
+<p>
+  A chart written before then carries no <code>schemaVersion</code> at all, which
+  <code>isChartStale</code> reads as 1. The rule in <code>derived.ts</code> is that a chart is
+  stale when its version is below 2 or it has no <code>derived</code> block. Two mechanisms then
+  cooperate so the app ships without a migration or a backfill job:
+</p>
+
+<ul>
+  <li><strong>Readers recompute houses from the sign, never from <code>planet.house</code>.</strong>
+    <code>deriveFacts</code> builds its own house map with <code>houseFrom(asc, p.sign)</code>, and
+    the dosha detectors do the same, so a stale chart still derives correct facts in memory.
+    Both test files pin it with fixtures whose stored house is deliberately 99.</li>
+  <li><strong>The stored row is rewritten on read.</strong> <code>ensureCurrentChart</code> in
+    <code>lib/data/birthProfile.ts</code> runs on every <code>getBirthProfile</code>. If the stored
+    Vedic chart is stale it recomputes both traditions together, so a profile is never half
+    upgraded, writes the pair back and returns the fresh row. A compute or write failure is
+    logged and swallowed: an upgrade that cannot be written is not a reason to fail the request
+    that triggered it. The rewrite is needed because the kundli, the PDF and the iOS app draw
+    from the stored numbers.</li>
+</ul>
+
+<div class="note caution"><b>A visible change</b>
+Whole-sign moves planets. One in the lagna's sign at a degree below the lagna's degree moves
+from house 12 to house 1, and similar shifts happen throughout. The design note records that
+users' charts change when next computed and that whether to say so in the app is a product
+decision. It also records the consequence for alerts: a house change alters which natal doshas
+are detected, and the alerts job suppresses natal conditions for anyone who already has a natal
+row so the migration cannot push "Mangal Dosha has just begun". See <a href="#ch09">chapter 9</a>.
+</div>
+
+<h3 id="s2-5"><span class="num">2.5</span><span>Nakshatras and dashas</span></h3>
+
+<p>
+  The 27 nakshatras are listed in <code>constants.ts</code> in zodiacal order from Ashwini at
+  0 degrees Aries. Each is 360/27 degrees, and <code>nakshatraOf</code> is just the floor of the
+  longitude over that span. The names, nine per row, are:
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Index</th><th>Nakshatras</th></tr></thead>
+<tbody>
+<tr><td class="num-cell">0 to 8</td><td>Ashwini, Bharani, Krittika, Rohini, Mrigashira, Ardra, Punarvasu, Pushya, Ashlesha</td></tr>
+<tr><td class="num-cell">9 to 17</td><td>Magha, Purva Phalguni, Uttara Phalguni, Hasta, Chitra, Swati, Vishakha, Anuradha, Jyeshtha</td></tr>
+<tr><td class="num-cell">18 to 26</td><td>Mula, Purva Ashadha, Uttara Ashadha, Shravana, Dhanishta, Shatabhisha, Purva Bhadrapada, Uttara Bhadrapada, Revati</td></tr>
+</tbody></table></div>
+
+<p>
+  The rows are not decorative. Vimshottari assigns each nakshatra a lord, and the lords repeat
+  every nine nakshatras, so the lord of nakshatra <code>n</code> is <code>ORDER[n % 9]</code>.
+  That is the entire content of <code>startingDashaLord</code>. The order and the years are:
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Position</th><th>Lord</th><th>Years</th><th>Starts under it</th></tr></thead>
+<tbody>
+<tr><td class="num-cell">0</td><td>Ketu</td><td class="num-cell">7</td><td>Ashwini, Magha, Mula</td></tr>
+<tr><td class="num-cell">1</td><td>Venus</td><td class="num-cell">20</td><td>Bharani, Purva Phalguni, Purva Ashadha</td></tr>
+<tr><td class="num-cell">2</td><td>Sun</td><td class="num-cell">6</td><td>Krittika, Uttara Phalguni, Uttara Ashadha</td></tr>
+<tr><td class="num-cell">3</td><td>Moon</td><td class="num-cell">10</td><td>Rohini, Hasta, Shravana</td></tr>
+<tr><td class="num-cell">4</td><td>Mars</td><td class="num-cell">7</td><td>Mrigashira, Chitra, Dhanishta</td></tr>
+<tr><td class="num-cell">5</td><td>Rahu</td><td class="num-cell">18</td><td>Ardra, Swati, Shatabhisha</td></tr>
+<tr><td class="num-cell">6</td><td>Jupiter</td><td class="num-cell">16</td><td>Punarvasu, Vishakha, Purva Bhadrapada</td></tr>
+<tr><td class="num-cell">7</td><td>Saturn</td><td class="num-cell">19</td><td>Pushya, Anuradha, Uttara Bhadrapada</td></tr>
+<tr><td class="num-cell">8</td><td>Mercury</td><td class="num-cell">17</td><td>Ashlesha, Jyeshtha, Revati</td></tr>
+</tbody></table></div>
+
+<p>
+  The years sum to 120, the <code>TOTAL</code> constant. A year is 365.25 days
+  (<code>addYears</code> adds <code>y * 365.25</code> days), which the file labels the Vedic year and
+  which the tests pin: seven Ketu years from 1 January 1990 end on 31 December 1996.
+</p>
+
+<h4>The virtual start</h4>
+
+<p>
+  Nobody is born at the start of a mahadasha. The Moon at birth is some fraction of the way
+  through its nakshatra, and that fraction of the first lord's period has already elapsed. The
+  first span therefore begins at birth and runs for the <strong>balance</strong>,
+  <code>years * (1 - fractionElapsed)</code>. But the antardashas inside it must be laid out from
+  where the mahadasha would have begun, not from birth, or every sub-period for the rest of that
+  mahadasha lands in the wrong place. <code>dasha.ts</code> carries that point as
+  <code>virtualStart</code>:
+</p>
+
+<pre><code>// lib/astrology/dasha.ts
+const first = ORDER[startLordIndex];
+const spans: Span[] = [{
+  lord: first.lord,
+  start: birthUt,
+  // The first period is the *balance* of the one already running at birth.
+  end: addYears(birthUt, first.years * (1 - fractionElapsed)),
+  virtualStart: addYears(birthUt, -(first.years * fractionElapsed)),
+  fullYears: first.years,
+}];
+for (let i = 1; i &lt; 12; i++) {
+  const o = ORDER[(startLordIndex + i) % 9];
+  const start = spans[i - 1].end;
+  spans.push({ lord: o.lord, start, end: addYears(start, o.years), virtualStart: start, fullYears: o.years });
+}</code></pre>
+
+<p>
+  Twelve spans, not nine: the cycle is 120 years and the engine lays out a third of a second
+  cycle so a long life still has a current period. Each span's nine antardashas run in the same
+  order starting from the span's own lord, each lasting <code>fullYears * subYears / 120</code>
+  of the parent, laid out from <code>virtualStart</code>. A sub-period that ended before birth is
+  dropped; one straddling birth is clipped to start at birth. As the comment puts it, a chart
+  has nothing to say about time the native was not alive for.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 250" role="img" aria-label="A timeline showing the birth mahadasha starting at a virtual start before birth and ending after it, with the nine antardashas laid out from the virtual start: four that ended before birth are dropped, one straddling birth is clipped to start at birth, and the rest are kept; the next mahadasha begins where the balance ends.">
+  <defs>
+    <marker id="ch02c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">MAHADASHA</text>
+  <rect class="box-alt" x="60" y="40" width="200" height="34" rx="8"/><text class="lbl" x="160" y="62" text-anchor="middle">Ketu, elapsed (40%)</text>
+  <rect class="box-hot" x="260" y="40" width="300" height="34" rx="8"/><text class="lbl" x="410" y="62" text-anchor="middle">Ketu, the balance (60% of 7 years)</text>
+  <rect class="box" x="560" y="40" width="280" height="34" rx="8"/><text class="lbl" x="700" y="62" text-anchor="middle">Venus, 20 years</text>
+
+  <text class="lbl-sm" x="60" y="98" text-anchor="middle">virtualStart</text>
+  <text class="lbl-hot" x="260" y="98" text-anchor="middle">birth</text>
+  <text class="lbl-sm" x="560" y="98" text-anchor="middle">end = next start</text>
+  <path class="flow-hot" d="M260 104 L 260 146" marker-end="url(#ch02c)"/>
+
+  <text class="lbl-sm" x="20" y="128">ANTARDASHAS OF KETU, each 7 x years / 120</text>
+  <rect class="box-alt" x="60" y="150" width="29" height="28" rx="4"/>
+  <rect class="box-alt" x="89" y="150" width="83" height="28" rx="4"/><text class="lbl-sm" x="130" y="168" text-anchor="middle">Venus</text>
+  <rect class="box-alt" x="172" y="150" width="25" height="28" rx="4"/>
+  <rect class="box-alt" x="197" y="150" width="42" height="28" rx="4"/><text class="lbl-sm" x="218" y="168" text-anchor="middle">Moon</text>
+  <rect class="box-alt" x="239" y="150" width="21" height="28" rx="4"/>
+  <rect class="box-hot" x="260" y="150" width="8" height="28" rx="2"/>
+  <rect class="box" x="268" y="150" width="75" height="28" rx="4"/><text class="lbl-sm" x="305" y="168" text-anchor="middle">Rahu</text>
+  <rect class="box" x="343" y="150" width="67" height="28" rx="4"/><text class="lbl-sm" x="376" y="168" text-anchor="middle">Jupiter</text>
+  <rect class="box" x="410" y="150" width="79" height="28" rx="4"/><text class="lbl-sm" x="449" y="168" text-anchor="middle">Saturn</text>
+  <rect class="box" x="489" y="150" width="71" height="28" rx="4"/><text class="lbl-sm" x="524" y="168" text-anchor="middle">Mercury</text>
+
+  <text class="lbl-sm" x="60" y="204">Ketu, Venus, Sun, Moon: ended before birth, dropped</text>
+  <text class="lbl-hot" x="260" y="222">Mars: straddles birth, clipped to it</text>
+  <text class="lbl-sm" x="560" y="240" text-anchor="end">Rahu to Mercury: kept, aligned to the real period</text>
+</svg>
+<figcaption>
+  A Moon 40% of the way through Ashwini. The balance of Ketu runs from birth; the sub-periods
+  are measured from the virtual start so that they end exactly where the mahadasha does, which
+  <code>dasha.test.ts</code> asserts for every one of the twelve.
+</figcaption>
+</figure>
+
+<p>
+  Two exported functions share this layout. <code>computeVimshottari(moonLon, birthUt, now)</code>
+  answers "where am I now": it finds the span containing <code>now</code> (the current UTC
+  instant by default, injectable so tests are deterministic), then the antardasha containing it,
+  and returns both as ISO dates in the <code>DashaInfo</code> the chart stores; outside every span
+  it falls back to the first, which keeps the function total.
+  <code>vimshottariTimeline(moonLon, birthUt)</code> returns all twelve spans with their
+  antardashas nested, and is what <code>lib/timeline/build.ts</code> draws the life timeline
+  from, rebuilding the Moon's longitude from the stored sign and degree. The chart itself
+  carries only the current pair, because that is the only part that ages.
+</p>
+
+<h3 id="s2-6"><span class="num">2.6</span><span>Derived facts</span></h3>
+
+<p>
+  <code>derived.ts</code> exists because a model handed nine planet lines and a lagna writes
+  sign-level prose. What makes an answer specific is which house a planet rules, whether it is
+  strong or weak where it sits, whom it aspects, and where the current dasha lord actually is.
+  The module's header states the scope: "a fixed classical table applied to positions the
+  ephemeris already produced. There is no I/O and no interpretation: the output is the grounding
+  a reading is written from, not the reading."
+</p>
+
+<h4>The tables</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Sign</th><th>Lord</th><th>Sign</th><th>Lord</th><th>Sign</th><th>Lord</th></tr></thead>
+<tbody>
+<tr><td>Aries</td><td>Mars</td><td>Leo</td><td>Sun</td><td>Sagittarius</td><td>Jupiter</td></tr>
+<tr><td>Taurus</td><td>Venus</td><td>Virgo</td><td>Mercury</td><td>Capricorn</td><td>Saturn</td></tr>
+<tr><td>Gemini</td><td>Mercury</td><td>Libra</td><td>Venus</td><td>Aquarius</td><td>Saturn</td></tr>
+<tr><td>Cancer</td><td>Moon</td><td>Scorpio</td><td>Mars</td><td>Pisces</td><td>Jupiter</td></tr>
+</tbody></table></div>
+
+<p>
+  <code>SIGN_LORD</code> is declared in zodiacal order and a comment forbids reordering it: both
+  <code>oppositeSign</code> and the house loop index into <code>Object.keys(SIGN_LORD)</code>. Rahu
+  and Ketu rule nothing, which is the first of three rules the module deliberately leaves out.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Planet</th><th>Exalted (deep degree)</th><th>Debilitated</th><th>Moolatrikona</th><th>Combustion orb, direct / retrograde</th><th>Special aspects</th></tr></thead>
+<tbody>
+<tr><td>Sun</td><td>Aries 10</td><td>Libra</td><td>Leo 0 to 20</td><td>never</td><td>7th only</td></tr>
+<tr><td>Moon</td><td>Taurus 3</td><td>Scorpio</td><td>Taurus 4 to 30</td><td class="num-cell">12 / 12</td><td>7th only</td></tr>
+<tr><td>Mars</td><td>Capricorn 28</td><td>Cancer</td><td>Aries 0 to 12</td><td class="num-cell">17 / 17</td><td>4th, 8th</td></tr>
+<tr><td>Mercury</td><td>Virgo 15</td><td>Pisces</td><td>Virgo 16 to 20</td><td class="num-cell">14 / 12</td><td>7th only</td></tr>
+<tr><td>Jupiter</td><td>Cancer 5</td><td>Capricorn</td><td>Sagittarius 0 to 10</td><td class="num-cell">11 / 11</td><td>5th, 9th</td></tr>
+<tr><td>Venus</td><td>Pisces 27</td><td>Virgo</td><td>Libra 0 to 15</td><td class="num-cell">10 / 8</td><td>7th only</td></tr>
+<tr><td>Saturn</td><td>Libra 20</td><td>Aries</td><td>Aquarius 0 to 20</td><td class="num-cell">15 / 15</td><td>3rd, 10th</td></tr>
+<tr><td>Rahu, Ketu</td><td>none</td><td>none</td><td>none</td><td>never</td><td>7th only</td></tr>
+</tbody></table></div>
+
+<p>
+  The debilitation sign is not a table; it is <code>oppositeSign</code> of the exaltation sign.
+  The moolatrikona ranges use a half-open interval, <code>from &lt;= degree &lt; to</code>.
+</p>
+
+<h4>Dignity, and the one three-way case</h4>
+
+<p>
+  <code>dignityOf(name, sign, degree)</code> returns one of <code>exalted</code>,
+  <code>debilitated</code>, <code>moolatrikona</code>, <code>own</code> or <code>neutral</code>, plus
+  <code>fromDeepPoint</code>, the distance in degrees from the exact exaltation degree, reported
+  only when the planet is in its exaltation or debilitation sign. Exaltation and debilitation
+  are read by sign, not by degree, so the Sun at 29 Aries is still exalted; the deep point is
+  extra information, not a threshold. The precedence is exalted, then moolatrikona, then own,
+  then debilitated, then neutral.
+</p>
+
+<p>
+  Two planets break the simple chain: Mercury's exaltation and moolatrikona are both Virgo, and
+  the Moon's are both Taurus. For them a dedicated block owns the whole sign: below the
+  moolatrikona range's <code>from</code> the planet is exalted, inside it moolatrikona, above it
+  own sign if the planet rules the sign (Mercury rules Virgo; the Moon's range runs to 30 so the
+  question never arises). The comment above that block warns that it "must return on every
+  path", because falling through would hit the unconditional exaltation check, and asks the
+  reader not to simplify it into a plain if/else chain. So Mercury at 14 Virgo is exalted, at 18
+  moolatrikona, at 25 own, and at 15.5 exalted, because 15.5 is below <code>from: 16</code> even
+  though it is past the deep degree of 15.
+</p>
+
+<h4>Combustion and aspects</h4>
+
+<p>
+  A planet is combust when its shorter arc from the Sun is at or within its orb, and the orb
+  depends on whether it is retrograde: Mercury tightens from 14 to 12 and Venus from 10 to 8,
+  the others do not change. The Sun and the nodes are never combust. <code>arcFromSun</code>
+  rebuilds both longitudes from sign and degree and takes the shorter way round, so Venus at
+  4 Leo is 6 degrees from a Sun at 10 Leo, and Venus at 5 Cancer is 35 degrees away, not 325.
+</p>
+
+<p>
+  Aspects (graha drishti) are by house, not by degree. Every planet aspects the 7th house from
+  its own; Mars adds the 4th and 8th, Jupiter the 5th and 9th, Saturn the 3rd and 10th. The
+  nodes get the 7th only: the second deliberately absent rule, because the tradition does not
+  agree on a nodal 5th and 9th. <code>aspectedHouses(name, house)</code> wraps past 12, so Saturn
+  in the 12th aspects the 2nd, 6th and 9th.
+</p>
+
+<h4>deriveFacts</h4>
+
+<p>
+  <code>deriveFacts(chart)</code> assembles four lists. For each planet a <code>PlanetFact</code>:
+  its whole-sign house (recomputed from the sign, as <a href="#s2-4">section 2.4</a> explained),
+  the houses it <code>rules</code> (its signs, each counted from the ascendant, sorted), its
+  dignity and deep-point distance, whether it is combust and how far it is from the Sun, the
+  houses it aspects, the planets in those houses, and the planets it is <code>conjunct</code>
+  with (same house, itself excluded). For each of the twelve houses a <code>HouseFact</code>:
+  its sign, its lord, where that lord sits and in what dignity, its occupants, and which planets
+  aspect it. For the dasha, two <code>DashaFact</code> entries (mahadasha and antardasha) each
+  carrying its lord's own <code>PlanetFact</code> as <code>placement</code>, which is what lets a
+  reading say the Jupiter period is running from the 8th house rather than just "Jupiter
+  period". And <code>conditions</code>, the natal doshas from <a href="#s2-7">section 2.7</a>.
+</p>
+
+<p>
+  The third absent rule is friendship. Dignity never consults planetary friendship, because, in
+  the header's words, friendship is a compound judgement, natural plus temporal, and half of it
+  is misleading rather than partial. (Numerology does use a natural friendship table, for a
+  different purpose; see <a href="#s2-9">section 2.9</a>.)
+</p>
+
+<p>Two small functions decide who gets these facts:</p>
+
+<pre><code>// lib/astrology/derived.ts
+export function isChartStale(chart: Chart): boolean {
+  return (chart.schemaVersion ?? 1) &lt; CHART_SCHEMA_VERSION || !chart.derived;
+}
+
+export function factsFor(chart: Chart): Derived | undefined {
+  if (chart.tradition !== "vedic") return undefined;
+  return chart.derived ?? deriveFacts(chart);
+}</code></pre>
+
+<p>
+  <code>factsFor</code> is what the chat route and the alerts job call. A Western chart gets
+  <code>undefined</code>, and the callers fall back to plain chart data rather than resurrecting
+  Vedic technique for a tropical chart. The comment at the end of <code>computeChart</code> says
+  the same thing from the other side: "Every technique in derived.ts is Vedic. Western continues
+  to use Placidus houses and gets no derived block at all."
+</p>
+
+<h3 id="s2-7"><span class="num">2.7</span><span>Doshas</span></h3>
+
+<p>
+  <code>doshas.ts</code> reads afflictions from a chart, and from today's chart against a birth
+  chart, into one shape:
+</p>
+
+<pre><code>// lib/astrology/doshas.ts
+export type Condition = {
+  kind: string;
+  signature: string;
+  label: string;
+  severity: "info" | "caution" | "warning";
+  scope: "natal" | "transit";
+  /** A plain factual sentence, the grounding the model is allowed to interpret. */
+  detail: string;
+};</code></pre>
+
+<p>
+  The <code>signature</code> is what makes the alerts job possible. It folds in the phase and
+  the sign, so Saturn moving to the next sign, or Sade Sati stepping from rising to peak, reads
+  as a new condition rather than the same one continuing. The daily job diffs signatures against
+  the rows it stored last time; one that appears has started, one that disappears has ended, and
+  only those two events send a push. The <code>detail</code> is a sentence of fact with the
+  ordinal already in it, and it is the only text the model is given about the condition.
+</p>
+
+<h4>Natal doshas</h4>
+
+<p><code>detectNatalDoshas(chart)</code> runs six checks. They never change for a person, so the job reports them once, when a chart is first read.</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Kind</th><th>Rule as coded</th><th>Severity</th><th>Signature</th></tr></thead>
+<tbody>
+<tr><td><code>mangal_dosha</code></td><td>Mars in house 1, 2, 4, 7, 8 or 12 from the ascendant, house derived with <code>houseFrom</code> from the sign</td><td>caution</td><td><code>mangal_dosha:&lt;house&gt;</code></td></tr>
+<tr><td><code>kaal_sarp</code></td><td>All seven classical planets present, and their arcs measured forward from Rahu are all strictly between 0 and 180, or all above 180</td><td>warning</td><td><code>kaal_sarp:&lt;Rahu sign&gt;</code></td></tr>
+<tr><td><code>grahan_sun</code>, <code>grahan_moon</code></td><td>The Sun or the Moon sharing a sign with Rahu or Ketu; one condition per pair</td><td>caution</td><td><code>grahan_sun:&lt;node&gt;:&lt;sign&gt;</code></td></tr>
+<tr><td><code>kemadruma</code></td><td>No planet in the 2nd or 12th sign from the Moon, ignoring the Sun and the nodes</td><td>caution</td><td><code>kemadruma:&lt;Moon sign&gt;</code></td></tr>
+<tr><td><code>pitru_dosha</code></td><td>Rahu or Ketu in the 9th from the ascendant, from the sign</td><td>info</td><td><code>pitru_dosha:&lt;node&gt;:&lt;sign&gt;</code></td></tr>
+<tr><td><code>shrapit_dosha</code></td><td>Saturn and Rahu in the same sign</td><td>caution</td><td><code>shrapit_dosha:&lt;sign&gt;</code></td></tr>
+</tbody></table></div>
+
+<p>
+  Kaal Sarp is the only detector that needs degrees; a planet exactly on the axis breaks the
+  yoga, which the strict inequalities encode. The Mangal and Pitru checks carry a comment on why
+  they compute the house rather than read <code>mars.house</code>: a chart stored before the
+  whole-sign change carries a stale Placidus number, and the natal conditions must agree with the
+  whole-sign facts in the same <code>Derived</code> object, or, as <code>derived.test.ts</code>
+  puts it, one object would carry "two contradictory claims about the same fixed birth fact".
+</p>
+
+<h4>Transit afflictions</h4>
+
+<p>
+  <code>detectTransitAfflictions(natal, transit)</code> is the set that comes and goes, and the
+  set worth a notification when it does. Every rule is a whole-sign count from the natal Moon
+  or the ascendant, or a shared sign.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Kind</th><th>Rule as coded</th><th>Severity</th></tr></thead>
+<tbody>
+<tr><td><code>sade_sati</code></td><td>Transit Saturn in the 12th (rising), 1st (peak) or 2nd (setting) from the natal Moon</td><td>warning at peak, else caution</td></tr>
+<tr><td><code>shani_dhaiya</code></td><td>Transit Saturn in the 4th or 8th from the natal Moon, only when Sade Sati did not match</td><td>caution</td></tr>
+<tr><td><code>kantaka_shani</code></td><td>Transit Saturn in the 4th, 7th or 10th from the ascendant</td><td>info</td></tr>
+<tr><td><code>node_over_moon_rahu</code>, <code>node_over_moon_ketu</code></td><td>A transiting node in the natal Moon's sign</td><td>caution</td></tr>
+<tr><td><code>node_over_lagna_rahu</code>, <code>node_over_lagna_ketu</code></td><td>A transiting node in the ascendant sign</td><td>caution</td></tr>
+<tr><td><code>angarak_transit</code></td><td>Transit Mars in the natal Moon's sign</td><td>caution</td></tr>
+<tr><td><code>ashtama_surya</code></td><td>Transit Sun in the 8th from the natal Moon</td><td>info</td></tr>
+<tr><td><code>guru_6_8_12</code></td><td>Transit Jupiter in the 6th, 8th or 12th from the natal Moon</td><td>info</td></tr>
+<tr><td><code>guru_chandal_transit</code></td><td>Transit Jupiter and transit Rahu in the same sign</td><td>info</td></tr>
+<tr><td><code>retrograde_saturn</code>, <code>retrograde_mars</code>, <code>retrograde_mercury</code></td><td>That planet retrograde and in the ascendant sign or the natal Moon's sign; a retrograde elsewhere is ignored</td><td>info</td></tr>
+</tbody></table></div>
+
+<p>
+  Every transit signature includes the transiting sign, and Sade Sati's includes the phase, so a
+  Saturn ingress or a phase change is a fresh event. <code>detectConditions</code> concatenates the
+  natal and transit lists, and <code>highestSeverity</code> reduces a list to its worst entry with
+  <code>info</code> as the floor, which the alerts job uses to decide whether a push is warranted.
+</p>
+
+<h3 id="s2-8"><span class="num">2.8</span><span>Transits (gochara)</span></h3>
+
+<p>
+  A transit chart is a birth chart for now: the same <code>computeChart</code>, with today's
+  date, and the user's birthplace as the location. <code>transits.ts</code> adds a cache and a
+  renderer around it.
+</p>
+
+<pre><code>// lib/astrology/transits.ts
+const cache = new Map&lt;string, Promise&lt;Chart&gt;&gt;();
+const MAX_ENTRIES = 200;
+
+export async function transitChart(args) {
+  const day = args.day ?? utcDayKey();
+  // One degree is ~111km; users in the same city share an entry.
+  const key = `${day}|${args.tradition}|${args.lat.toFixed(0)}|${args.lng.toFixed(0)}`;
+  const hit = cache.get(key);
+  if (hit) return hit;
+  const pending = computeChart(
+    { birthDate: day, birthTime: "12:00", lat: args.lat, lng: args.lng, timezone: "UTC" },
+    args.tradition,
+  );
+  if (cache.size &gt;= MAX_ENTRIES) cache.clear();
+  cache.set(key, pending);
+  try { return await pending; }
+  catch (err) { cache.delete(key); throw err; }
+}</code></pre>
+
+<p>
+  The sample point is midday UTC, for two reasons the file gives. The obvious one is no
+  ephemeris run per message. The one that pays is that the text built from this chart is
+  identical for the whole UTC day, so it can sit in the cached half of the system prompt
+  (<a href="#ch03">chapter 3</a>) instead of being billed on every turn. Only the Moon moves
+  enough within a day to show at sign resolution, and sampling the middle halves its worst-case
+  drift. The key rounds the coordinates to whole degrees so a city shares one entry; the cache
+  holds promises so concurrent misses share one computation; it clears itself at 200 entries
+  rather than hold stale days; and a failed computation is evicted, never cached.
+</p>
+
+<p>
+  One caller does not use this cache. The alerts job's condition diff in
+  <code>lib/alerts/run.ts</code> calls <code>computeChart</code> directly with the actual UTC time
+  of the run, since it is deciding whether an affliction has started at that moment. The reading
+  text the same job writes goes through <code>transitChart</code>, for the prompt-cache reason.
+</p>
+
+<h4>describeGochara</h4>
+
+<p>
+  The old transit text was "Saturn in Pisces, Jupiter in Gemini", which the file notes "was true
+  of everyone alive on that date and related to the reader not at all". What makes a transit
+  mean anything is the house it falls in from the lagna and from the natal Moon.
+  <code>describeGochara(natal, transit, { includeAfflictions })</code> writes one line per
+  transiting planet: its sign and retrograde flag; for a Vedic chart its house from the
+  ascendant and its ordinal from the Moon; and any natal planets it sits on by sign, joined so
+  three names read "a, b, and c". For a Vedic chart it then appends a line per transit
+  affliction. The flag exists because the alerts job renders the afflictions itself, filtered by
+  severity, and <code>false</code> avoids saying the same thing twice in one prompt; the chat
+  route has no other source and takes the default.
+</p>
+
+<p>
+  A Western chart gets no house counting and no afflictions, and the comment says why: the house
+  numbers would be whole-sign where Western is Placidus, and Sade Sati has no meaning in that
+  tradition. It keeps the plain sky, where each body is and which natal body it sits on.
+  <code>describeToday</code> is the last export: a weekday, a date and one of morning, afternoon,
+  evening or night (thresholds 12, 17 and 21) in the user's zone, coarse enough to stay identical
+  for hours.
+</p>
+
+<h3 id="s2-9"><span class="num">2.9</span><span>Numerology</span></h3>
+
+<p>
+  <code>numerology.ts</code> is the one module with no ephemeris in it. Everything is digit
+  arithmetic on the birth date string, and the core operation is <code>reduceToDigit</code>,
+  which sums the digits of a number repeatedly until one digit remains. It never preserves the
+  "master numbers" 11 and 22 some systems keep; every result here is 1 to 9.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Function</th><th>Input</th><th>Rule</th><th>Example from the tests</th></tr></thead>
+<tbody>
+<tr><td><code>computeNumerology</code>: <code>mulank</code></td><td>Day of birth</td><td>Reduce the day</td><td>23rd gives 5</td></tr>
+<tr><td><code>computeNumerology</code>: <code>bhagyank</code></td><td>Full date</td><td>Reduce the sum of all eight digits</td><td>1990-01-23 gives 25, then 7</td></tr>
+<tr><td><code>computeNameNumber</code></td><td>A name</td><td>Pythagorean: A=1 to I=9, J=1 again, letters only, reduced; 0 when there are no letters</td><td></td></tr>
+<tr><td><code>personalYear</code></td><td>Birth date, today</td><td>Reduce birth month + birth day + current year</td><td>15 July 1990 in 2026: 7+15+2026 = 2048, then 5</td></tr>
+<tr><td><code>personalMonth</code></td><td>Birth date, today</td><td>Reduce personal year + current month</td><td>5 + 9 = 14, then 5</td></tr>
+<tr><td><code>personalCycle</code></td><td>Birth date, today</td><td>Both of the above as <code>{ year, month }</code></td><td>22 March 1985 on 10 January 2026: year 8, month 9</td></tr>
+<tr><td><code>loShu</code></td><td>Birth date</td><td>Count each digit 1 to 9 in the eight digits; zeros are not placed on the grid</td><td>1990-07-15: two 1s, two 9s, missing 2, 3, 4, 6, 8</td></tr>
+</tbody></table></div>
+
+<p>
+  Two comments explain design choices. The personal year changes once a calendar year, which is
+  why the prompt carries it in the half that varies rather than the cached half.
+  <code>personalCycle</code> exists because <code>personalYear</code> and <code>personalMonth</code>
+  take identical arguments, so a caller building the pair from two positional calls could
+  transpose them with every test still passing; one function a test can assert against by name
+  moves that risk out of every call site. The Lo Shu grid is, in its own comment, "the most
+  concrete thing numerology has": three 1s and no 4 is specific in a way a root number never is.
+</p>
+
+<h4>Number relationships</h4>
+
+<p>
+  Numbers 1 to 9 are ruled by planets, and the relationship of two numbers is the natural
+  friendship of their rulers. The rulers are Sun 1, Moon 2, Jupiter 3, Saturn 4, Mercury 5,
+  Venus 6, Mercury 7, Saturn 8, Mars 9. The comment is candid that 4 and 7 belong to Rahu and
+  Ketu, who have no friendships the tradition agrees on, and that giving them Saturn's and
+  Mercury's rows is a convention kept in one place so it can be corrected in one place.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Planet</th><th>Friends</th><th>Enemies</th></tr></thead>
+<tbody>
+<tr><td>Sun</td><td>Moon, Mars, Jupiter</td><td>Venus, Saturn</td></tr>
+<tr><td>Moon</td><td>Sun, Mercury</td><td>none</td></tr>
+<tr><td>Mars</td><td>Sun, Moon, Jupiter</td><td>Mercury</td></tr>
+<tr><td>Mercury</td><td>Sun, Venus</td><td>Moon</td></tr>
+<tr><td>Jupiter</td><td>Sun, Moon, Mars</td><td>Mercury, Venus</td></tr>
+<tr><td>Venus</td><td>Mercury, Saturn</td><td>Sun, Moon</td></tr>
+<tr><td>Saturn</td><td>Mercury, Venus</td><td>Sun, Moon, Mars</td></tr>
+</tbody></table></div>
+
+<p>
+  The table is genuinely asymmetric: the Moon lists no enemies, but Venus lists the Moon. Read
+  only the first number's row and <code>numberRelationship(2, 6)</code> is neutral while
+  <code>numberRelationship(6, 2)</code> is enemy, and the prompt renders the result as a reciprocal
+  sentence, so two users would get opposite claims about the same pair. The function resolves
+  it compoundly: the same ruler is a friend; enemy if either direction says enemy; friend only if
+  both directions say friend; neutral otherwise. Sun and Moon are friends, Sun and Venus enemies,
+  Sun and Mercury neutral (the Sun does not list Mercury, so one direction fails).
+</p>
+
+<h3 id="s2-10"><span class="num">2.10</span><span>Tests</span></h3>
+
+<p>
+  Six test files sit beside the modules, 78 tests, all run by <code>vitest run</code> with no
+  network and no database. Only <code>chart.test.ts</code> touches the ephemeris; everything else
+  is fixtures. The reference birth for the ephemeris tests is 1 January 1990, 12:00 in New Delhi.
+  <code>prompt.test.ts</code> also lives here but tests the rendering for the model, which is
+  <a href="#ch03">chapter 3</a>'s subject.
+</p>
+
+<ul>
+  <li><strong><code>chart.test.ts</code></strong> (9). A Western chart has twelve cusps, all nine
+    bodies, a tropical Sun in Capricorn and an ascendant degree in 0 to 30. The Vedic chart of the
+    same birth has its Sun in Sagittarius, an ayanamsa between 22 and 26, a nakshatra on the Sun
+    and a mahadasha and antardasha present. Then the house rules: every Vedic planet's house
+    equals <code>houseFrom(ascendant, sign)</code>; a planet in the lagna's sign is in house 1
+    whatever its degree; the schema version is stamped; and Western is still Placidus, proven by
+    asserting that at least one planet does not match whole-sign counting. Finally the derived
+    block is stored with a lord for every house, a chart with it stripped is stale and
+    <code>factsFor</code> recomputes, and a Western chart has no derived block at all.</li>
+  <li><strong><code>dasha.test.ts</code></strong> (9). A Moon at 0 degrees (Ashwini) starts under
+    Ketu; at 120 degrees (Magha) Ketu again, proving the nine-fold repeat. A fixed <code>now</code>
+    of 2020 gives Sun for a 1990 birth at 0 degrees (Ketu 7, Venus 20, Sun 6). The timeline has
+    twelve mahadashas with the first ending on 1996-12-31 (7 times 365.25 days), no gap between
+    consecutive periods, nine antardashas per period starting with the period's own lord, the
+    first antardasha starting where its mahadasha starts and the last ending where it ends, a
+    Moon halfway through Ashwini giving a 3.5-year balance ending 1993-07-02 with fewer than
+    nine antardashas, and agreement with <code>computeVimshottari</code> about the current pair.</li>
+  <li><strong><code>derived.test.ts</code></strong> (23). Dignity by sign not degree; the deep-point
+    distance; Mercury in Virgo at 14, 18, 25 and 15.5; the Moon in Taurus; moolatrikona beating
+    own sign; the nodes neutral. Combustion across a sign boundary, the tighter retrograde orbs
+    for Venus and Mercury, never for the Sun or the nodes. Aspects for everyone, for Mars, Jupiter
+    and Saturn, wrapping past the 12th, and the nodes' 7th only. Then a Scorpio-lagna fixture
+    whose every stored house is 99, proving <code>deriveFacts</code> recomputes houses, assigns
+    lordships (none to the nodes), marks Mars exalted at its deep point, finds conjunctions and
+    aspects by house, marks Mercury combust two degrees from the Sun, gives every house a lord
+    with its placement, carries both dasha lords with their placements, folds in a Mangal dosha
+    from the sign with the stored house still 99, and returns no dasha facts for Western.</li>
+  <li><strong><code>doshas.test.ts</code></strong> (13). <code>houseFrom</code> counts inclusively and
+    wraps. A spread-out chart raises nothing. Mangal dosha follows the sign and ignores a wrong
+    stored house in both directions, and its ordinal and signature read 7th from a stored 99.
+    Kaal Sarp with everything hemmed between Rahu at 0 Aries and Ketu at 0 Libra, broken by
+    moving Saturn past Ketu. Kemadruma for a Moon with no neighbours, cancelled by a planet in the
+    12th from it. Grahan for Rahu with the Sun. Pitru from the sign. The three Sade Sati phases
+    with peak at warning; Dhaiya without Sade Sati; a node over the Moon and over the lagna; a
+    retrograde flagged only on a sensitive sign; and <code>highestSeverity</code>.</li>
+  <li><strong><code>numerology.test.ts</code></strong> (12). Mulank for the 23rd, 9th and 10th;
+    bhagyank for 1990-01-23; the personal year worked example and its stability across the
+    calendar year; the personal month; <code>personalCycle</code> against a pair chosen so year and
+    month differ (8 and 9), because the other fixture reduces both to 5 and would hide a
+    transposition; the Lo Shu counts, missing and repeated lists; and relationships, including
+    the asymmetric Moon and Venus pair resolving to enemy in both directions.</li>
+  <li><strong><code>transits.test.ts</code></strong> (12). For a Scorpio lagna with a Cancer Moon,
+    transiting Saturn in Pisces gets "house 5 from the ascendant" and "9th from the Moon",
+    Jupiter in Cancer "1st from the Moon", each names the natal planet it sits on, and the text
+    never contains "undefined". Saturn on the natal Moon's sign yields a Sade Sati line by default
+    and none with <code>includeAfflictions: false</code>. The same fixture as a Western chart still
+    says where Saturn is and that it is over the natal Moon, but counts no house and names no
+    Sade Sati, while the Vedic version of the same sky gets all three.</li>
+</ul>
+
+<h3 id="s2-11"><span class="num">2.11</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/astrology/types.ts</code>, for the shape everything else produces or consumes. Forty-seven lines.</li>
+  <li><code>lib/astrology/constants.ts</code>, for <code>houseFrom</code>, which you will then recognise everywhere.</li>
+  <li><code>lib/astrology/chart.ts</code>, top to bottom, with the four numbered steps.</li>
+  <li><code>lib/astrology/chart.test.ts</code>, which states the house rules as assertions.</li>
+  <li><code>lib/astrology/dasha.ts</code>, for the virtual start; then <code>dasha.test.ts</code> for the dates it produces.</li>
+  <li><code>lib/astrology/derived.ts</code>, the header comment first, then <code>dignityOf</code>, then <code>deriveFacts</code>.</li>
+  <li><code>lib/astrology/doshas.ts</code>, reading each detector against the tables in <a href="#s2-7">section 2.7</a>.</li>
+  <li><code>lib/astrology/transits.ts</code>, for the cache and the Western guard.</li>
+  <li><code>lib/data/birthProfile.ts</code>, <code>ensureCurrentChart</code>, for how a stale chart is corrected.</li>
+  <li><code>docs/design/2026-09-17-specific-readings.md</code>, section 0, for why.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why are Vedic houses whole-sign but Western houses Placidus?</p>
+<p class="a">Every Vedic technique in <code>derived.ts</code> rests on lordship, and Placidus can put one sign in two houses and another in none, leaving "the lord of the 7th" undefined. Placidus is correct for the Western tradition, which uses none of those techniques.</p>
+<p class="q">A stored chart has <code>schemaVersion</code> missing and Mars with <code>house: 12</code>. What does <code>detectNatalDoshas</code> do with that 12?</p>
+<p class="a">Nothing. It computes <code>houseFrom(ascendant.sign, mars.sign)</code> and ignores the stored number, so the answer agrees with the whole-sign facts. The row is then rewritten by <code>ensureCurrentChart</code> the next time its owner is read.</p>
+<p class="q">Why does the first mahadasha have a <code>virtualStart</code> before birth?</p>
+<p class="a">Because the antardashas must be laid out from where the period would have begun, not from birth; otherwise every sub-period for the rest of that mahadasha is misplaced. Sub-periods that ended before birth are dropped and one straddling birth is clipped.</p>
+<p class="q">Mercury at 15.5 degrees Virgo: exalted or moolatrikona?</p>
+<p class="a">Exalted. The shared-sign block gives exaltation to everything below the moolatrikona range's <code>from</code> of 16, even past the deep degree of 15.</p>
+<p class="q">Why is the transit chart sampled at midday UTC rather than at request time?</p>
+<p class="a">So the gochara text is identical for the whole day and can sit in the cached half of the system prompt. Only the Moon moves enough within a day to matter at sign resolution, and midday halves its worst-case drift.</p>
+<p class="q">Which three rules does <code>derived.ts</code> refuse to encode, and why?</p>
+<p class="a">Nodes ruling signs, nodes aspecting the 5th and 9th, and friendship in dignity. The tradition does not agree on them, and a contested claim repeated in every reading is worse than a missing one.</p>
+</div>
+</section>

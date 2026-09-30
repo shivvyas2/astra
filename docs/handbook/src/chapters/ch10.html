@@ -1,0 +1,805 @@
+<section class="chapter" id="ch10" data-hue="device">
+<p class="chapter-kicker">Chapter ten</p>
+<h2><span class="num">10</span><span>On-device answers, Siri, and widgets</span></h2>
+
+<p class="lede">
+  A birth chart is fixed at birth and about four kilobytes. Once the phone holds a copy, the
+  questions that are lookups ("where is my Saturn", "what is in my seventh", "which dasha am I
+  in") can be answered by the phone itself, out loud through Siri, on the Home Screen, or in the
+  chat, with no session, no network and no paid call. One cache in an App Group makes all three
+  surfaces possible.
+</p>
+
+<p>
+  This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0.
+  <code>ChartCache</code> writes the chart, the birth details, the latest daily reading and the
+  current dasha period into the App Group container after every successful load in the app. The
+  widget extension and the App Intents only ever read from it. On top of the cache sit Apple's
+  on-device model, which restates the chart when a question is a retrieval and hands everything
+  else to Claude, and a small deep-link protocol that lets a process with no UI tell the app
+  where to land.
+</p>
+
+<h3 id="s10-1"><span class="num">10.1</span><span>Intent</span></h3>
+
+<p>
+  A large share of what people ask Sanchara is not interpretation. The doc comment at the top of
+  <code>mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift</code> puts it plainly:
+  every one of those questions "was a paid Claude call answering from a chart the phone could
+  have read itself". The same split runs through Siri. Positions and periods are records, so an
+  intent answers them instantly and for nothing. Readings are written by Claude, so an intent can
+  hand back one already written but never commissions a new one: a voice phrase should not
+  silently spend money or take thirty seconds. The widgets follow the rule in its strictest form.
+  They never fetch. A widget that waits on a network call is a widget that shows a placeholder at
+  exactly the moment someone glanced at it.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 330" role="img" aria-label="Stores in the app process write four JSON files into the App Group container; the widget extension and the App Intents read them; a control or an intent writes a pending destination into the group's UserDefaults suite, which the app drains when it comes to the front; sign-out clears everything.">
+  <defs>
+    <marker id="ch10a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch10b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">APP PROCESS</text>
+  <text class="lbl-sm" x="300" y="24">APP GROUP CONTAINER</text>
+  <text class="lbl-sm" x="640" y="24">OTHER PROCESSES</text>
+
+  <rect class="box" x="20" y="44" width="170" height="34" rx="8"/><text class="lbl" x="105" y="66" text-anchor="middle">ProfileStore</text>
+  <rect class="box" x="20" y="92" width="170" height="34" rx="8"/><text class="lbl" x="105" y="114" text-anchor="middle">DailyStore</text>
+  <rect class="box" x="20" y="140" width="170" height="34" rx="8"/><text class="lbl" x="105" y="162" text-anchor="middle">TimelineStore</text>
+  <rect class="box-alt" x="20" y="200" width="170" height="34" rx="8"/><text class="lbl" x="105" y="222" text-anchor="middle">DeepLink.drain()</text>
+  <rect class="box-alt" x="20" y="260" width="170" height="34" rx="8"/><text class="lbl" x="105" y="282" text-anchor="middle">AuthStore.signOut()</text>
+
+  <rect class="box-hot" x="300" y="44" width="240" height="150" rx="10"/>
+  <text class="lbl" x="420" y="70" text-anchor="middle">group.com.shivvyas.astra</text>
+  <text class="lbl-hot" x="420" y="92" text-anchor="middle">chart.json</text>
+  <text class="lbl-hot" x="420" y="112" text-anchor="middle">details.json</text>
+  <text class="lbl-hot" x="420" y="132" text-anchor="middle">reading.json</text>
+  <text class="lbl-hot" x="420" y="152" text-anchor="middle">period.json</text>
+  <text class="lbl-sm" x="420" y="178" text-anchor="middle">written by the app, read by everyone</text>
+
+  <rect class="box-alt" x="300" y="214" width="240" height="50" rx="10"/>
+  <text class="lbl" x="420" y="235" text-anchor="middle">UserDefaults suite</text>
+  <text class="lbl-sm" x="420" y="253" text-anchor="middle">pendingDestination</text>
+
+  <rect class="box" x="640" y="44" width="200" height="70" rx="10"/>
+  <text class="lbl" x="740" y="68" text-anchor="middle">SancharaWidgets</text>
+  <text class="lbl-sm" x="740" y="86" text-anchor="middle">ReadingWidget, PeriodWidget</text>
+  <text class="lbl-sm" x="740" y="102" text-anchor="middle">ReadingControl</text>
+
+  <rect class="box" x="640" y="140" width="200" height="70" rx="10"/>
+  <text class="lbl" x="740" y="164" text-anchor="middle">App Intents</text>
+  <text class="lbl-sm" x="740" y="182" text-anchor="middle">Siri, Shortcuts, Spotlight</text>
+  <text class="lbl-sm" x="740" y="198" text-anchor="middle">app code, run without a UI</text>
+
+  <path class="flow-hot" d="M190 61 L 294 80" marker-end="url(#ch10b)"/>
+  <text class="lbl-sm" x="200" y="56">chart, details</text>
+  <path class="flow-hot" d="M190 109 L 294 109" marker-end="url(#ch10b)"/>
+  <text class="lbl-sm" x="200" y="104">reading</text>
+  <path class="flow-hot" d="M190 157 L 294 138" marker-end="url(#ch10b)"/>
+  <text class="lbl-sm" x="200" y="172">period</text>
+  <path class="flow-dash" d="M190 277 L 260 277 L 260 186 L 294 186" marker-end="url(#ch10a)"/>
+  <text class="lbl-sm" x="200" y="298">clear(): all four, and the key</text>
+
+  <path class="flow" d="M540 80 L 634 80" marker-end="url(#ch10a)"/>
+  <text class="lbl-sm" x="556" y="72">reads</text>
+  <path class="flow" d="M540 130 L 634 170" marker-end="url(#ch10a)"/>
+  <text class="lbl-sm" x="556" y="160">reads</text>
+  <path class="flow-dash" d="M640 104 L 590 104 L 590 232 L 546 232" marker-end="url(#ch10a)"/>
+  <text class="lbl-sm" x="552" y="222">"kundli"</text>
+  <path class="flow-dash" d="M640 200 L 610 200 L 610 250 L 546 250" marker-end="url(#ch10a)"/>
+  <text class="lbl-sm" x="552" y="268">"ask:question"</text>
+  <path class="flow" d="M300 239 L 250 239 L 250 217 L 196 217" marker-end="url(#ch10a)"/>
+  <text class="lbl-sm" x="200" y="248">takePendingDestination()</text>
+
+  <line class="wall" x1="600" y1="30" x2="600" y2="90"/>
+  <text class="lbl-sm" x="20" y="322">The extension is a separate process with no session. The intents are compiled into the app target, so iOS runs them inside the app, headless.</text>
+</svg>
+<figcaption>
+  One container, four files, one key. Only the widget extension sits across a real process
+  boundary; the App Intents are app code that the system runs in the background, but they hold no
+  view and never wait on the network, so they read the same cache.
+</figcaption>
+</figure>
+
+<h3 id="s10-2"><span class="num">10.2</span><span>Files and folders</span></h3>
+
+<pre class="tree">mobile/Sanchara/Sources/
+├── Services/
+│   ├── ChartCache.swift             the App Group cache: chart, details, reading, period, destination
+│   └── WidgetRefresh.swift          asks WidgetKit to rebuild a timeline after a cache write
+├── Features/Chat/
+│   ├── ChartFacts.swift             the chart restated as neutral rows for the on-device model
+│   ├── OnDeviceReasoner.swift       the router, the classifier and the lookup tool
+│   ├── OnDeviceSuggestions.swift    follow-up questions written on the device, with starters
+│   ├── ChatStore.swift              where a chat turn meets the router
+│   └── ChatView.swift               the on-device footer, suggestion chips, deep-link handling
+├── Features/Kundli/ChartData.swift  NatalChart, DerivedFacts, PeriodProgress (shared with the extension)
+└── Intents/
+    ├── SancharaIntents.swift        five App Intents Siri, Shortcuts and Spotlight can run
+    ├── SancharaEntities.swift       DailyReadingEntity and PlacementEntity, indexed for Spotlight
+    ├── SancharaShortcuts.swift      the phrases that work with nothing set up
+    ├── IntentData.swift             cache first, network second, never throws
+    ├── ReadingSnippet.swift         the reading as a card inside Siri (iOS 26)
+    ├── OpenKundliIntent.swift       the one intent that opens the app; shared with the extension
+    └── DeepLink.swift               where an intent, a control or a widget tap says the app should land
+
+mobile/SancharaWidgets/
+├── ReadingWidget.swift              kind SancharaReading, rebuilt at 06:00 and 18:00
+├── PeriodWidget.swift               kind SancharaPeriod, rebuilt after midnight, links sanchara://timeline
+├── ReadingControl.swift             the Control Center button and the @main WidgetBundle
+├── Info.plist                       com.apple.widgetkit-extension
+└── SancharaWidgets.entitlements     the App Group, and nothing else
+
+mobile/project.yml                   which app files the extension also compiles
+docs/SIRI_AND_WIDGETS.md             portal setup, the phrases, and a manual gate on the model's wording
+
+mobile/Sanchara/Tests/
+├── OnDeviceRoutingTests.swift       the cheap filter, the house parser, the rows
+├── ChartFactsTests.swift            the derived rows, and the fallback without them
+├── DerivedFactsTests.swift          decoding a chart cached before derived facts existed
+├── SuggestionTests.swift            starters where the model is missing
+└── PeriodProgressTests.swift        two of its tests cover the period cache</pre>
+
+<p>
+  Nothing here has a web counterpart. The web app has no widget, no Siri surface and no on-device
+  model; a question typed into <code>components/Chat.tsx</code> always goes to
+  <code>/api/chat</code>. The iOS chat is the only client that routes.
+</p>
+
+<h3 id="s10-3"><span class="num">10.3</span><span>Model</span></h3>
+
+<h4>What the cache holds</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Services/ChartCache.swift
+final class ChartCache: @unchecked Sendable {
+    static let shared = ChartCache()
+    static let appGroup = "group.com.shivvyas.astra"
+
+    private let queue = DispatchQueue(label: "com.shivvyas.astra.chartcache")
+    private let directory: URL
+
+    private init() {
+        let shared = FileManager.default.containerURL(
+            forSecurityApplicationGroupIdentifier: Self.appGroup
+        )
+        // Without the entitlement (a simulator build with no provisioning, say)
+        // the app still works, it just stops sharing with the widget.
+        directory = shared ?? URL.cachesDirectory
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    }
+
+    private func write&lt;T: Encodable&gt;(_ value: T, to name: String) {
+        queue.async {
+            guard let data = try? JSONEncoder().encode(value) else { return }
+            try? data.write(to: self.url(name), options: [.atomic, .completeFileProtection])
+        }
+    }
+
+    private func read&lt;T: Decodable&gt;(_ type: T.Type, from name: String) -&gt; T? {
+        queue.sync {
+            guard let data = try? Data(contentsOf: url(name)) else { return nil }
+            return try? JSONDecoder().decode(type, from: data)
+        }
+    }
+}</code></pre>
+
+<p>
+  Four JSON files live in the group container, each behind a save-and-load pair. Writes are
+  asynchronous on one serial queue and reads are synchronous on the same queue, so a read issued
+  after a write sees the write. Every file is written atomically with complete file protection.
+  Nothing secret goes in: no token, no session. Those stay in the Keychain, where supabase-swift
+  already keeps them.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>File</th><th>Type</th><th>Written by</th><th>Read by</th></tr></thead>
+<tbody>
+<tr><td><code>chart.json</code></td><td><code>NatalChart</code>, the Vedic half of <code>birth_profiles.chart</code></td><td><code>ProfileStore.loadChart()</code></td><td><code>ProfileStore</code> on launch, <code>IntentData</code>, <code>PlacementQuery</code>, <code>PeriodProvider</code> as a fallback</td></tr>
+<tr><td><code>details.json</code></td><td><code>BirthProfileDetails</code></td><td><code>ProfileStore.load()</code></td><td><code>ProfileStore</code> on launch, <code>IntentData</code></td></tr>
+<tr><td><code>reading.json</code></td><td><code>CachedReading</code>: id, slot, title, body, forDate, savedAt</td><td><code>DailyStore.load()</code>, <code>IntentData.fetchReadings()</code></td><td><code>ReadingProvider</code>, <code>IntentData.latestReading()</code></td></tr>
+<tr><td><code>period.json</code></td><td><code>CachedPeriod</code>: lord, antardasha, four ISO dates, theme, nowMeaning, savedAt</td><td><code>TimelineStore.cache(_:)</code></td><td><code>PeriodProvider</code></td></tr>
+</tbody></table></div>
+
+<p>
+  <code>CachedReading.isFresh</code> is true when <code>savedAt</code> is today or within the
+  last 86,400 seconds: "A widget should not keep insisting on yesterday's morning reading."
+  <code>CachedPeriod</code> carries what the chart alone cannot, the server's one-line
+  <code>theme</code> for the mahadasha and the <code>nowMeaning</code>, which only
+  <code>/api/timeline</code> writes. A fifth value is not a file. <code>pendingDestination</code>
+  is one short string in <code>UserDefaults(suiteName: appGroup)</code>, because it is written
+  from the widget extension milliseconds before the app launches and the suite gives both
+  processes the same store without coordination. <code>takePendingDestination()</code> reads and
+  clears in one step, so a destination is never handled twice. <code>clear()</code> removes all
+  four files and the key, and runs on sign-out.
+</p>
+
+<h4>The chart the phone reasons over</h4>
+
+<p>
+  <code>NatalChart</code> in <code>mobile/Sanchara/Sources/Features/Kundli/ChartData.swift</code>
+  mirrors <code>lib/astrology/types.ts</code>: ascendant, nine <code>ChartPlanet</code> rows
+  (name, sign, degree, house, retrograde, nakshatra), Moon and Sun signs, ayanamsa, an optional
+  <code>DashaInfo</code> and an optional <code>DerivedFacts</code>. The derived block mirrors
+  <code>lib/astrology/derived.ts</code>: per planet the houses it rules, its dignity, combustion
+  and distance from the Sun, aspects and conjunctions; per house its lord and where that lord
+  sits; per running dasha level the lord's placement. The top-level block is optional for the
+  reason the type's comment gives: "A widget or a Siri intent must never fail to decode a chart
+  it has already stored." Doshas are deliberately not carried into the app's type; they are
+  interpretive, and the on-device model is only allowed to restate records.
+</p>
+
+<h4>The two entities</h4>
+
+<p>
+  <code>SancharaEntities.swift</code> defines the only two things Siri, Shortcuts and Spotlight
+  may know about. <code>DailyReadingEntity</code> is what a reading intent returns and what
+  Spotlight indexes; its <code>attributeSet</code> puts the body in
+  <code>contentDescription</code> so a half-remembered phrase finds the reading again.
+  <code>PlacementEntity</code> is one body's position built from a <code>ChartPlanet</code>, with
+  the Sanskrit sign from <code>Rashi(english:)</code>, and a <code>spoken</code> sentence:
+  "Saturn is in Meena, Pisces, at 3°15', in house 5, nakshatra Uttara Bhadrapada. It is
+  retrograde." The file's comment sets the boundary: "Nothing interpretive is an entity. A
+  prediction is not a record and should not be searchable as though it were one."
+</p>
+
+<h3 id="s10-4"><span class="num">10.4</span><span>The server side</span></h3>
+
+<p>
+  There is none. No route handler, table or cron job exists for the widget, for Siri or for the
+  on-device model. Everything they read was put in the cache by the app from three sources that
+  belong to other chapters: the <code>birth_profiles.chart</code> jsonb column, read directly
+  through supabase-swift under the owner-only RLS policy (roughly 4 KB, changing only when birth
+  details are re-saved); the <code>daily_readings</code> table, read the same way; and
+  <code>GET /api/timeline</code>, whose payload carries the period bands with their themes and
+  the <code>now</code> meaning. The on-device model is Apple's, not Sanchara's:
+  <code>FoundationModels</code> is a system framework, no weights ship in the bundle, and no
+  request leaves the phone. Where the model declines or is absent, the question goes to
+  <code>/api/chat</code> exactly as it did before the feature existed.
+</p>
+
+<h3 id="s10-5"><span class="num">10.5</span><span>The clients</span></h3>
+
+<h4>Filling the cache</h4>
+
+<p>
+  Three stores write, each at the moment its data is confirmed. <code>ProfileStore.load()</code>
+  first seeds <code>chart</code> and <code>details</code> from the cache so the kundli draws
+  immediately, then fetches and saves both on success; if the fetch fails and the cache had both,
+  the state is still <code>.ready</code>. <code>DailyStore.load()</code> saves the newest of 60
+  readings and calls <code>WidgetRefresh.reload()</code>. <code>TimelineStore.cache(_:)</code>
+  finds the band marked <code>isCurrent</code>, picks the antardasha whose range contains
+  <code>payload.today</code>, saves a <code>CachedPeriod</code> and calls
+  <code>WidgetRefresh.reloadPeriod()</code>. Because the period file is only written when a
+  timeline arrives, <code>ChatView</code> calls <code>TimelineStore.warmCache()</code> once per
+  launch, so the period widget fills in without the timeline screen ever being opened.
+  <code>WidgetRefresh</code> is two static calls to
+  <code>WidgetCenter.shared.reloadTimelines(ofKind:)</code>, for <code>"SancharaReading"</code>
+  and <code>"SancharaPeriod"</code>, and its comment carries the discipline: reloads are
+  rate-limited by the system, "so this is called when a reading actually changes, never on every
+  load."
+</p>
+
+<h4>ChartFacts: the chart as a reference table</h4>
+
+<p>
+  <code>ChartFacts</code> turns positions into sentences and does nothing else. It has no
+  dependency on <code>FoundationModels</code>, which is what makes it testable on any machine.
+  The wording is the load-bearing part. Apple's on-device model refuses anything it reads as
+  fortune telling, a result found by testing against the real model, so every row uses a neutral
+  vocabulary and never names a tradition, a practice or a meaning:
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Chart concept</th><th>Word in the row</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>house</td><td>section</td><td>"section 5"</td></tr>
+<tr><td>nakshatra</td><td>segment</td><td>"segment Uttara Bhadrapada"</td></tr>
+<tr><td>lordship</td><td>controls, controlled by</td><td>"Controls sections 7, 12"</td></tr>
+<tr><td>dignity</td><td>strength rating</td><td>exalted "highest", debilitated "lowest", moolatrikona or own sign "high", otherwise "standard"</td></tr>
+<tr><td>combustion</td><td>within N degrees of Sun</td><td>"Within 5 degrees of Sun"</td></tr>
+<tr><td>aspect, conjunction</td><td>linked to sections, filed alongside</td><td>"Linked to sections 1", "Filed alongside Jupiter"</td></tr>
+<tr><td>ascendant, Sun, Moon</td><td>reference point, Entry A, Entry B</td><td>"Reference point: Scorpio 14°30', which sets section 1."</td></tr>
+<tr><td>mahadasha, antardasha</td><td>current major period, current minor period</td><td>"Current major period: Venus, running 1 April 2012 to 1 April 2032."</td></tr>
+</tbody></table></div>
+
+<p>
+  Four lookups exist. <code>body(named:)</code> returns one planet's row and demands at least two
+  characters, because <code>hasPrefix("")</code> is true of every row and an empty argument from
+  the model "would otherwise come back as whichever body happened to be first, a wrong answer
+  delivered with complete confidence". <code>section(_:)</code> lists everything filed under one
+  house, names its controller when derived facts exist, and says "No entries are filed under
+  it." when nothing is. <code>currentPeriod()</code> renders both dasha levels with their date
+  ranges and, from the derived block, where the running lord is filed. <code>header()</code> is
+  the three lines every answer is indexed by, and <code>everything()</code> joins them all. Two
+  helpers are shared beyond the file: <code>sectionNumber(in:)</code> finds a house number
+  written as "seventh", "house 7", "7th house" or a bare "12th", and only accepts 1 to 12;
+  <code>calendarDay(_:format:)</code> parses and formats a <code>yyyy-MM-dd</code> string in UTC,
+  because formatting a bare ISO date anywhere west of Greenwich hands back the day before, "the
+  kind of wrong that nobody reports and everybody notices."
+</p>
+
+<h4>OnDeviceReasoner: the router</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift
+func route(_ question: String) async -&gt; Route {
+    #if canImport(FoundationModels)
+    if #available(iOS 26.0, *), Self.isAvailable {
+        // A question that names no part of the table cannot be a lookup, so
+        // the cheap check runs before the model does.
+        guard Self.mentionsTheTable(question) else { return .escalate }
+        guard await isLookup(question) else { return .escalate }
+        if let answer = await answer(question) { return .answered(answer) }
+    }
+    #endif
+    return .escalate
+}</code></pre>
+
+<p>
+  Three gates, cheapest first. <code>mentionsTheTable</code> is a string scan with no model
+  call: true if the question contains one of the nine body names, a house number
+  <code>sectionNumber(in:)</code> can find, or one of a short list of period and derived words
+  ("dasha", "mahadasha", "antardasha", "period", "lagna", "ascendant", "rising", "nakshatra",
+  "moon sign", "sun sign", "rashi", "lord", "ruler", "rules", "exalted", "debilitated",
+  "combust"). The comment records two words tried and dropped, "aspect" and "strength": every
+  question they usefully caught already routed via a body name or an ordinal, so they added only
+  false positives such as "what aspects of my life".
+</p>
+
+<p>
+  <code>isLookup</code> is the first model call. It opens a <code>LanguageModelSession</code> on
+  <code>SystemLanguageModel(guardrails: .permissiveContentTransformations)</code> with the
+  instruction "You sort incoming questions into two buckets. You never answer them." and asks for
+  a <code>@Generable</code> struct, <code>Classification</code>, whose single field is
+  <code>isRetrieval: Bool</code>. Constrained decoding means the answer is always one of two
+  values, never prose to be parsed; sampling is greedy. Any thrown error, a refusal included,
+  returns false, and the question goes to Claude, "which is where it went before".
+</p>
+
+<p>
+  <code>answer</code> is the second model call, and it uses a tool rather than a stuffed prompt.
+  <code>TableLookupTool</code> is registered as <code>lookupTableEntry</code> with four optional
+  arguments: <code>body</code> (constrained to the nine names by <code>.anyOf</code>),
+  <code>section</code> (constrained to <code>1...12</code>), <code>currentPeriod</code> and
+  <code>wholeTable</code>. The instructions tell the model to call the tool before answering,
+  report only what it returned, say the table does not record something when the tool returns
+  nothing, never explain what an entry means, and answer in two or three plain sentences.
+  Generation runs at temperature 0.3 with at most 220 response tokens. Every tool result is
+  prefixed with the header, because "which section is that" is the follow-up to almost every row.
+</p>
+
+<pre><code>// mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift
+let text = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+// An answer that never consulted the table is a guess. Drop it.
+guard !text.isEmpty, tool.wasCalled else { return nil }
+return text</code></pre>
+
+<p>
+  <code>wasCalled</code> is a flag behind an <code>NSLock</code>, written on whatever executor
+  the framework calls the tool from and read on the main actor afterwards. An answer composed
+  without a single lookup is thrown away rather than shown.
+</p>
+
+<h4>Where the chat meets the router</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Features/Chat/ChatStore.swift
+// A lookup the phone can answer from the chart it already holds
+// never reaches the network. The opening reading and an explicit
+// "read this properly" always do.
+if !silent, !forceServer, mode == .vedic, let reasoner {
+    if case .answered(let local) = await reasoner.route(text) {
+        guard !Task.isCancelled else { return }
+        if let last = messages.indices.last, messages[last].role == .assistant {
+            messages[last].content = local
+            messages[last].source = .onDevice
+        }
+        isStreaming = false
+        return
+    }
+}</code></pre>
+
+<p>
+  <code>ChatStore.chart</code> has a <code>didSet</code> that builds the reasoner, and its
+  comment limits the scope: "Vedic only: the router reads a Vedic chart, so a Western or
+  numerology question has nothing local to answer from and goes straight to Claude." A locally
+  answered turn is marked <code>ChatMessage.Source.onDevice</code> and is never saved to the
+  conversation. <code>ChatView</code> renders it with a footer, "Read from your chart on this
+  device", and under the last one a button, "Ask for a full reading", which calls
+  <code>expandLastAnswer()</code>: the local answer is removed and the same question re-sent with
+  <code>forceServer: true</code>. The disclosure and the escape hatch are both required; if the
+  router guesses wrong, one tap undoes it.
+</p>
+
+<h4>OnDeviceSuggestions: what to ask next</h4>
+
+<p>
+  <code>SuggestionEngine</code> owns the chips under a reading. <code>ChatView</code> calls
+  <code>refresh(after:mode:)</code> whenever streaming stops with a non-empty assistant turn. On a
+  device where <code>SystemLanguageModel.default.availability == .available</code>, the engine
+  sends the last 1,200 characters of the reading (the tail carries the conclusion) to a session
+  instructed "You rewrite and summarise text. You never add facts of your own, and you never
+  answer the questions you raise." and asks for a <code>@Generable FollowUpQuestions</code>:
+  three first-person questions the passage leaves unanswered, trimmed, capped at 90 characters,
+  cut to three. The prompt never mentions astrology: asked to act as an astrologer's assistant
+  the model refuses outright; asked to list what a passage leaves unanswered, it answers well.
+  Everywhere else, and whenever generation throws, <code>starters(for:)</code> supplies three
+  written questions per <code>ChatMode</code>, so the feature degrades rather than disappears.
+  <code>onDeviceStatus</code> turns the availability enum into a sentence for the profile screen,
+  and <code>OnDeviceReasoner.isAvailable</code> reads the same flag.
+</p>
+
+<h4>The intents</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Intent</th><th>Available</th><th>Opens the app</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>TodaysReadingIntent</code></td><td>iOS 18</td><td>no</td><td>Returns a <code>DailyReadingEntity</code> from <code>IntentData.latestReading()</code> and speaks "title. body". Throws <code>noReadingYet</code> when there is none.</td></tr>
+<tr><td><code>ShowReadingCardIntent</code></td><td>iOS 26</td><td>no</td><td>The same reading as a card: speaks the title and shows <code>ReadingSnippetIntent</code>, which renders <code>ReadingCard</code>. A separate intent because <code>perform()</code> has one concrete return type.</td></tr>
+<tr><td><code>ChartPositionIntent</code></td><td>iOS 18</td><td>no</td><td>Takes a <code>PlacementEntity</code> parameter ("Where is Saturn in my kundli") and speaks its sentence. The entity query already resolved it from the cache.</td></tr>
+<tr><td><code>CurrentPeriodIntent</code></td><td>iOS 18</td><td>no</td><td>Reads <code>IntentData.chart()?.dasha</code> and speaks both levels with their end months in UTC. Throws <code>noChartYet</code> without a chart.</td></tr>
+<tr><td><code>AskSancharaIntent</code></td><td>iOS 26</td><td>no</td><td>Free-form question through <code>OnDeviceReasoner.route</code>; speaks an answer, or queues the question via <code>DeepLink.shared.queue(question:)</code> and says it needs a full reading.</td></tr>
+<tr><td><code>OpenKundliIntent</code></td><td>iOS 17</td><td>yes</td><td>Writes <code>"kundli"</code> to <code>pendingDestination</code> and returns. The only intent that opens the app, because "a diagram is the answer, and Siri has nowhere to put one."</td></tr>
+</tbody></table></div>
+
+<p>
+  Errors are sentences, not codes, because Siri reads them aloud:
+  <code>SancharaIntentError.noReadingYet</code> says "There's no reading yet. Sanchara writes one
+  each morning and night." <code>IntentData</code> is the data layer for all of them:
+  <code>chart()</code> and <code>details()</code> read the cache and nothing else, since a chart
+  fixed at birth makes a cache hit always correct; <code>latestReading()</code> returns the cached
+  reading if <code>isFresh</code>, otherwise the first row of a ten-row
+  <code>daily_readings</code> query, which also rewrites the cache "for the widget, which cannot
+  make this call". Nothing throws; a failed query is an empty list.
+</p>
+
+<p>
+  <code>SancharaShortcuts</code> is the <code>AppShortcutsProvider</code>: six
+  <code>AppShortcut</code>s, the last two behind <code>#available(iOS 26.0, *)</code>. Every
+  phrase contains <code>\(.applicationName)</code>, an App Intents rule that also covers a user
+  who renames the app. "What's my reading in Sanchara", "What dasha am I in on Sanchara", "Where
+  is my Saturn in Sanchara" (the parameter is spoken inside the phrase), "Open my Sanchara
+  kundli", "Show my Sanchara reading" and "Ask Sanchara about my chart" all work with nothing set
+  up. Ten is Apple's ceiling; the file's comment says fewer is better.
+</p>
+
+<h4>DeepLink and the sanchara:// scheme</h4>
+
+<pre><code>// mobile/Sanchara/Sources/Intents/DeepLink.swift
+func drain() {
+    guard let raw = ChartCache.shared.takePendingDestination() else { return }
+    if raw == "kundli" {
+        pending = .kundli
+    } else if raw == "timeline" {
+        pending = .timeline
+    } else if raw.hasPrefix("ask:") {
+        let question = String(raw.dropFirst("ask:".count))
+        if !question.isEmpty { pending = .ask(question) }
+    }
+}</code></pre>
+
+<p>
+  Intents run without a UI, sometimes in a different process, so none of them can present
+  anything. They write a destination into the App Group and the app drains it when it next comes
+  to the front, mirroring <code>PushStore.pending</code> on purpose: "one habit, two sources." A
+  widget tap is the other way in. <code>PeriodWidgetView</code> sets
+  <code>.widgetURL(URL(string: "sanchara://timeline"))</code>, the scheme is declared under
+  <code>CFBundleURLTypes</code> in <code>mobile/project.yml</code>, and
+  <code>RootView.onOpenURL</code> hands a URL whose scheme is <code>sanchara</code> to
+  <code>DeepLink.shared.handle(url:)</code> and everything else to the auth store, which would
+  otherwise report an expired link. <code>handle(url:)</code> accepts the hosts
+  <code>timeline</code> and <code>kundli</code> and ignores unknown paths rather than guessing.
+  <code>ChatView</code> consumes the destination on <code>onAppear</code> (a cold launch sets it
+  before the view exists), on <code>scenePhase == .active</code> (which calls
+  <code>drain()</code>), and on <code>onChange(of: DeepLink.shared.pending)</code>.
+  <code>.kundli</code> and <code>.timeline</code> present the matching sheet; <code>.ask</code>
+  starts a new reading and sends the question with <code>forceServer: true</code>.
+</p>
+
+<h4>The widget extension</h4>
+
+<pre><code>// mobile/SancharaWidgets/ReadingWidget.swift
+/// The next 6am or 6pm. Asking to refresh twice a day, rather than every
+/// fifteen minutes, is what keeps the widget inside its energy budget while
+/// still being right whenever anyone looks.
+static func nextBoundary() -&gt; Date {
+    let calendar = Calendar.current
+    let now = Date()
+    for hour in [6, 18] {
+        if let candidate = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now),
+           candidate &gt; now {
+            return candidate
+        }
+    }
+    let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now.addingTimeInterval(86_400)
+    return calendar.date(bySettingHour: 6, minute: 0, second: 0, of: tomorrow)
+        ?? now.addingTimeInterval(43_200)
+}</code></pre>
+
+<p>
+  <code>SancharaWidgets</code> is the <code>@main WidgetBundle</code> in
+  <code>ReadingControl.swift</code>. It vends <code>ReadingWidget</code>,
+  <code>PeriodWidget</code> and, on iOS 18, <code>ReadingControl</code>. Both widgets use a
+  <code>StaticConfiguration</code> and a provider whose timeline holds exactly one entry.
+  <code>ReadingWidget</code> (kind <code>SancharaReading</code>; small, medium and
+  <code>accessoryRectangular</code>) reads <code>loadReading()</code> and rebuilds at the next
+  06:00 or 18:00, the cadence of the content. The Home Screen families draw the shared
+  <code>ReadingCard</code> with a body limit of 3 lines on small and 5 on medium; the Lock Screen
+  family draws two lines of its own because the Lock Screen tints everything to one colour. The
+  empty state names the next action: "Open Sanchara to get your first reading."
+</p>
+
+<p>
+  <code>PeriodWidget</code> (kind <code>SancharaPeriod</code>; the same three families plus
+  <code>accessoryInline</code>) prefers <code>loadPeriod()</code> and, failing that, the dasha
+  pair inside the cached chart with no theme, "shown without a theme rather than as an empty
+  state, the dates are true". It computes today as a UTC calendar day, the API's convention, and
+  derives the bar and the "N years left" caption from <code>PeriodProgress.fraction</code> and
+  <code>yearsRemaining</code> in <code>ChartData.swift</code>, which lives there "because the
+  period widget needs it too, and this file is one of the few compiled into both targets". The
+  timeline rebuilds after the next local midnight so the bar moves by a day when a day has
+  passed. <code>ReadingControl</code> is a <code>ControlWidget</code> of kind
+  <code>SancharaReadingControl</code>: one <code>ControlWidgetButton</code> whose action is
+  <code>OpenKundliIntent()</code>, labelled "Kundli", displayed as "Open kundli". The type and
+  kind keep "Reading" in their names and the file's leading comment still describes the reading;
+  what the button does today is open the kundli, from the extension's own process.
+</p>
+
+<h4>What the extension compiles, and why each file is dependency-free</h4>
+
+<pre><code># mobile/project.yml
+SancharaWidgets:
+  type: app-extension
+  sources:
+    - path: SancharaWidgets
+    # Compiled into the extension as well as the app. Each of these is
+    # dependency-free on purpose: pulling in anything that imports Supabase
+    # would drag the whole client into a process that has no session to use
+    # it with.
+    - path: Sanchara/Sources/Design/Theme.swift
+    - path: Sanchara/Sources/Design/ReadingCard.swift
+    - path: Sanchara/Sources/Services/ChartCache.swift
+    - path: Sanchara/Sources/Features/Kundli/ChartData.swift
+    - path: Sanchara/Sources/Features/Intake/BirthProfileDetails.swift
+    - path: Sanchara/Sources/Intents/OpenKundliIntent.swift</code></pre>
+
+<div class="tablewrap"><table>
+<thead><tr><th>File</th><th>Imports</th><th>Why the extension needs it</th></tr></thead>
+<tbody>
+<tr><td><code>Design/Theme.swift</code></td><td>SwiftUI</td><td>The four colour tokens the widget backgrounds and text use</td></tr>
+<tr><td><code>Design/ReadingCard.swift</code></td><td>SwiftUI</td><td>The card both the widget and the Siri snippet draw</td></tr>
+<tr><td><code>Services/ChartCache.swift</code></td><td>Foundation</td><td>The only door into the container</td></tr>
+<tr><td><code>Features/Kundli/ChartData.swift</code></td><td>Foundation</td><td><code>NatalChart</code> to decode <code>chart.json</code>; <code>PeriodProgress</code> for the bar</td></tr>
+<tr><td><code>Features/Intake/BirthProfileDetails.swift</code></td><td>Foundation</td><td>The type behind <code>details.json</code>, so <code>ChartCache</code> compiles</td></tr>
+<tr><td><code>Intents/OpenKundliIntent.swift</code></td><td>AppIntents</td><td>The control's action, run in the extension's process; it imports nothing but <code>ChartCache</code></td></tr>
+</tbody></table></div>
+
+<h3 id="s10-6"><span class="num">10.6</span><span>How it works</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 300" role="img" aria-label="A question passes a cheap string filter, then a constrained yes-or-no classification by the on-device model, then a tool-backed lookup; each gate that fails sends the question to /api/chat, and a locally answered turn can still be sent to Claude by one tap.">
+  <defs>
+    <marker id="ch10c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch10d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <text class="lbl-sm" x="20" y="24">PRECONDITIONS: iOS 26, FoundationModels available, mode == .vedic, not the opening reading, not "ask for a full reading"</text>
+
+  <rect class="box" x="20" y="60" width="130" height="40" rx="8"/><text class="lbl" x="85" y="85" text-anchor="middle">Question</text>
+  <rect class="box" x="190" y="60" width="170" height="40" rx="8"/><text class="lbl" x="275" y="85" text-anchor="middle">mentionsTheTable?</text>
+  <rect class="box" x="400" y="60" width="190" height="40" rx="8"/><text class="lbl" x="495" y="85" text-anchor="middle">isLookup? (isRetrieval)</text>
+  <rect class="box-hot" x="630" y="60" width="210" height="40" rx="8"/><text class="lbl" x="735" y="85" text-anchor="middle">answer() + lookupTableEntry</text>
+
+  <rect class="box-hot" x="630" y="160" width="210" height="50" rx="10"/>
+  <text class="lbl" x="735" y="181" text-anchor="middle">Route.answered(text)</text>
+  <text class="lbl-hot" x="735" y="199" text-anchor="middle">source = .onDevice, not saved</text>
+
+  <rect class="box-alt" x="400" y="230" width="190" height="50" rx="10"/>
+  <text class="lbl" x="495" y="251" text-anchor="middle">Route.escalate</text>
+  <text class="lbl-sm" x="495" y="269" text-anchor="middle">POST /api/chat, Claude</text>
+
+  <path class="flow" d="M150 80 L 184 80" marker-end="url(#ch10c)"/>
+  <path class="flow" d="M360 80 L 394 80" marker-end="url(#ch10c)"/>
+  <text class="lbl-sm" x="364" y="72">yes</text>
+  <path class="flow" d="M590 80 L 624 80" marker-end="url(#ch10c)"/>
+  <text class="lbl-sm" x="594" y="72">true</text>
+  <path class="flow-hot" d="M735 100 L 735 154" marker-end="url(#ch10d)"/>
+  <text class="lbl-hot" x="745" y="132">tool called, text non-empty</text>
+
+  <path class="flow" d="M275 100 L 275 255 L 394 255" marker-end="url(#ch10c)"/>
+  <text class="lbl-sm" x="283" y="140">no string match: free, no model call</text>
+  <path class="flow" d="M495 100 L 495 224" marker-end="url(#ch10c)"/>
+  <text class="lbl-sm" x="503" y="160">false, or the model threw</text>
+  <path class="flow-dash" d="M700 100 L 700 130 L 610 130 L 610 236" marker-end="url(#ch10c)"/>
+  <text class="lbl-sm" x="503" y="204">nil: no tool call, empty, or threw</text>
+  <path class="flow-dash" d="M735 210 L 735 255 L 596 255" marker-end="url(#ch10c)"/>
+  <text class="lbl-sm" x="640" y="272">"Ask for a full reading": forceServer</text>
+</svg>
+<figcaption>
+  Cheapest gate first. Only questions that survive the string scan cost a model call, only
+  retrievals cost a second, and only an answer that actually consulted the table is shown. Every
+  failure path ends where the question went before the feature existed.
+</figcaption>
+</figure>
+
+<h4>A question in the chat</h4>
+
+<ol>
+  <li><code>ChatStore.send</code> appends the user turn and an empty assistant turn, then, when
+    the preconditions hold, awaits <code>reasoner.route(text)</code>.</li>
+  <li><code>mentionsTheTable</code> rejects "should I take the job" without a model call. "Where
+    is my Saturn" passes on the body name; "who rules my 7th" passes on the ordinal and on
+    "rules". <code>isLookup</code> then escalates "what does my Saturn mean" as not a
+    retrieval.</li>
+  <li><code>answer</code> opens a session with <code>TableLookupTool</code>. The model calls
+    <code>lookupTableEntry(body: "Saturn")</code>, receives the header and Saturn's row, and
+    restates them in two or three sentences.</li>
+  <li>The assistant turn is filled and marked <code>.onDevice</code>; <code>isStreaming</code>
+    goes false; <code>SuggestionEngine.refresh</code> runs on the answer like any other reading.
+    Nothing was sent anywhere. If any gate fails, <code>SancharaAPI.chatStream</code> streams the
+    reading from <code>/api/chat</code> and the turn is saved server-side.</li>
+</ol>
+
+<h4>A Siri phrase</h4>
+
+<ol>
+  <li>"Where is my Saturn in Sanchara" matches the <code>ChartPositionIntent</code> shortcut. iOS
+    resolves the spoken parameter through <code>PlacementQuery.entities(matching:)</code>, which
+    matches the lowercased string against the planet name or Sanskrit sign of each placement in
+    <code>ChartCache.shared.load()</code>. <code>perform()</code> returns the entity and its
+    sentence; the app is not opened.</li>
+  <li>"Ask Sanchara about my chart" runs <code>AskSancharaIntent</code>, which reads the chart
+    from the cache and runs the same three gates. On <code>.escalate</code> it writes
+    <code>"ask:" + question</code> to <code>pendingDestination</code> and says the question is
+    saved. The next time <code>ChatView</code> becomes active, <code>drain()</code> turns it into
+    <code>.ask(question)</code> and the view sends it with <code>forceServer: true</code>.</li>
+  <li>"What's my reading in Sanchara" runs <code>TodaysReadingIntent</code>. A fresh cached
+    reading answers with no query; a stale one triggers a ten-row fetch that also rewrites the
+    cache.</li>
+</ol>
+
+<h4>A widget refresh, a tap, and sign-out</h4>
+
+<ol>
+  <li><code>DailyStore.load()</code> writes <code>reading.json</code> and calls
+    <code>WidgetRefresh.reload()</code>. WidgetKit, within its rate limit, asks
+    <code>ReadingProvider.getTimeline</code> for a new timeline; the provider reads the cache
+    synchronously and returns one entry with a <code>.after(nextBoundary())</code> policy. With
+    the app closed, the night cron job's reading reaches the widget only after the app, or an
+    intent's fetch, has rewritten the cache.</li>
+  <li>A tap on the period widget opens <code>sanchara://timeline</code>; <code>RootView</code>
+    recognises the scheme and <code>handle(url:)</code> sets <code>pending = .timeline</code>
+    directly, with no App Group hop. A tap on the Control Center button runs
+    <code>OpenKundliIntent</code> inside the extension, which writes <code>"kundli"</code> to the
+    group's <code>UserDefaults</code>; <code>openAppWhenRun = true</code> brings the app forward,
+    and <code>ChatView</code> presents the kundli sheet on <code>onAppear</code> or on becoming
+    active.</li>
+  <li><code>AuthStore.signOut()</code> unregisters the push token, signs out of Supabase, then
+    calls <code>ChartCache.shared.clear()</code>, because the cached files "are on disk in the app
+    group, and the widget would go on showing them to whoever signs in next." The next widget
+    rebuild draws the empty state.</li>
+</ol>
+
+<h3 id="s10-7"><span class="num">10.7</span><span>Performance and cost</span></h3>
+
+<ul>
+  <li><strong>Zero network on every read path.</strong> Widgets, entity queries and
+    <code>IntentData.chart()</code> read a JSON file from disk synchronously. The only intent that
+    can touch the network is a reading intent with a stale cache, capped at ten rows.</li>
+  <li><strong>Model calls are gated by a string scan.</strong> The two on-device sessions run
+    only for questions that name a body, a house or a period word, so an interpretive question
+    costs nothing locally and goes straight to the server.</li>
+  <li><strong>Every on-device answer is a Claude call not made,</strong> and it is never written
+    to <code>messages</code> on the server, so there is no storage cost either.</li>
+  <li><strong>Two widget rebuilds a day, plus one after midnight.</strong> Explicit reloads are
+    sent only when a cache file actually changed.</li>
+  <li><strong>Bounded generation.</strong> The lookup answer is capped at 220 tokens at
+    temperature 0.3; the classifier is greedy and returns one Boolean; the suggestion prompt sees
+    at most 1,200 characters.</li>
+  <li><strong>No extension bloat.</strong> The widget binary compiles six app files and no
+    package. Keeping the Supabase client out is what keeps its launch inside WidgetKit's
+    budget.</li>
+</ul>
+
+<h3 id="s10-8"><span class="num">10.8</span><span>Edge cases and tests</span></h3>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Condition</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>No App Group entitlement (a simulator build without provisioning)</td><td><code>ChartCache</code> falls back to the caches directory. The app works; sharing with the widget stops.</td></tr>
+<tr><td>Chart cached before derived facts shipped, or a server key the app does not declare</td><td><code>derived</code> decodes as nil and every row falls back to the position line; <code>conditions</code> is ignored and the decode succeeds.</td></tr>
+<tr><td>Device west of Greenwich</td><td>Dates parse and format in UTC in <code>ChartFacts.calendarDay</code>, <code>PeriodProgress</code> and <code>PeriodProvider.todayISO</code>, so a dasha ending on the 1st never reads as the 31st.</td></tr>
+<tr><td>Model refuses, is not downloaded, or Apple Intelligence is off</td><td><code>isLookup</code> returns false or <code>answer</code> returns nil; the question goes to Claude. The profile screen says which state the device is in.</td></tr>
+<tr><td>Model answers without calling the tool, or passes a one-letter body name</td><td>Dropped: <code>wasCalled</code> is false; <code>body(named:)</code> returns nil rather than the first row.</td></tr>
+<tr><td>Router answers a question that wanted a reading</td><td>"Ask for a full reading" removes the local answer and re-sends with <code>forceServer</code>.</td></tr>
+<tr><td>Western or numerology mode</td><td>Never routed; the reasoner only reads a Vedic chart.</td></tr>
+<tr><td>Siri asked before any chart exists, or asked for meaning</td><td><code>noChartYet</code> spoken as a sentence; an interpretive question is queued as <code>ask:</code> and sent to Claude on next launch. Siri never spends money or waits.</td></tr>
+<tr><td>Widget added before any reading or timeline is loaded</td><td>An empty state naming the next action; the period widget draws the dasha pair from the cached chart with no theme.</td></tr>
+<tr><td>Widget tap on a cold launch, or an unknown <code>sanchara://</code> host</td><td><code>onAppear</code> handles the destination set before <code>onChange</code> could fire; unknown hosts are ignored rather than guessed.</td></tr>
+<tr><td>Sign-out on a shared device</td><td>All four files and the pending key are removed; the next widget rebuild shows the empty state.</td></tr>
+</tbody></table></div>
+
+<h4>Tests</h4>
+
+<p>
+  All in <code>mobile/Sanchara/Tests</code>, all runnable on the simulator, none needing Apple
+  Intelligence. The model itself is not tested: it cannot be on a machine without Apple
+  Intelligence, and its answers are not deterministic. What is tested is everything that decides
+  whether it runs.
+</p>
+
+<ul>
+  <li><code>OnDeviceRoutingTests</code>: the cheap filter admits "where is my saturn", "what's in
+    house 12", "what is my lagna" and the derived vocabulary ("which planet rules my chart", "is
+    anything combust"), and rejects "should I take the job", "when will I get married" and the
+    two dropped words. <code>sectionNumber</code> reads "7th house", "house 12", "my fourth house"
+    and "the 1st", and rejects "my 40th birthday". A body row carries sign, degree, section,
+    segment and retrograde; lookups are case-insensitive; "Pluto" and "" return nil; an empty
+    section says so; the period row names both lords and "1 April 2032".
+    <code>testNothingHandedToTheModelNamesAstrology</code> sweeps <code>everything()</code> for
+    fourteen forbidden words including "house", "planet", "dasha" and "nakshatra". If the framing
+    slips, the feature stops answering silently, and this is the test that notices.</li>
+  <li><code>ChartFactsTests</code>: with a derived block, a body row says "Controls sections 7,
+    12", "Strength rating: highest" and "Linked to sections 1"; a combust Mars 4.6 degrees from
+    the Sun renders "Within 5 degrees of Sun" and "Filed alongside Jupiter"; a section row names
+    its controller; the period row names where the running lord is filed. Without a derived
+    block every row still renders and the "controlled by" and "filed in section" sentences stay
+    silent. A second forbidden-word sweep covers every row builder.</li>
+  <li><code>DerivedFactsTests</code>: a chart JSON with no <code>derived</code> key decodes with
+    it nil; one with the block decodes the planet, house and dasha values in place; an undeclared
+    <code>conditions</code> key does not fail the decode; a <code>DerivedPeriod</code> with no
+    <code>placement</code> decodes to nil.</li>
+  <li><code>SuggestionTests</code>: every mode has three non-empty starters; where the model is
+    unavailable <code>refresh</code> falls straight back to them with <code>isThinking</code>
+    false; <code>onDeviceStatus</code> is never empty; where the model reports itself available,
+    <code>refresh</code> settles within a minute on at most three usable questions.</li>
+  <li><code>PeriodProgressTests</code>: <code>testCachedPeriodSurvivesTheRoundTrip</code> writes
+    a <code>CachedPeriod</code> through the real cache and reads it back equal;
+    <code>testClearRemovesTheCachedPeriod</code> proves <code>clear()</code> removes it.</li>
+</ul>
+
+<div class="note caution"><b>A gate no test can run</b>
+<code>docs/SIRI_AND_WIDGETS.md</code> section 6 describes a manual check against the real model
+on a device with Apple Intelligence on: six lookup questions, each of which must be answered on
+device, not refused, and restated rather than interpreted. As of this version the document marks
+its status as not yet run. The vocabulary in <code>ChartFacts</code> was arrived at by testing,
+and the table has grown since; the guardrail can trip back into "May contain sensitive content"
+on wording no unit test can see.
+</div>
+
+<h3 id="s10-9"><span class="num">10.9</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>, for the container, the four files, the queue and the pending key. Everything else reads or writes through it.</li>
+  <li><code>mobile/project.yml</code>, the <code>SancharaWidgets</code> target, for the six app files the extension compiles and the comment on why.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Chat/ChartFacts.swift</code>, for the neutral vocabulary and the UTC date rule.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift</code>, for the three gates and the tool.</li>
+  <li><code>mobile/Sanchara/Sources/Features/Chat/ChatStore.swift</code>, <code>send</code> and <code>expandLastAnswer</code>, for where the router meets a turn.</li>
+  <li><code>mobile/Sanchara/Sources/Intents/SancharaIntents.swift</code> then <code>SancharaShortcuts.swift</code>, for what Siri can do and the phrases.</li>
+  <li><code>mobile/Sanchara/Sources/Intents/DeepLink.swift</code> and <code>RootView.swift</code>, for the two ways a destination arrives.</li>
+  <li><code>mobile/SancharaWidgets/ReadingWidget.swift</code> and <code>PeriodWidget.swift</code>, for the timeline policies and the fallbacks.</li>
+  <li><code>mobile/Sanchara/Tests/OnDeviceRoutingTests.swift</code>, which reads as the routing rules in plain English.</li>
+</ol>
+
+<h4>Check yourself</h4>
+<p class="q">Why does the widget never fetch, even when its cache is a day old?</p>
+<p class="a">A widget that waits on the network shows a placeholder at the moment someone looks. The app and the intents refresh the cache; the widget only reads, and asks to be rebuilt at the next 06:00 or 18:00.</p>
+
+<p class="q">Which intent opens the app, and why is it the only one compiled into the widget extension?</p>
+<p class="a"><code>OpenKundliIntent</code>. A diagram is the answer and Siri cannot show one. The Control Center button runs it from the extension's process, so it must be compiled there, and it must import nothing but <code>ChartCache</code>.</p>
+
+<p class="q">Why does the on-device table say "section" and "segment" instead of "house" and "nakshatra"?</p>
+<p class="a">Apple's on-device model refuses anything it reads as fortune telling. Framed as a reference table of positions it answers; <code>testNothingHandedToTheModelNamesAstrology</code> pins the wording.</p>
+
+<p class="q">What happens to an on-device answer that never called <code>lookupTableEntry</code>?</p>
+<p class="a">It is discarded. <code>wasCalled</code> is false, <code>answer</code> returns nil, and the question escalates to Claude. An answer composed from memory is a guess.</p>
+
+<p class="q">Why is <code>pendingDestination</code> in <code>UserDefaults</code> rather than a JSON file like the rest of the cache?</p>
+<p class="a">It is one short string written from the extension milliseconds before the app launches; the shared suite gives both processes the same store with no coordination, and <code>takePendingDestination</code> reads and clears it in one step.</p>
+
+<p class="q">Why does a Siri question that needs interpretation get queued instead of answered?</p>
+<p class="a">Answering would mean a thin restatement or a paid call the person did not ask for and a wait Siri will not sit through. The question is written as <code>ask:</code> and the app sends it to Claude with <code>forceServer</code> on next launch.</p>
+
+<p class="q">Why must <code>NatalChart.derived</code> be optional?</p>
+<p class="a">A chart cached in the App Group before derived facts shipped has no <code>derived</code> key, and the widget and intent processes cannot report a decode failure; a required field would turn an old cache into a blank widget.</p>
+</div>
+</section>

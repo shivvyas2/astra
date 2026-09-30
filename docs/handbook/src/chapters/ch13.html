@@ -1,0 +1,560 @@
+<section class="chapter" id="ch13" data-hue="data">
+<p class="chapter-kicker">Chapter thirteen</p>
+<h2><span class="num">13</span><span>The data model</span></h2>
+
+<p class="lede">
+  Twelve tables in seven numbered SQL files, one storage bucket, and two keys. Every table hangs
+  off <code>auth.users</code> and cascades when the user goes. Every table has Row Level Security
+  on, and the shape of its policies says who may write it: the person, or only the server.
+</p>
+
+<p>
+  This chapter reads <code>supabase/migrations/</code> in order, as it stands on <code>main</code>
+  on 30 September 2026, version 0.3.0. Migrations are the schema's history, and reading them in
+  sequence is reading the product's: a chat with a chart, then a photo, then numerology, then push
+  alerts, then twice-daily readings, then the life timeline and its explanations. After the seven
+  files there is a summary of every table with its RLS shape and every piece of code that reads or
+  writes it, a section on the <code>avatars</code> bucket that no migration creates, and an
+  explanation of the two Supabase keys in terms of the policies. Where a policy and a route handler
+  disagree about who should write a table, the route handler's comment usually says why, and the
+  comment is quoted.
+</p>
+
+<h3 id="s13-1"><span class="num">13.1</span><span>Where the schema lives and how it is applied</span></h3>
+
+<pre class="tree">supabase/migrations/
+├── 0001_init.sql               admins, profiles, birth_profiles, conversations, messages
+├── 0002_avatar.sql             birth_profiles.avatar_url
+├── 0003_numerology_mode.sql    conversations.tradition may be 'numerology'
+├── 0004_alerts_push.sql        device_tokens, transit_conditions, alerts
+├── 0005_daily_readings.sql     daily_readings
+├── 0006_life_events.sql        life_events, life_event_scans
+└── 0007_period_readings.sql    period_readings
+
+lib/supabase/
+├── client.ts                   browser client, anon key, "use client"
+├── server.ts                   cookie client for server components and actions, anon key
+├── middleware.ts               cookie refresh and the /app and /admin guard
+├── route.ts                    bearer-or-cookie client for route handlers, anon key
+└── admin.ts                    service-role client, "server-only"
+
+docs/GO_LIVE_CHECKLIST.md       the production facts this chapter quotes
+docs/SUPABASE_SETUP.md          project creation and the first admin row</pre>
+
+<p>
+  The files are plain SQL with a four-digit prefix. There is no migration runner in the codebase and
+  no CI step that applies them. The README gives two ways to apply them: <code>supabase link</code>
+  followed by <code>supabase db push</code>, or pasting each file into the dashboard's SQL editor,
+  "lowest number first". <code>docs/SUPABASE_SETUP.md</code> still describes running only
+  <code>0001_init.sql</code>; the README's instruction is the current one and it means all seven.
+</p>
+
+<div class="note caution"><b>Migrations are applied by hand, before the code that needs them</b>
+The README states the rule: "After deploying a version that adds a migration, apply it to the
+production Supabase project before traffic reaches the new code." <code>docs/GO_LIVE_CHECKLIST.md</code>
+records what happens when that is missed. As of 16 September 2026 the production database did not
+have the tables from <code>0006_life_events.sql</code> and <code>0007_period_readings.sql</code>,
+although the timeline code that reads them had shipped. The checklist's fix is to run the two files
+in the SQL editor, in order, exactly as they are in the repo, and confirm with a query against
+<code>information_schema.tables</code> for <code>life_events</code>, <code>life_event_scans</code>
+and <code>period_readings</code>. Since <code>main</code> deploys to production on every push
+(<a href="#ch15">chapter 15</a>), a commit that adds <code>0008</code> is live before anyone has
+had a chance to apply it, and every route that touches the new table returns an error until someone
+does.</div>
+
+<h3 id="s13-2"><span class="num">13.2</span><span>The migrations, in order</span></h3>
+
+<h4>0001 · init</h4>
+
+<p>
+  The first file enables <code>pgcrypto</code> (for <code>gen_random_uuid()</code>) and creates the
+  five tables the original product needed: who is an admin, a profile row per auth user, the birth
+  details with the computed chart beside them, and conversations with their messages.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Columns</th><th>Keys and indexes</th></tr></thead>
+<tbody>
+<tr><td><code>admins</code></td><td><code>user_id uuid</code>, <code>created_at timestamptz</code></td><td>PK <code>user_id</code>, references <code>auth.users(id) on delete cascade</code></td></tr>
+<tr><td><code>profiles</code></td><td><code>id uuid</code>, <code>display_name text</code>, <code>created_at</code></td><td>PK <code>id</code>, references <code>auth.users(id) on delete cascade</code></td></tr>
+<tr><td><code>birth_profiles</code></td><td><code>id uuid</code>, <code>user_id uuid not null</code>, <code>first_name</code>, <code>last_name</code>, <code>birth_date date</code>, <code>birth_time time</code>, <code>place_name</code>, <code>lat</code>, <code>lng double precision</code>, <code>timezone text</code>, <code>chart jsonb</code>, <code>updated_at</code></td><td>PK <code>id</code> default <code>gen_random_uuid()</code>; <code>unique (user_id)</code>; FK to <code>auth.users</code> cascade</td></tr>
+<tr><td><code>conversations</code></td><td><code>id uuid</code>, <code>user_id uuid not null</code>, <code>tradition text</code> check in <code>('vedic','western')</code>, <code>title text</code>, <code>created_at</code></td><td>PK <code>id</code>; index <code>(user_id, created_at desc)</code>; FK cascade</td></tr>
+<tr><td><code>messages</code></td><td><code>id uuid</code>, <code>conversation_id uuid not null</code>, <code>role text</code> check in <code>('user','assistant')</code>, <code>content text not null</code>, <code>created_at</code></td><td>PK <code>id</code>; index <code>(conversation_id, created_at)</code>; FK to <code>conversations(id) on delete cascade</code></td></tr>
+</tbody></table></div>
+
+<p>
+  Two functions and one trigger. <code>is_admin()</code> is <code>language sql stable security
+  definer</code> with <code>set search_path = public</code>, and returns whether a row in
+  <code>admins</code> matches <code>auth.uid()</code>. <code>handle_new_user()</code> is a
+  <code>plpgsql security definer</code> trigger function that inserts a <code>profiles</code> row for
+  a new auth user, taking <code>display_name</code> from
+  <code>raw_user_meta_data-&gt;&gt;'display_name'</code> or, failing that, the part of the email before
+  the <code>@</code>. The trigger <code>on_auth_user_created</code> fires <code>after insert on
+  auth.users for each row</code>. This is the only code anywhere that writes <code>profiles</code>,
+  and, as the summary in <a href="#s13-4">13.4</a> shows, nothing reads it either.
+</p>
+
+<pre><code>-- supabase/migrations/0001_init.sql
+-- RLS: owner-only. Admin reads happen via the service-role client, which bypasses RLS.
+create policy "profiles self" on public.profiles
+  for all using (id = auth.uid()) with check (id = auth.uid());
+
+create policy "birth self" on public.birth_profiles
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy "conv self" on public.conversations
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy "msg self" on public.messages
+  for all using (
+    exists (select 1 from public.conversations c
+            where c.id = messages.conversation_id and c.user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.conversations c
+            where c.id = messages.conversation_id and c.user_id = auth.uid())
+  );
+
+-- admins table: readable only by admins; never writable via API (no insert/update/delete policy).
+create policy "admins read self-or-admin" on public.admins
+  for select using (user_id = auth.uid() or public.is_admin());</code></pre>
+
+<p>
+  Four tables get one <code>for all</code> policy each, which covers select, insert, update and
+  delete with the same predicate. <code>messages</code> has no <code>user_id</code> of its own; its
+  policy reaches through <code>conversations</code>, so a message is yours if its conversation is.
+  <code>admins</code> gets a select policy only. There is no insert policy and none is meant to
+  exist: the file's first comment says "presence in this table = admin. No self-service path", and
+  <code>docs/SUPABASE_SETUP.md</code> has the first admin row inserted by hand in the SQL editor. The
+  <code>is_admin()</code> function is used nowhere in TypeScript; it exists for that one policy, and
+  the application checks adminship with the service-role client instead
+  (<a href="#s13-6">13.6</a>).
+</p>
+
+<h4>0002 · avatar</h4>
+
+<p>
+  One statement: <code>alter table public.birth_profiles add column if not exists avatar_url
+  text</code>. The column holds a public URL into the <code>avatars</code> bucket
+  (<a href="#s13-5">13.5</a>), not the object path, and it is nullable because a photo is optional.
+  The <code>if not exists</code> makes the file safe to run twice.
+</p>
+
+<h4>0003 · numerology_mode</h4>
+
+<pre><code>-- supabase/migrations/0003_numerology_mode.sql
+alter table public.conversations drop constraint if exists conversations_tradition_check;
+alter table public.conversations
+  add constraint conversations_tradition_check check (tradition in ('vedic','western','numerology'));</code></pre>
+
+<p>
+  The check constraint from <code>0001</code> is dropped by its generated name and recreated with a
+  third value. This is the whole database side of the numerology mode (<a href="#ch06">chapter 6</a>):
+  a conversation records which of the three lenses it was read through, and the constraint is what
+  stops a typo in a client from creating a fourth.
+</p>
+
+<h4>0004 · alerts_push</h4>
+
+<p>
+  The first migration written for the iOS app and the scheduled job. Its header comment sets the
+  pattern every later table follows: "The daily job (<code>/api/cron/alerts</code>) writes both
+  tables with the service-role client, which bypasses RLS. The policies below exist so the app can
+  read its own alerts and manage its own device tokens directly."
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Columns</th><th>Keys and indexes</th></tr></thead>
+<tbody>
+<tr><td><code>device_tokens</code></td><td><code>token text</code>, <code>user_id uuid not null</code>, <code>platform text</code> default <code>'ios'</code> check in <code>('ios')</code>, <code>environment text</code> default <code>'production'</code> check in <code>('sandbox','production')</code>, <code>updated_at</code></td><td>PK <code>token</code>; index <code>(user_id)</code>; FK cascade</td></tr>
+<tr><td><code>transit_conditions</code></td><td><code>id uuid</code>, <code>user_id</code>, <code>kind text</code>, <code>signature text</code>, <code>label text</code>, <code>severity</code> check in <code>('info','caution','warning')</code>, <code>scope</code> check in <code>('natal','transit')</code>, <code>detail text</code>, <code>started_on date</code> default today in UTC, <code>ended_on date</code></td><td>PK <code>id</code>; unique partial index <code>transit_conditions_open_signature (user_id, signature) where ended_on is null</code>; index <code>(user_id, ended_on)</code>; FK cascade</td></tr>
+<tr><td><code>alerts</code></td><td><code>id uuid</code>, <code>user_id</code>, <code>severity</code> check as above, <code>kinds text[]</code> default <code>'{}'</code>, <code>title</code>, <code>body</code>, <code>detail</code>, <code>created_at</code>, <code>read_at timestamptz</code></td><td>PK <code>id</code>; index <code>(user_id, created_at desc)</code>; FK cascade</td></tr>
+</tbody></table></div>
+
+<p>
+  The token is the primary key of <code>device_tokens</code>, not the user, because one person can
+  have several phones and one phone can change hands. <code>environment</code> exists because a
+  token minted by a development build is only valid against the APNs sandbox host and vice versa;
+  the comment on the column says so, and the go-live checklist notes that rows registered before the
+  app reported its environment correctly may carry the wrong value.
+</p>
+
+<p>
+  <code>transit_conditions</code> is the state table behind "this changed today". A row is open
+  while <code>ended_on is null</code>, and the partial unique index guarantees at most one open row
+  per <code>(user_id, signature)</code>. The daily diff in <code>lib/alerts/run.ts</code> compares
+  the engine's current conditions against the open rows, inserts the new ones, and sets
+  <code>ended_on</code> on the ones that stopped (<a href="#ch09">chapter 9</a>). The default for
+  <code>started_on</code> is <code>(now() at time zone 'utc')::date</code>, so the date is the
+  server's, not the user's; <code>daily_readings</code> makes the opposite choice on purpose.
+</p>
+
+<pre><code>-- supabase/migrations/0004_alerts_push.sql
+create policy "device tokens self" on public.device_tokens
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy "conditions self read" on public.transit_conditions
+  for select using (user_id = auth.uid());
+
+create policy "alerts self read" on public.alerts
+  for select using (user_id = auth.uid());
+
+-- Marking an alert read is the only write the app makes.
+create policy "alerts self update" on public.alerts
+  for update using (user_id = auth.uid()) with check (user_id = auth.uid());</code></pre>
+
+<p>
+  Three shapes in one file. Device tokens are fully owner-writable. Conditions are owner-readable
+  and nothing else. Alerts are owner-readable and owner-updatable, so the app can set
+  <code>read_at</code>, but no client can insert one; the cron job inserts with the service role.
+  Note that the update policy is on the whole row, not on the column: a client could rewrite an
+  alert's title with its own session. The policy states an intent ("the only write the app makes")
+  that the database does not enforce column by column.
+</p>
+
+<h4>0005 · daily_readings</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Columns</th><th>Keys and indexes</th></tr></thead>
+<tbody>
+<tr><td><code>daily_readings</code></td><td><code>id uuid</code>, <code>user_id</code>, <code>for_date date</code>, <code>slot text</code> check in <code>('morning','night')</code>, <code>tradition text</code> default <code>'vedic'</code>, <code>title</code>, <code>body</code>, <code>detail</code>, <code>created_at</code>, <code>read_at</code></td><td>PK <code>id</code>; <code>unique (user_id, for_date, slot)</code>; index <code>(user_id, for_date desc)</code>; FK cascade</td></tr>
+</tbody></table></div>
+
+<p>
+  The two comments in this file are the design. On <code>for_date</code>: "The user's own local
+  date, not UTC: 'my reading for the 26th' has to mean their 26th." On the unique constraint: "One
+  reading per slot per day. This is also what makes the job safe to run more often than expected,
+  or twice by accident." The job in <code>lib/alerts/predictions.ts</code> reads which slots already
+  exist for the user's local date and inserts the missing one; a second run the same morning finds
+  the row and does nothing. Policies are select and update for the owner, the same shape as
+  <code>alerts</code>, and for the same reason: the app marks a reading read, the server writes it.
+</p>
+
+<h4>0006 · life_events</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Columns</th><th>Keys and indexes</th></tr></thead>
+<tbody>
+<tr><td><code>life_events</code></td><td><code>id uuid</code>, <code>user_id</code>, <code>occurred_on date</code>, <code>precision text</code> default <code>'day'</code> check in <code>('day','month','year')</code>, <code>title text</code> check length 1 to 120, <code>note text</code> check length at most 2000, <code>source text</code> default <code>'manual'</code> check in <code>('manual','extracted')</code>, <code>created_at</code></td><td>PK <code>id</code>; index <code>(user_id, occurred_on)</code>; FK cascade</td></tr>
+<tr><td><code>life_event_scans</code></td><td><code>user_id uuid</code>, <code>scanned_at timestamptz</code>, <code>found_count integer</code> default 0</td><td>PK <code>user_id</code>; FK cascade</td></tr>
+</tbody></table></div>
+
+<p>
+  The header comment marks this as "the one table in the schema holding what the user tells us about
+  their own life rather than what the ephemeris computes, so it is owner-only in both directions: no
+  admin read policy, no service-role writes outside the extraction job acting for that same user."
+  Both tables get a single <code>for all</code> owner policy, and in code they are written only
+  through the bearer-or-cookie client, never the admin one. <code>precision</code> exists because
+  people remember "March 2021", not an hour; <code>source</code> distinguishes a typed event from one
+  proposed by mining the person's own chat history, "so a bad extraction run can be undone without
+  touching hand-entered events". <code>life_event_scans</code> is one row per user remembering that
+  the mining ran and how many candidates it found, so the offer to scan appears once
+  (<a href="#ch08">chapter 8</a>).
+</p>
+
+<h4>0007 · period_readings</h4>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>Columns</th><th>Keys and indexes</th></tr></thead>
+<tbody>
+<tr><td><code>period_readings</code></td><td><code>user_id</code>, <code>lord text</code>, <code>period_start date</code>, <code>theme text</code> check length 1 to 80, <code>meaning text</code> check length 1 to 800, <code>events_hash text</code>, <code>generated_at</code></td><td>PK <code>(user_id, lord, period_start)</code>; FK cascade</td></tr>
+</tbody></table></div>
+
+<p>
+  One row per mahadasha, plus one row with <code>lord = 'now'</code> for the current
+  mahadasha and antardasha pair, keyed on the antardasha's start "so it goes stale by itself when
+  the sub-period changes". <code>events_hash</code> records which pinned moments the text was
+  written against; when the events inside a period change, the hash no longer matches and the
+  explain route rewrites that period on the next open. The composite primary key is what the
+  explain route's <code>upsert(rows, { onConflict: "user_id,lord,period_start" })</code> relies on.
+  The policy is one <code>for all</code> owner rule, with the comment "Written by the explain route
+  acting as the user, never by admin tooling." No table in the schema has a
+  <code>touch_updated_at</code> style trigger; every timestamp is a column default or a value the
+  application writes.
+</p>
+
+<h3 id="s13-3"><span class="num">13.3</span><span>The entity relationships</span></h3>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 420" role="img" aria-label="Entity relationship diagram: auth.users at the top; four one-to-one tables beneath it (profiles, admins, birth_profiles, life_event_scans); seven one-to-many tables beneath those (conversations, device_tokens, transit_conditions, alerts, daily_readings, life_events, period_readings); messages hangs off conversations. Every arrow is a foreign key with on delete cascade.">
+  <defs>
+    <marker id="ch13a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+    <marker id="ch13b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
+  </defs>
+
+  <rect class="box-alt" x="330" y="16" width="200" height="44" rx="10"/>
+  <text class="lbl" x="430" y="35" text-anchor="middle">auth.users</text>
+  <text class="lbl-sm" x="430" y="52" text-anchor="middle">managed by Supabase Auth</text>
+
+  <text class="lbl-sm" x="20" y="74">ONE ROW PER USER</text>
+  <rect class="box" x="20" y="108" width="170" height="40" rx="8"/>
+  <text class="lbl" x="105" y="126" text-anchor="middle">profiles</text>
+  <text class="lbl-sm" x="105" y="141" text-anchor="middle">id = user, by trigger</text>
+  <rect class="box" x="230" y="108" width="170" height="40" rx="8"/>
+  <text class="lbl" x="315" y="126" text-anchor="middle">admins</text>
+  <text class="lbl-sm" x="315" y="141" text-anchor="middle">presence = admin</text>
+  <rect class="box-hot" x="440" y="108" width="190" height="40" rx="8"/>
+  <text class="lbl" x="535" y="126" text-anchor="middle">birth_profiles</text>
+  <text class="lbl-hot" x="535" y="141" text-anchor="middle">unique(user_id), chart jsonb</text>
+  <rect class="box" x="670" y="108" width="170" height="40" rx="8"/>
+  <text class="lbl" x="755" y="126" text-anchor="middle">life_event_scans</text>
+  <text class="lbl-sm" x="755" y="141" text-anchor="middle">pk user_id</text>
+
+  <path class="flow" d="M430 60 L 430 84 L 105 84 L 105 102" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M430 60 L 430 84 L 315 84 L 315 102" marker-end="url(#ch13a)"/>
+  <path class="flow-hot" d="M430 60 L 430 84 L 535 84 L 535 102" marker-end="url(#ch13b)"/>
+  <path class="flow" d="M430 60 L 430 84 L 755 84 L 755 102" marker-end="url(#ch13a)"/>
+
+  <text class="lbl-sm" x="20" y="182">MANY ROWS PER USER</text>
+  <rect class="box" x="20" y="220" width="110" height="40" rx="8"/>
+  <text class="lbl" x="75" y="238" text-anchor="middle">conversations</text>
+  <text class="lbl-sm" x="75" y="253" text-anchor="middle">tradition</text>
+  <rect class="box" x="140" y="220" width="110" height="40" rx="8"/>
+  <text class="lbl" x="195" y="238" text-anchor="middle">device_tokens</text>
+  <text class="lbl-sm" x="195" y="253" text-anchor="middle">pk token</text>
+  <rect class="box" x="260" y="220" width="120" height="40" rx="8"/>
+  <text class="lbl" x="320" y="238" text-anchor="middle">transit_conditions</text>
+  <text class="lbl-sm" x="320" y="253" text-anchor="middle">ended_on null = open</text>
+  <rect class="box" x="390" y="220" width="100" height="40" rx="8"/>
+  <text class="lbl" x="440" y="238" text-anchor="middle">alerts</text>
+  <text class="lbl-sm" x="440" y="253" text-anchor="middle">read_at</text>
+  <rect class="box" x="500" y="220" width="110" height="40" rx="8"/>
+  <text class="lbl" x="555" y="238" text-anchor="middle">daily_readings</text>
+  <text class="lbl-sm" x="555" y="253" text-anchor="middle">date, slot</text>
+  <rect class="box" x="620" y="220" width="110" height="40" rx="8"/>
+  <text class="lbl" x="675" y="238" text-anchor="middle">life_events</text>
+  <text class="lbl-sm" x="675" y="253" text-anchor="middle">occurred_on</text>
+  <rect class="box" x="740" y="220" width="100" height="40" rx="8"/>
+  <text class="lbl" x="790" y="238" text-anchor="middle">period_readings</text>
+  <text class="lbl-sm" x="790" y="253" text-anchor="middle">lord, start</text>
+
+  <path class="flow" d="M430 60 L 430 84 L 470 84 L 470 190 L 75 190 L 75 214" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M470 190 L 195 190 L 195 214" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M470 190 L 320 190 L 320 214" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M470 190 L 440 190 L 440 214" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M470 190 L 555 190 L 555 214" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M470 190 L 675 190 L 675 214" marker-end="url(#ch13a)"/>
+  <path class="flow" d="M470 190 L 790 190 L 790 214" marker-end="url(#ch13a)"/>
+
+  <rect class="box" x="20" y="316" width="110" height="40" rx="8"/>
+  <text class="lbl" x="75" y="334" text-anchor="middle">messages</text>
+  <text class="lbl-sm" x="75" y="349" text-anchor="middle">role, content</text>
+  <path class="flow" d="M75 260 L 75 310" marker-end="url(#ch13a)"/>
+  <text class="lbl-sm" x="84" y="290">conversation_id</text>
+
+  <text class="lbl-sm" x="20" y="392">Every arrow is a foreign key with on delete cascade. Deleting the auth user (DELETE /api/account) removes every row in this picture.</text>
+  <text class="lbl-sm" x="20" y="408">The avatars bucket is not a table and is not in the cascade: nothing in the code deletes a stored photo.</text>
+</svg>
+<figcaption>
+  A star, not a graph. Every table references <code>auth.users</code> directly except
+  <code>messages</code>, which references <code>conversations</code>. There are no foreign keys
+  between feature tables; <code>period_readings</code> and <code>life_events</code> are related only
+  by dates and a hash the application computes.
+</figcaption>
+</figure>
+
+<p>
+  The shape matters for two operations. Account deletion (<code>app/api/account/route.ts</code>) is
+  one call, <code>admin.auth.admin.deleteUser(user.id)</code>, and the cascades do the rest; the
+  route's comment lists profiles, birth profiles, conversations and messages, and the same
+  <code>on delete cascade</code> is on every other table too. And any query the application makes
+  needs at most one join, <code>messages</code> to <code>conversations</code>, which is the join
+  the <code>msg self</code> policy performs on every access to a message.
+</p>
+
+<h3 id="s13-4"><span class="num">13.4</span><span>Every table, its RLS shape, and who touches it</span></h3>
+
+<p>
+  The table below was built by reading every <code>.from("...")</code> call under <code>app/</code>
+  and <code>lib/</code>, excluding tests, and noting which client made it. "User client" means the
+  cookie client (<code>lib/supabase/server.ts</code>) or the bearer client
+  (<code>lib/supabase/route.ts</code>), both of which evaluate RLS as the signed-in user. "Admin
+  client" means <code>createAdminSupabase()</code>, which bypasses RLS. The last column lists the
+  iOS stores that query the table directly over PostgREST with the user's own session, which is the
+  same trust level as the user client and the reason the policies exist at all.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Table</th><th>RLS shape</th><th>Read by</th><th>Written by</th><th>iOS direct</th></tr></thead>
+<tbody>
+<tr><td><code>admins</code></td><td>Select for self or any admin; no write policy</td><td><code>lib/admin/guard.ts</code> <code>isAdminUser</code> (admin client)</td><td>Nothing in code; a hand-written insert</td><td>No</td></tr>
+<tr><td><code>profiles</code></td><td>Owner <code>for all</code></td><td>Nothing</td><td>The <code>on_auth_user_created</code> trigger only</td><td>No</td></tr>
+<tr><td><code>birth_profiles</code></td><td>Owner <code>for all</code></td><td><code>lib/data/birthProfile.ts</code> (user); <code>app/api/chat</code>, <code>app/api/kundli</code>, <code>lib/timeline/load.ts</code> (user); <code>lib/alerts/run.ts</code>, <code>lib/alerts/predictions.ts</code>, <code>lib/admin/data.ts</code> (admin)</td><td><code>saveBirthProfile</code> upsert on <code>user_id</code> and <code>ensureCurrentChart</code> update, both user client, from the intake action and <code>app/api/profile</code></td><td><code>ProfileStore</code> reads</td></tr>
+<tr><td><code>conversations</code></td><td>Owner <code>for all</code></td><td><code>lib/data/chat.ts</code>, <code>app/api/timeline/scan</code>, <code>lib/timeline/load.ts</code> (user); <code>lib/admin/data.ts</code> (admin)</td><td><code>lib/data/chat.ts</code> <code>getOrCreateConversation</code> insert (user)</td><td><code>ChatStore</code> reads</td></tr>
+<tr><td><code>messages</code></td><td>Owner via <code>conversations</code>, <code>for all</code></td><td><code>lib/data/chat.ts</code>, <code>app/api/timeline/scan</code>, <code>lib/timeline/load.ts</code> count (user); <code>lib/admin/data.ts</code> (admin)</td><td><code>lib/data/chat.ts</code> <code>appendMessage</code> insert (user)</td><td><code>ChatStore</code> reads</td></tr>
+<tr><td><code>device_tokens</code></td><td>Owner <code>for all</code></td><td><code>lib/alerts/run.ts</code>, <code>lib/alerts/predictions.ts</code> (admin)</td><td><code>app/api/devices</code> upsert on <code>token</code> and delete (admin); the alert and prediction senders delete dead tokens (admin)</td><td>No; the app calls the route</td></tr>
+<tr><td><code>transit_conditions</code></td><td>Owner select only</td><td><code>lib/alerts/run.ts</code> (admin)</td><td><code>lib/alerts/run.ts</code> insert and update <code>ended_on</code> (admin)</td><td>No</td></tr>
+<tr><td><code>alerts</code></td><td>Owner select and update</td><td>Nothing under <code>app/</code> or <code>lib/</code></td><td><code>lib/alerts/run.ts</code> insert (admin)</td><td><code>AlertsStore</code> reads and sets <code>read_at</code></td></tr>
+<tr><td><code>daily_readings</code></td><td>Owner select and update</td><td><code>lib/alerts/predictions.ts</code> reads existing slots (admin)</td><td><code>lib/alerts/predictions.ts</code> insert (admin)</td><td><code>DailyStore</code> and <code>IntentData</code> read; <code>DailyStore</code> sets <code>read_at</code></td></tr>
+<tr><td><code>life_events</code></td><td>Owner <code>for all</code></td><td><code>lib/timeline/load.ts</code>, <code>app/api/timeline/scan</code> (user)</td><td><code>app/api/life-events</code> insert and delete (user)</td><td>No; the app calls the routes</td></tr>
+<tr><td><code>life_event_scans</code></td><td>Owner <code>for all</code></td><td><code>lib/timeline/load.ts</code> (user)</td><td><code>app/api/timeline/scan</code> upsert (user)</td><td>No</td></tr>
+<tr><td><code>period_readings</code></td><td>Owner <code>for all</code></td><td><code>lib/timeline/load.ts</code> (user)</td><td><code>app/api/timeline/explain</code> upsert (user)</td><td>No</td></tr>
+</tbody></table></div>
+
+<p>Four things in that table are worth a second look.</p>
+
+<ul>
+  <li><strong><code>profiles</code> is write-only.</strong> The trigger fills it and nothing reads
+    it. The name the app shows comes from <code>birth_profiles.first_name</code>; the admin page
+    shows the email from <code>auth.users</code>. The table is a leftover from the first design and
+    costs one insert per sign-up.</li>
+  <li><strong><code>device_tokens</code> has an owner policy that no code uses.</strong> The devices
+    route writes with the admin client, and its comment explains: "a device handed from one account
+    to another has to change owner, and the owner-only RLS policy would (correctly) refuse that
+    update. The user id still comes from the verified session, never from the body." The policy
+    remains so a client could read its own registrations; today none does.</li>
+  <li><strong><code>alerts</code> is never read on the web.</strong> Only the iOS app lists alerts
+    and marks them read, directly against PostgREST. The web has no inbox
+    (<a href="#ch09">chapter 9</a>).</li>
+  <li><strong>The timeline tables are the only ones written as the user from a route
+    handler.</strong> <code>life_events</code>, <code>life_event_scans</code> and
+    <code>period_readings</code> are inserted, upserted and deleted through the bearer-or-cookie
+    client, so RLS is the authorisation. Every other server-side write goes through the admin
+    client, and every one of those routes takes the user id from the verified session first.</li>
+</ul>
+
+<div class="note"><b>A rejected write does not throw</b>
+<code>supabase-js</code> resolves with an <code>error</code> field when RLS or a constraint rejects
+a write; it does not throw. The comment in <code>lib/data/birthProfile.ts</code> spells this out and
+is why every write in <code>lib/data/</code> checks <code>error</code> and turns it into a
+<code>throw</code>. A read blocked by RLS is worse: it returns an empty result that looks exactly
+like "no rows yet". That is what a missing policy, or a missing session on a bearer client, looks
+like from a route handler, and it is the first thing to suspect when a signed-in user sees an empty
+home.</div>
+
+<h3 id="s13-5"><span class="num">13.5</span><span>The avatars bucket</span></h3>
+
+<p>
+  The one piece of storage is not in any migration. The README's architecture sketch lists
+  "Storage (avatars)" beside Postgres and Auth, and points at <code>docs/SUPABASE_SETUP.md</code>
+  for "the storage bucket", but that document has no bucket step, so the bucket is created in the
+  dashboard by hand. The code tells you what it must look like.
+</p>
+
+<pre><code>// app/(app)/app/intake/actions.ts (the same function is in app/api/profile/route.ts)
+async function uploadAvatar(userId: string, file: File): Promise&lt;string | null&gt; {
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${userId}/avatar.${ext}`;
+  const bytes = Buffer.from(await file.arrayBuffer());
+  const admin = createAdminSupabase();
+  const { error } = await admin.storage
+    .from("avatars")
+    .upload(path, bytes, { contentType: file.type, upsert: true });
+  if (error) return null;
+  const { data } = admin.storage.from("avatars").getPublicUrl(path);
+  // cache-bust so a replaced photo shows immediately
+  return `${data.publicUrl}?v=${Date.now()}`;
+}</code></pre>
+
+<p>
+  Four facts follow. The upload is made with the service-role client, so the bucket needs no
+  storage policies for writes and none exist in the repo. The object name is
+  <code>{user id}/avatar.{ext}</code> with <code>upsert: true</code>, so each person has at most
+  one photo per extension, and a person who uploads a PNG after a JPEG has two objects with only the
+  newer one referenced. The URL stored in <code>birth_profiles.avatar_url</code> comes from
+  <code>getPublicUrl</code>, which only works if the bucket is public; the home page, the profile
+  page and the admin list all render it in a plain <code>&lt;img&gt;</code> with no token. And a
+  failed upload returns <code>null</code>, which <code>saveBirthProfile</code> reads as "keep the
+  old photo": the comment there says "Only overwrite the avatar when a new one was uploaded". The
+  same function is duplicated in <code>app/api/profile/route.ts</code> for native clients, byte for
+  byte. Nothing in the code deletes an object, on account deletion or otherwise.
+</p>
+
+<h3 id="s13-6"><span class="num">13.6</span><span>The anon key and the service-role key</span></h3>
+
+<p>
+  Supabase issues two keys for a project and the code names them by their environment variables.
+  <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> is public by design; the README says it is "safe to ship
+  in the iOS binary", and the <code>NEXT_PUBLIC_</code> prefix means Next inlines it into browser
+  bundles. <code>SUPABASE_SERVICE_ROLE_KEY</code> is read only through <code>lib/env.ts</code>,
+  which imports <code>server-only</code> so any client component that reaches for it fails the
+  build. The policies in this chapter are what make the first key safe and the second one necessary.
+</p>
+
+<div class="tablewrap"><table>
+<thead><tr><th>Client</th><th>File</th><th>Key</th><th>Runs as</th><th>Used from</th></tr></thead>
+<tbody>
+<tr><td>Browser</td><td><code>lib/supabase/client.ts</code></td><td>anon</td><td>The signed-in user, via the session in cookies</td><td>Nothing today; no client component imports it</td></tr>
+<tr><td>Cookie</td><td><code>lib/supabase/server.ts</code></td><td>anon</td><td>The signed-in user, via the session in cookies</td><td>Server components and server actions; <code>lib/supabase/middleware.ts</code> builds the same kind of client over the request's cookies</td></tr>
+<tr><td>Bearer</td><td><code>lib/supabase/route.ts</code></td><td>anon, plus <code>Authorization: Bearer</code> forwarded</td><td>The user whose JWT the iOS app sent; falls back to the cookie client</td><td>Every <code>app/api/*</code> route that acts for a user; cron has no session and geocode needs none</td></tr>
+<tr><td>Admin</td><td><code>lib/supabase/admin.ts</code></td><td>service role</td><td>Nobody: RLS is bypassed</td><td>Cron jobs, admin pages, device registration, avatar upload, account deletion</td></tr>
+</tbody></table></div>
+
+<p>
+  With the anon key, every query runs as the <code>authenticated</code> role if a valid JWT is
+  attached, or as <code>anon</code> if none is. Every policy in the schema compares a column to
+  <code>auth.uid()</code>. For the <code>anon</code> role that function returns null, no row matches,
+  and every table reads as empty and refuses every write. So the anon key on its own can do
+  nothing, which is what makes it publishable. With a JWT attached the same key sees exactly the
+  rows whose <code>user_id</code> (or <code>id</code>, or conversation) is the token's subject, which
+  is why <code>listConversations</code> and <code>getBirthProfile</code> need no user filter and why
+  the iOS stores can query PostgREST directly.
+</p>
+
+<p>
+  The service role bypasses RLS entirely. Reading the policies tells you where it is unavoidable:
+</p>
+
+<ul>
+  <li><code>transit_conditions</code>, <code>alerts</code> and <code>daily_readings</code> have no
+    insert policy. Their writer is the cron job in <code>lib/alerts/</code>, which has no user
+    session because no user is present at 02:30 UTC. It runs as the service role and iterates every
+    <code>birth_profiles</code> row, which an owner policy would never let one session do.</li>
+  <li><code>admins</code> has no write policy, and its read policy calls <code>is_admin()</code>.
+    <code>requireAdmin()</code> could read it as the signed-in user; instead
+    <code>isAdminUser</code> uses the admin client, and <code>lib/admin/data.ts</code> then reads
+    other people's <code>birth_profiles</code>, <code>conversations</code> and <code>messages</code>,
+    which no policy allows and which is the point of an admin page. Every admin function calls
+    <code>requireAdmin()</code> first; the service role is behind a check, never in front of one.</li>
+  <li><code>device_tokens</code> needs to change owner, and the owner policy forbids that, so the
+    devices route uses the admin client after verifying the session.</li>
+  <li>Account deletion and the avatar upload are Auth and Storage operations, not table writes;
+    <code>auth.admin.deleteUser</code> exists only on the service role, and the bucket has no
+    policies because only the service role writes it.</li>
+</ul>
+
+<p>
+  Everything else runs as the user. The rule in the code is simple to state and easy to check with
+  a grep for <code>createAdminSupabase</code>: outside tests it appears in ten files, every one of
+  them either imports <code>server-only</code> itself or is a route handler or server action, and the comment in
+  <code>lib/supabase/admin.ts</code> is the rule in one line: "Bypasses RLS. Only ever import from
+  server code behind an admin auth check."
+</p>
+
+<div class="note caution"><b>What the policies do not check</b>
+An owner policy proves the row belongs to the caller. It does not check columns: the update
+policies on <code>alerts</code> and <code>daily_readings</code> permit rewriting the title as well
+as <code>read_at</code>, and the <code>for all</code> policy on <code>birth_profiles</code> lets a
+client write any <code>chart</code> JSON it likes. The application writes <code>chart</code> only
+from the Swiss Ephemeris on the server, but the database would accept a hand-made one from a valid
+session. The schema trusts its owners with their own rows completely; it trusts them with nobody
+else's at all.</div>
+
+<h3 id="s13-7"><span class="num">13.7</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>supabase/migrations/0001_init.sql</code>, for the trigger, the five policies and the comment about admin reads.</li>
+  <li><code>supabase/migrations/0004_alerts_push.sql</code>, for the three policy shapes in one file and the partial unique index.</li>
+  <li><code>supabase/migrations/0005_daily_readings.sql</code>, two comments that are the design.</li>
+  <li><code>supabase/migrations/0006_life_events.sql</code> and <code>0007_period_readings.sql</code>, the owner-only-in-both-directions tables.</li>
+  <li><code>lib/supabase/route.ts</code>, how one function serves cookies and bearer tokens.</li>
+  <li><code>lib/supabase/admin.ts</code> and <code>lib/env.ts</code>, the service role and <code>server-only</code>.</li>
+  <li><code>app/api/devices/route.ts</code>, the one route whose comment argues against its own table's policy.</li>
+  <li><code>lib/data/birthProfile.ts</code>, for the note on rejected writes resolving rather than throwing.</li>
+  <li><code>docs/GO_LIVE_CHECKLIST.md</code>, section 3, for what an unapplied migration looks like in production.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why can the cron job not use the cookie or bearer client?</p>
+<p class="a">It has no session: no user is signed in when Vercel calls the route, and it must read every user's <code>birth_profiles</code> row and insert readings for each. Only the service role sees across users, so the job is written for it and the tables it writes have no insert policies at all.</p>
+<p class="q">A user's <code>listConversations()</code> returns an empty list although they have chats. What are the first two suspects?</p>
+<p class="a">A missing or expired session on the client that made the call (RLS returns nothing, not an error), or a policy that does not match the row. Neither throws; both look like "no data".</p>
+<p class="q">Why is the token, not the user, the primary key of <code>device_tokens</code>?</p>
+<p class="a">One person can have several phones and one phone can be signed into a different account later. A token must belong to exactly one user at a time, and moving it is an upsert on the token, which is why the route writes it as the service role.</p>
+<p class="q">What does <code>unique (user_id, for_date, slot)</code> on <code>daily_readings</code> buy?</p>
+<p class="a">Idempotence for the twice-daily job. A second run for the same local date and slot finds the row and writes nothing, so running the job more often, or twice by accident, is safe.</p>
+<p class="q">Which tables does the service role never touch, and why does that matter?</p>
+<p class="a"><code>life_events</code>, <code>life_event_scans</code> and <code>period_readings</code>. They hold what the person said about their own life, so the migration deliberately gives them no admin path; their routes act as the user and RLS is the whole authorisation.</p>
+<p class="q">Why does deploying a commit that adds a migration need a manual step, and in what order?</p>
+<p class="a">Nothing applies migrations automatically and <code>main</code> deploys on push. The SQL must be run against production, lowest number first, before the code that reads the new table takes traffic; otherwise every route that touches it errors until it is.</p>
+</div>
+</section>

@@ -1,0 +1,309 @@
+<section class="chapter" id="chB" data-hue="ref">
+<p class="chapter-kicker">Appendix B</p>
+<h2><span class="num">B</span><span>Decisions</span></h2>
+
+<p class="lede">
+  Nineteen decisions, each with the alternatives it beat and the line of code that shows it held.
+  Most of them were made in three bursts: the engine in July, the phone in August, and the
+  correction of the chart in September.
+</p>
+
+<p>
+  This log describes the code on <code>main</code> on 30 September 2026, version 0.3.0. Every entry
+  is verified against a file, not a memory. Dates come from the design notes under
+  <code>docs/design/</code>, from <code>CHANGELOG.md</code>, or from the commit that landed the
+  change; where none of those gives a date, the entry says so. Alternatives are the ones the design
+  notes considered, or the ones the code comments argue against. Where a decision was later
+  amended, the amendment is its own entry rather than a rewrite of history.
+</p>
+
+<h3 id="sB-1"><span class="num">B.1</span><span>How to read this log</span></h3>
+
+<p>
+  Each entry has five parts: the decision in one sentence, the date, the alternatives, why, and
+  where in the code it shows. The "where" is the point. A decision that leaves no trace in the code
+  is a preference, and the next contributor is free to ignore it. Every decision here leaves a
+  trace, and most are pinned by a test named in the entry.
+</p>
+
+<figure>
+<svg class="diagram" viewBox="0 0 860 260" role="img" aria-label="A horizontal timeline from July to September 2026 with the decisions grouped under four dates: the engine and prompt on 23 and 24 July, the API and phone on 25 and 26 August, the rename, timeline, caching of the chart in the App Group and the two first releases on 16 September, and the whole-sign houses, derived facts and silent natal reconciliation on 17 and 18 September.">
+  <defs>
+    <marker id="chBa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
+  </defs>
+  <path class="flow" d="M20 60 L 840 60" marker-end="url(#chBa)"/>
+  <text class="lbl-sm" x="20" y="24">2026</text>
+
+  <rect class="box" x="30" y="90" width="180" height="150" rx="8"/>
+  <text class="lbl" x="120" y="112" text-anchor="middle">23 to 24 July</text>
+  <text class="lbl-sm" x="120" y="134" text-anchor="middle">Ephemeris in WASM</text>
+  <text class="lbl-sm" x="120" y="150" text-anchor="middle">Lahiri and tropical</text>
+  <text class="lbl-sm" x="120" y="166" text-anchor="middle">Placidus everywhere</text>
+  <text class="lbl-sm" x="120" y="182" text-anchor="middle">Sonnet, Opus for deep</text>
+  <text class="lbl-sm" x="120" y="198" text-anchor="middle">Admin, own login</text>
+  <text class="lbl-sm" x="120" y="214" text-anchor="middle">Chart stored at intake</text>
+
+  <rect class="box" x="240" y="90" width="180" height="150" rx="8"/>
+  <text class="lbl" x="330" y="112" text-anchor="middle">25 to 26 August</text>
+  <text class="lbl-sm" x="330" y="134" text-anchor="middle">One API, bearer auth</text>
+  <text class="lbl-sm" x="330" y="150" text-anchor="middle">Anon key in the binary</text>
+  <text class="lbl-sm" x="330" y="166" text-anchor="middle">Prompt split for caching</text>
+  <text class="lbl-sm" x="330" y="182" text-anchor="middle">Low effort by default</text>
+  <text class="lbl-sm" x="330" y="198" text-anchor="middle">Twice-daily cron, slots</text>
+  <text class="lbl-sm" x="330" y="214" text-anchor="middle">Email codes, XcodeGen</text>
+
+  <rect class="box" x="450" y="90" width="180" height="150" rx="8"/>
+  <text class="lbl" x="540" y="112" text-anchor="middle">16 September</text>
+  <text class="lbl-sm" x="540" y="134" text-anchor="middle">Astra becomes Sanchara</text>
+  <text class="lbl-sm" x="540" y="150" text-anchor="middle">Chart in the App Group</text>
+  <text class="lbl-sm" x="540" y="166" text-anchor="middle">iOS 17, widget extension</text>
+  <text class="lbl-sm" x="540" y="182" text-anchor="middle">Timeline, Siri, widgets</text>
+  <text class="lbl-sm" x="540" y="198" text-anchor="middle">on-device answers</text>
+  <text class="lbl-sm" x="540" y="214" text-anchor="middle">0.1.0 and 0.2.0 tagged</text>
+
+  <rect class="box-hot" x="660" y="90" width="180" height="150" rx="10"/>
+  <text class="lbl" x="750" y="112" text-anchor="middle">17 to 18 September</text>
+  <text class="lbl-hot" x="750" y="134" text-anchor="middle">Whole-sign for Vedic</text>
+  <text class="lbl-sm" x="750" y="150" text-anchor="middle">Placidus kept for Western</text>
+  <text class="lbl-sm" x="750" y="166" text-anchor="middle">Derived facts stored</text>
+  <text class="lbl-sm" x="750" y="182" text-anchor="middle">Natal doshas never alert</text>
+  <text class="lbl-sm" x="750" y="198" text-anchor="middle">No Vedic technique for Western</text>
+  <text class="lbl-sm" x="750" y="214" text-anchor="middle">0.3.0</text>
+
+  <line class="wall" x1="120" y1="60" x2="120" y2="84"/>
+  <line class="wall" x1="330" y1="60" x2="330" y2="84"/>
+  <line class="wall" x1="540" y1="60" x2="540" y2="84"/>
+  <line class="wall" x1="750" y1="60" x2="750" y2="84"/>
+</svg>
+<figcaption>
+  When the decisions were made. The September burst is the only one that changed something users
+  had already seen, which is why it carries the most safeguards.
+</figcaption>
+</figure>
+
+<h4>Contents</h4>
+<ol>
+  <li><a href="#chB-d01">Swiss Ephemeris as WebAssembly in the route handler</a></li>
+  <li><a href="#chB-d02">Sidereal Lahiri for Vedic, tropical for Western</a></li>
+  <li><a href="#chB-d03">Whole-sign houses for Vedic</a></li>
+  <li><a href="#chB-d04">Placidus kept for Western</a></li>
+  <li><a href="#chB-d05">Derived facts computed once and stored with the chart</a></li>
+  <li><a href="#chB-d06">Contested doctrine left out</a></li>
+  <li><a href="#chB-d07">The system prompt in two halves, for the cache</a></li>
+  <li><a href="#chB-d08">Sonnet for readings, Opus for deep readings, low effort by default</a></li>
+  <li><a href="#chB-d09">Model replies as delimited lines, not JSON</a></li>
+  <li><a href="#chB-d10">Natal doshas never alert</a></li>
+  <li><a href="#chB-d11">One API for web and iOS, with bearer auth</a></li>
+  <li><a href="#chB-d12">The anon key ships in the binary; RLS is the boundary</a></li>
+  <li><a href="#chB-d13">Twice-daily cron with local-time slots</a></li>
+  <li><a href="#chB-d14">The admin area has its own login</a></li>
+  <li><a href="#chB-d15">The chart is cached in an App Group</a></li>
+  <li><a href="#chB-d16">Email codes instead of magic links on the phone</a></li>
+  <li><a href="#chB-d17">A generated Xcode project</a></li>
+  <li><a href="#chB-d18">iOS 17 as the floor, with a widget extension</a></li>
+  <li><a href="#chB-d19">Astra becomes Sanchara; the identifiers stay</a></li>
+</ol>
+
+<h3 id="sB-2"><span class="num">B.2</span><span>The chart</span></h3>
+
+<h4 id="chB-d01">1. Swiss Ephemeris as WebAssembly in the route handler</h4>
+<ul>
+  <li><strong>Decision.</strong> The ephemeris runs in-process, as <code>swisseph-wasm</code>, inside the Next.js route handlers on Vercel.</li>
+  <li><strong>Date.</strong> Design note of 23 July 2026; the chart service landed the same day.</li>
+  <li><strong>Alternatives.</strong> The design note kept one open: "fallback: hosted ephemeris API." The iOS note later added and rejected computing on the device.</li>
+  <li><strong>Why.</strong> No network hop and no second service to run; the same module computes a birth chart at intake and today's sky in the cron job. The WASM init is the cost, so it is paid once per process.</li>
+  <li><strong>Where.</strong> <code>getSwe</code> in <code>lib/astrology/chart.ts</code> holds one lazily initialised promise per process. Every route that computes declares <code>export const runtime = "nodejs"</code>, with the comment "swisseph-wasm runs during chart computation." <code>lib/timeline/build.ts</code> goes so far as to rebuild the Moon's longitude from the stored chart so the timeline "loads without re-running the Swiss Ephemeris, which costs a WASM init per process."</li>
+</ul>
+
+<h4 id="chB-d02">2. Sidereal Lahiri for Vedic, tropical for Western</h4>
+<ul>
+  <li><strong>Decision.</strong> One birth input produces two charts: sidereal with the Lahiri ayanamsa, and tropical.</li>
+  <li><strong>Date.</strong> 23 July 2026.</li>
+  <li><strong>Alternatives.</strong> A single tradition; a different ayanamsa. Neither is discussed in the notes, which name Lahiri from the first line and never revisit it.</li>
+  <li><strong>Why.</strong> The traditions disagree by the ayanamsa, currently about 24 degrees, so a reading in one is wrong in the other. Computing both at intake means the mode switch in chat is free.</li>
+  <li><strong>Where.</strong> <code>computeChart</code> calls <code>swe.set_sid_mode(swe.SE_SIDM_LAHIRI, 0, 0)</code> and sets <code>SEFLG_SIDEREAL</code> only for <code>"vedic"</code>, and stores the ayanamsa on the chart. <code>saveBirthProfile</code> computes both and writes <code>{ vedic, western }</code>. The test "sidereal (vedic) sun sits ~24° behind tropical, landing in Sagittarius, with nakshatras" pins the difference.</li>
+</ul>
+
+<h4 id="chB-d03">3. Whole-sign houses for Vedic</h4>
+<ul>
+  <li><strong>Decision.</strong> A Vedic planet's house is the count of signs from the ascendant's sign, not the Placidus cusp it falls between.</li>
+  <li><strong>Date.</strong> 17 September 2026, shipped in 0.3.0.</li>
+  <li><strong>Alternatives.</strong> Keep Placidus numbers and make the renderers draw Placidus; or a SQL migration and backfill to rewrite every stored chart.</li>
+  <li><strong>Why.</strong> Three renderers (the Swift kundli, the PDF, the on-device table) already labelled house 1 with the ascendant's sign and each next house with the next sign, then filled those houses with Placidus numbers, so "a planet could be drawn in a house marked with a sign it was not in." Placidus also allows two houses to share a sign, which leaves "the lord of the 7th" undefined, and every technique added in 0.3.0 rests on lordship. The upgrade happens on read rather than by migration, so a chart "corrects wholly or not at all, never half."</li>
+  <li><strong>Where.</strong> <code>house: tradition === "vedic" ? houseFrom(ascSign, signOf(lon)) : houseOf(lon, cusps)</code> in <code>chart.ts</code>. <code>CHART_SCHEMA_VERSION = 2</code> in <code>constants.ts</code>. <code>ensureCurrentChart</code> in <code>lib/data/birthProfile.ts</code> recomputes both traditions together when <code>isChartStale</code> says so. Tests: "places every planet in the Nth sign from the lagna" and the <code>ensureCurrentChart</code> suite.</li>
+</ul>
+
+<h4 id="chB-d04">4. Placidus kept for Western</h4>
+<ul>
+  <li><strong>Decision.</strong> Western charts keep Placidus house numbers, and the Placidus cusps are stored for both traditions.</li>
+  <li><strong>Date.</strong> 17 September 2026, in the same change.</li>
+  <li><strong>Alternatives.</strong> Whole-sign for both, which would have been simpler.</li>
+  <li><strong>Why.</strong> Placidus is the convention Western readers expect, and the note's wording is flat: "Western continues to use houseOf(lon, cusps) unchanged." The cusps stay on <code>chart.houses</code> because the test file reads them, and because they are the ascendant's source.</li>
+  <li><strong>Where.</strong> <code>houseOf</code> in <code>chart.ts</code>, still called for <code>"western"</code>. Test: "leaves western on Placidus, where a planet can sit in a house whose cusp sign differs." The prompt test suite has a block titled "a Western chart gets no derived facts, no Vedic technique, and Placidus houses."</li>
+</ul>
+
+<h4 id="chB-d05">5. Derived facts computed once and stored with the chart</h4>
+<ul>
+  <li><strong>Decision.</strong> Lords, aspects, dignity, combustion, the dasha lords' placements and the natal conditions are computed by <code>deriveFacts</code> at chart time and stored as <code>chart.derived</code>; readers fall back to computing when the block is absent.</li>
+  <li><strong>Date.</strong> 17 September 2026, 0.3.0.</li>
+  <li><strong>Alternatives.</strong> Compute per request; add a column and a backfill job.</li>
+  <li><strong>Why.</strong> The facts are a pure function of the chart, so storing them costs nothing and lets the iOS app decode them from <code>birth_profiles.chart</code> "with no API change." The fallback is what lets it ship without a migration: "existing users get correct answers on their next message, and the stored copy fills in whenever their chart is next written."</li>
+  <li><strong>Where.</strong> The last line of <code>computeChart</code>: <code>derived: tradition === "vedic" ? deriveFacts(result) : undefined</code>. <code>factsFor</code> and <code>isChartStale</code> in <code>derived.ts</code>. <code>deriveFacts</code> recomputes houses from signs rather than reading <code>planet.house</code>, "so a chart stored before the whole-sign change still derives correctly." <code>NatalChart.derived</code> is optional in <code>ChartData.swift</code> so a chart cached before this shipped still decodes.</li>
+</ul>
+
+<h4 id="chB-d06">6. Contested doctrine left out</h4>
+<ul>
+  <li><strong>Decision.</strong> Rahu and Ketu rule no sign and aspect only the 7th; dignity never consults planetary friendship.</li>
+  <li><strong>Date.</strong> 17 September 2026.</li>
+  <li><strong>Alternatives.</strong> Node co-lordship of Aquarius and Scorpio; the school giving the nodes the 5th and 9th; natural friendship as a sixth dignity.</li>
+  <li><strong>Why.</strong> The header of <code>derived.ts</code>: "a contested claim repeated in every reading is worse than a missing one." Friendship is a compound of natural and temporal judgement, and "half of it is misleading rather than partial." The natural table is used only in numerology, where it is the whole rule.</li>
+  <li><strong>Where.</strong> <code>NODES</code>, <code>signsRuledBy</code> and <code>aspectedHouses</code> in <code>derived.ts</code>; <code>FRIENDS</code> and <code>ENEMIES</code> in <code>numerology.ts</code>, resolved compoundly because the classical table is asymmetric. Tests: "gives the nodes no dignity anywhere", "gives the nodes the 7th only", "assigns lordships, and none to the nodes."</li>
+</ul>
+
+<h3 id="sB-3"><span class="num">B.3</span><span>The readings</span></h3>
+
+<h4 id="chB-d07">7. The system prompt in two halves, for the cache</h4>
+<ul>
+  <li><strong>Decision.</strong> The system prompt is built as <code>buildChartSystem</code>, byte-identical for a user across turns and conversations, followed by <code>buildTodaySystem</code>, which carries everything that varies. A cache breakpoint sits after the first half and another after the last stored turn.</li>
+  <li><strong>Date.</strong> 26 August 2026, the "cheaper prompts" change.</li>
+  <li><strong>Alternatives.</strong> One prompt, re-billed in full every turn, which is what existed before. The doc records what had to stop for caching to work: the date line carried a clock time, and transits were computed "for now."</li>
+  <li><strong>Why.</strong> Measured in <code>docs/MODEL_COSTS.md</code>: the system prompt went from 1,608 to 942 tokens, system plus history from 4,017 to 2,868, and from the second turn the whole prefix is a cache read at a tenth of the input rate. Together with effort, a mid-conversation turn fell from roughly $0.023 to $0.008.</li>
+  <li><strong>Where.</strong> <code>buildChartSystem</code> in <code>lib/astrology/prompt.ts</code>, "kept separate so it can carry a cache breakpoint." The two <code>cache_control</code> markers in <code>app/api/chat/route.ts</code>. <code>describeToday</code> reduces the time to a part of day; <code>transitChart</code> samples midday UTC once per day per neighbourhood. Test: "keeps volatile content out of the cacheable half." The <code>chat usage</code> log line reports <code>cache_read</code>, so a regression is visible.</li>
+</ul>
+
+<h4 id="chB-d08">8. Sonnet for readings, Opus for deep readings, low effort by default</h4>
+<ul>
+  <li><strong>Decision.</strong> <code>READING_MODEL</code> is <code>claude-sonnet-5</code>; <code>DEEP_READING_MODEL</code> is <code>claude-opus-4-8</code>. Routine readings send <code>output_config: { effort: "low" }</code>; deep readings keep the default.</li>
+  <li><strong>Date.</strong> 24 July 2026 for the models, after a same-day detour through Haiku as the default; low effort followed on 26 August.</li>
+  <li><strong>Alternatives.</strong> Haiku, which the comment in <code>anthropic.ts</code> notes does not support adaptive thinking; thinking disabled, which the doc measured and declined.</li>
+  <li><strong>Why.</strong> Thinking tokens are billed as output, "the expensive half of a reading." On the same chart and question: adaptive at default effort produced 1,452 output tokens, low effort 719, thinking disabled 328, and "all three cited the same real placements." Low is where routine readings sit, "reasoning intact, spend halved." Disabled was not chosen because "chart work benefits from some reasoning."</li>
+  <li><strong>Where.</strong> <code>lib/anthropic.ts</code>, with the three numbers in its comment. The chat route spreads <code>LOW_EFFORT</code> only when <code>body.deep</code> is false and sets <code>max_tokens</code> 1,600 or 3,000 as "a ceiling, not a target." The alert composer uses Opus at low effort with <code>max_tokens: 1600</code>; the daily readings and timeline explanations use Sonnet at low effort.</li>
+</ul>
+
+<h4 id="chB-d09">9. Model replies as delimited lines, not JSON</h4>
+<ul>
+  <li><strong>Decision.</strong> Structured replies from the model (alerts, daily readings, extracted moments, period explanations) are asked for as labelled or pipe-delimited lines and parsed leniently.</li>
+  <li><strong>Date.</strong> 26 August 2026, "ask for a delimited reply instead of JSON."</li>
+  <li><strong>Alternatives.</strong> JSON, which was the first shape and is still accepted as a fallback.</li>
+  <li><strong>Why.</strong> From <code>parseAlertCopy</code>: asked for JSON, the model "sometimes writes real newlines inside the string, which is not valid JSON, and the reply is lost. Measured on a batch of seven live readings, two came back that way. Line-delimited text has no escaping to get wrong."</li>
+  <li><strong>Where.</strong> <code>parseAlertCopy</code> and <code>parseAlertJson</code> in <code>lib/alerts/compose.ts</code>; the <code>DATE | PRECISION | TITLE | EVIDENCE</code> shape in <code>lib/timeline/extract.ts</code>; <code>LORD | START | THEME | MEANING</code> in <code>lib/timeline/explain.ts</code>. Every parser re-validates against the birth date and today, because "a date outside a person's life is the one error that would be visibly absurd."</li>
+</ul>
+
+<h4 id="chB-d10">10. Natal doshas never alert</h4>
+<ul>
+  <li><strong>Decision.</strong> Once a user has any natal-scope row in <code>transit_conditions</code>, a natal condition that starts or ends is recorded but never pushed. The count query fails closed.</li>
+  <li><strong>Date.</strong> 17 September 2026, in two commits, shipped in 0.3.0.</li>
+  <li><strong>Alternatives.</strong> The design note first prescribed a per-user <code>last_reconciled_version</code> column with a one-time silent reconciliation. No such column exists; the note was amended to describe what shipped.</li>
+  <li><strong>Why.</strong> Whole-sign houses change which natal conditions are detected and their signatures, and the daily job treats an unmatched signature as a condition starting; the first run after a chart upgrade would have pushed "Mangal Dosha has begun" about a chart "that has not changed since they were born." <code>partitionForAlerts</code> generalises it: a change in a natal condition "is always an artifact of the computation changing" and "never an event." The cost: a natal detector added later never notifies existing users.</li>
+  <li><strong>Where.</strong> <code>partitionForAlerts</code> and <code>deriveHadNatalRows</code> in <code>lib/alerts/run.ts</code>; the raw <code>started</code> and <code>ended</code> sets are still written, with comments warning not to filter them there. Tests: "never alerts a natal condition once the user has natal rows" and "fails CLOSED", which treats a count error as "yes, has rows."</li>
+</ul>
+
+<h3 id="sB-4"><span class="num">B.4</span><span>The platform</span></h3>
+
+<h4 id="chB-d11">11. One API for web and iOS, with bearer auth</h4>
+<ul>
+  <li><strong>Decision.</strong> The iOS app calls the same <code>/api/*</code> route handlers as the web app, sending <code>Authorization: Bearer</code> with its Supabase access token; the web keeps cookies.</li>
+  <li><strong>Date.</strong> iOS design note of 25 August 2026; the bearer-aware client landed the same day.</li>
+  <li><strong>Alternatives.</strong> A second backend for mobile; a WebView or Capacitor wrapper, which the note considered and rejected on App Store grounds.</li>
+  <li><strong>Why.</strong> The note's rule: "anything requiring a secret or the ephemeris stays on Vercel; everything else the app does itself." The route handlers already held the Anthropic key, the ephemeris and the PDF renderer, so the only change was how a caller is identified. The web's behaviour was left "unchanged."</li>
+  <li><strong>Where.</strong> <code>createRouteSupabase</code> in <code>lib/supabase/route.ts</code>: a bearer token yields a supabase-js client that forwards it "so RLS evaluates as that user"; no token falls through to the cookie client. Every route handler under <code>app/api/</code> starts with it. <code>SancharaAPI.request</code> in the app sets the header from <code>Supa.accessToken()</code>. Tests in <code>lib/supabase/route.test.ts</code>.</li>
+</ul>
+
+<h4 id="chB-d12">12. The anon key ships in the binary; RLS is the boundary</h4>
+<ul>
+  <li><strong>Decision.</strong> The iOS app carries the Supabase URL and anon key, generated into <code>AppConfig.swift</code> at build time, and reads and writes its own rows directly. The service-role and Anthropic keys never leave the server.</li>
+  <li><strong>Date.</strong> 25 August 2026.</li>
+  <li><strong>Alternatives.</strong> Proxy every read through the API so the app holds no key at all.</li>
+  <li><strong>Why.</strong> The anon key "is publishable by design and safe in the binary; RLS is the security boundary." Every table is scoped to <code>auth.uid()</code>, so the key alone reads nothing. This is what lets the phone fetch <code>birth_profiles.chart</code>, the readings and the alerts without new endpoints.</li>
+  <li><strong>Where.</strong> <code>mobile/scripts/make-config.sh</code> reads only the two public values and its header says the secret keys "must never reach the app binary." The generated file is ignored by git. <code>ProfileStore</code>, <code>DailyStore</code> and <code>AlertsStore</code> query tables directly through <code>Supa.client</code>. The one exception proves the rule: <code>POST /api/devices</code> writes with the admin client because a device moving between accounts has to change owner, and "the owner-only RLS policy would (correctly) refuse that update."</li>
+</ul>
+
+<h4 id="chB-d13">13. Twice-daily cron with local-time slots</h4>
+<ul>
+  <li><strong>Decision.</strong> One Vercel Cron path, <code>/api/cron/daily</code>, fires at 02:30 and 15:30 UTC. Each user's slot is decided by their local hour, before 14:00 is morning and after is night, and a unique index makes a repeat run write nothing.</li>
+  <li><strong>Date.</strong> 26 August 2026.</li>
+  <li><strong>Alternatives.</strong> A schedule per user or per timezone; a queue.</li>
+  <li><strong>Why.</strong> Fixed schedules are what Vercel Cron offers, and idempotence removes the need for anything finer: "the job can run as often as you like." The two hours are 08:00 and 21:00 IST, which says which users the schedule was tuned for; a user elsewhere still gets both slots, at whatever local hour the run lands, because the slot comes from their clock and not the server's.</li>
+  <li><strong>Where.</strong> <code>vercel.json</code>; <code>NIGHT_STARTS_AT_HOUR</code>, <code>slotForHour</code> and <code>isSlotDue</code> in <code>lib/alerts/slots.ts</code>; <code>unique (user_id, for_date, slot)</code> in <code>0005_daily_readings.sql</code>; and the conflict code <code>23505</code> treated as "already done" in <code>writeDueReading</code>. The route refuses every request without <code>CRON_SECRET</code>. Tests: "does not backfill a slot the user has moved past."</li>
+</ul>
+
+<h4 id="chB-d14">14. The admin area has its own login</h4>
+<ul>
+  <li><strong>Decision.</strong> Admin is an isolated route zone at <code>/admin</code> with its own login page, gated by presence in an <code>admins</code> table that has no insert policy.</li>
+  <li><strong>Date.</strong> 23 July 2026.</li>
+  <li><strong>Alternatives.</strong> A role column on <code>profiles</code>; a separate deployment.</li>
+  <li><strong>Why.</strong> The first migration's comment: "presence in this table = admin. No self-service path." The design note's requirement was that "consumer signup can never grant admin," and a table nobody can insert into from the client satisfies it without a second app.</li>
+  <li><strong>Where.</strong> <code>adminSignIn</code> in <code>app/admin/actions.ts</code> signs in with a password and immediately signs out again unless <code>isAdminUser</code> is true. <code>requireAdmin</code> in <code>lib/admin/guard.ts</code> guards every page. The middleware redirects unauthenticated <code>/admin</code> paths to <code>/admin/login</code> rather than <code>/login</code>. Reads go through <code>createAdminSupabase</code>, whose comment says "Bypasses RLS. Only ever import from server code behind an admin auth check."</li>
+</ul>
+
+<h3 id="sB-5"><span class="num">B.5</span><span>The phone</span></h3>
+
+<h4 id="chB-d15">15. The chart is cached in an App Group</h4>
+<ul>
+  <li><strong>Decision.</strong> The chart, the birth details, the latest reading and the current period are written as JSON into the <code>group.com.shivvyas.astra</code> container after every successful load. The app writes; Siri intents and the widget only read.</li>
+  <li><strong>Date.</strong> 16 September 2026, with Siri and the widgets.</li>
+  <li><strong>Alternatives.</strong> Each process fetching for itself.</li>
+  <li><strong>Why.</strong> <code>ChartCache</code>'s header: three processes need the data and only one can sign in; "a widget that fetches is a widget that shows a placeholder, and a Siri answer that waits is a Siri answer nobody hears." Nothing secret goes in, and the cache is cleared on sign-out.</li>
+  <li><strong>Where.</strong> <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>, writing with <code>.completeFileProtection</code>. The entitlement on both targets in <code>project.yml</code>. <code>IntentData.chart()</code> reads the cache and never the network. The widget extension compiles <code>ChartCache.swift</code> and <code>ChartData.swift</code> into itself, each "dependency-free on purpose" so nothing that imports Supabase is dragged into a process with no session.</li>
+</ul>
+
+<h4 id="chB-d16">16. Email codes instead of magic links on the phone</h4>
+<ul>
+  <li><strong>Decision.</strong> The iOS app signs in and confirms sign-up with a six-digit code typed into the app. The web app keeps password sign-in and a magic link.</li>
+  <li><strong>Date.</strong> 26 August 2026.</li>
+  <li><strong>Alternatives.</strong> Magic links returning through Universal Links, which is what the iOS design note specified.</li>
+  <li><strong>Why.</strong> From <code>docs/EMAIL_OTP.md</code>: "the code is typed into the app that is already open, with no hop out to a mail client and back, and no Universal Link that can be swallowed by the wrong browser." The link is kept in the email template so the web path still works.</li>
+  <li><strong>Where.</strong> <code>AuthStore.State.awaitingCode</code> and <code>CodePurpose</code>, which picks <code>.email</code> or <code>.signup</code> for <code>verifyOTP</code>; the code field is marked <code>.oneTimeCode</code>. On the web, <code>sendMagicLink</code> in <code>app/(auth)/actions.ts</code> still exists. The one setting outside the repo is that both Supabase email templates must include <code>{{ .Token }}</code>.</li>
+</ul>
+
+<h4 id="chB-d17">17. A generated Xcode project</h4>
+<ul>
+  <li><strong>Decision.</strong> The Xcode project is produced by XcodeGen from <code>mobile/project.yml</code> and is not committed; <code>AppConfig.swift</code> is generated too.</li>
+  <li><strong>Date.</strong> 25 to 26 August 2026; the leftover root scaffold was dropped on the 26th.</li>
+  <li><strong>Alternatives.</strong> A committed <code>project.pbxproj</code>.</li>
+  <li><strong>Why.</strong> Targets, entitlements, capabilities and the files shared with the widget extension are readable in one YAML file with comments explaining each choice, and the generated project cannot drift from it. CI and the TestFlight workflow regenerate it on every run.</li>
+  <li><strong>Where.</strong> <code>mobile/project.yml</code>; <code>mobile/Sanchara.xcodeproj/</code> in <code>.gitignore</code>; the "Install XcodeGen" and "Generate Xcode project" steps in <code>.github/workflows/ci.yml</code> and <code>ios-testflight.yml</code>. The README's iOS instructions are the three commands: run the config script, <code>xcodegen generate</code>, open.</li>
+</ul>
+
+<h4 id="chB-d18">18. iOS 17 as the floor, with a widget extension</h4>
+<ul>
+  <li><strong>Decision.</strong> Both targets deploy to iOS 17.0. Features that need newer frameworks are gated at runtime rather than raising the floor.</li>
+  <li><strong>Date.</strong> 16 September 2026 for the widget target; the floor dates from the August scaffold.</li>
+  <li><strong>Alternatives.</strong> Requiring iOS 26 for everything, since the on-device answers need it.</li>
+  <li><strong>Why.</strong> The Siri and widgets guide: where Apple Intelligence is missing, "every question goes to Claude exactly as it did before; the feature degrades rather than disappearing." Controls and App Shortcuts are iOS 18; the on-device model is iOS 26; the app itself should not be.</li>
+  <li><strong>Where.</strong> <code>deploymentTarget: iOS: "17.0"</code> on both targets in <code>project.yml</code>, with the comment that widgets and controls "arrived on this schedule; the app itself still runs on iOS 17." <code>@available(iOS 18.0, *)</code> on <code>SancharaShortcuts</code> and <code>ReadingControl</code>; <code>#if canImport(FoundationModels)</code> and <code>#available(iOS 26.0, *)</code> around every use of the on-device model in <code>OnDeviceReasoner.swift</code>.</li>
+</ul>
+
+<h4 id="chB-d19">19. Astra becomes Sanchara; the identifiers stay</h4>
+<ul>
+  <li><strong>Decision.</strong> The product, target, copy and prompts were renamed; the bundle id, App Group, production host and repository were not.</li>
+  <li><strong>Date.</strong> 16 September 2026, recorded under Changed in 0.1.0.</li>
+  <li><strong>Alternatives.</strong> A new bundle id and host to match the name.</li>
+  <li><strong>Why.</strong> The identifiers are what Apple and Supabase are configured against: the APNs bundle id in <code>APNS_BUNDLE_ID</code>, the Sign in with Apple client id, the associated domains entitlement, the App Group on two App IDs, and the app record in App Store Connect. Every one of those would have to be recreated, and any push token minted under the old id would die.</li>
+  <li><strong>Where.</strong> <code>PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra</code>, <code>applinks:astra.shivvyas.com</code> and <code>group.com.shivvyas.astra</code> in <code>project.yml</code>, beside <code>name: Sanchara</code> and the <code>sanchara</code> URL scheme. <code>APNS_BUNDLE_ID=com.shivvyas.astra</code> in <code>.env.example</code>. The README's closing paragraph records the history.</li>
+</ul>
+
+<h3 id="sB-6"><span class="num">B.6</span><span>Study notes</span></h3>
+<div class="study">
+<h4>Read in this order</h4>
+<ol>
+  <li><code>lib/astrology/chart.ts</code>, for decisions 1 to 5 in 124 lines: the flags, the two house rules, the derived block.</li>
+  <li><code>lib/astrology/derived.ts</code>, whose header is decision 6 in the author's own words.</li>
+  <li><code>docs/MODEL_COSTS.md</code> and then <code>lib/anthropic.ts</code>, for the numbers behind 7 and 8.</li>
+  <li><code>lib/alerts/run.ts</code>, for decision 10 and the two comments that forbid filtering the raw sets.</li>
+  <li><code>docs/design/2026-08-25-ios-app.md</code>, for the rule that split the platform, then <code>lib/supabase/route.ts</code> and <code>mobile/scripts/make-config.sh</code>.</li>
+  <li><code>mobile/project.yml</code>, which holds decisions 15, 17, 18 and 19 in one file with comments.</li>
+</ol>
+<h4>Check yourself</h4>
+<p class="q">Why did whole-sign houses force a change to the alerts job?</p>
+<p class="a">Because natal dosha signatures embed the house, so recomputing houses made existing conditions look new, and the job pushes on "new." <code>partitionForAlerts</code> now routes natal-scope conditions to silent for anyone with natal rows on record.</p>
+<p class="q">What does the second cache breakpoint do that the first cannot?</p>
+<p class="a">It carries the conversation. A prefix below the API's minimum is silently not cached, so on a short first turn the chart block alone may miss; from the second message the breakpoint after the last stored turn makes chart, today and history one cache read.</p>
+<p class="q">Which key is in the iOS binary, and why is that safe?</p>
+<p class="a">The Supabase anon key only. Every table is scoped by RLS to the signed-in user, so the key reads nothing by itself. The service-role and Anthropic keys are read only in <code>lib/env.ts</code> on the server.</p>
+<p class="q">Which alternative was written into a design note and then not built?</p>
+<p class="a">The <code>last_reconciled_version</code> column for natal reconciliation. The note was amended to describe the count-based rule that shipped instead.</p>
+<p class="q">What is the cost of decision 10 that the note calls out?</p>
+<p class="a">A natal detector added in future is recorded silently for existing users and never pushed; only new users see it. Reaching existing users would need a separate backfill, not a change to <code>partitionForAlerts</code>.</p>
+</div>
+</section>
