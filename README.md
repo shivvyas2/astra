@@ -36,7 +36,7 @@ Nothing about the chart is guessed. The Swiss Ephemeris computes planetary posit
 | Database and auth | Supabase (Postgres, Auth, Storage, Row Level Security) |
 | Push | Apple Push Notification service, signed with a .p8 key |
 | PDF | pdf-lib |
-| Landing page | three.js, GSAP |
+| Landing page | GSAP with ScrollTrigger |
 | iOS | SwiftUI, iOS 17+, supabase-swift, App Intents, WidgetKit, XcodeGen |
 | Hosting | Vercel, with Vercel Cron for the scheduled jobs |
 | Tests | Vitest for the web, XCTest for iOS |
@@ -73,7 +73,7 @@ Two cron schedules in `vercel.json` hit `/api/cron/daily`, which writes the twic
 │   ├── auth/callback/         Supabase auth redirect
 │   └── api/                   Route handlers shared by web and iOS
 │       ├── chat/              Streaming readings
-│       ├── kundli/            Chart JSON and PDF
+│       ├── kundli/            Kundli PDF
 │       ├── profile/           Birth-detail intake
 │       ├── timeline/          Dasha life map, plus /scan for extraction
 │       ├── life-events/       Pin and unpin moments
