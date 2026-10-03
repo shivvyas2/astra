@@ -143,25 +143,28 @@ final class SuggestionEngine {
     }
     #endif
 
+    /// Opening questions, written to invite the specific, dated answers the
+    /// prompt now gives. "How will the next few months go?" got a horoscope;
+    /// "When does my current period end and what changes?" gets a date.
     static func starters(for mode: ChatMode) -> [String] {
         switch mode {
         case .vedic:
             [
-                "What does my chart say about work right now?",
-                "Do I have any doshas I should know about?",
-                "How will the next few months go?",
+                "When does my current dasha period end, and what changes then?",
+                "Will my work situation change in the next six months?",
+                "What is the one thing in my chart I should act on this year?",
             ]
         case .western:
             [
-                "What are my strongest placements?",
-                "What is this transit doing to me?",
-                "How do I come across to other people?",
+                "Which transit is shaping the next three months for me?",
+                "What do my strongest placements say I should do with them?",
+                "When is a good window to make a big decision?",
             ]
         case .numerology:
             [
-                "What do my numbers say about this year?",
-                "Which dates suit me best?",
-                "What kind of work fits my numbers?",
+                "What does my personal year ask of me, month by month?",
+                "Which dates this month suit me best, and why?",
+                "Does my name number help or hold back my root number?",
             ]
         }
     }

@@ -6,11 +6,13 @@ enum SancharaAPI {
 
     enum APIError: LocalizedError {
         case unauthorized
+        case badURL
         case server(String)
 
         var errorDescription: String? {
             switch self {
             case .unauthorized: "Your session expired. Please sign in again."
+            case .badURL: "That request could not be built."
             case .server(let message): message
             }
         }
@@ -54,12 +56,13 @@ enum SancharaAPI {
     /// with `tz-lookup` so the timezone the ephemeris needs comes back with the
     /// coordinates. The route is public, so this call carries no token.
     static func geocode(_ query: String) async throws -> [GeoResult] {
-        var components = URLComponents(
+        guard var components = URLComponents(
             url: AppConfig.apiBaseURL.appendingPathComponent("api/geocode"),
             resolvingAgainstBaseURL: false
-        )!
+        ) else { throw APIError.badURL }
         components.queryItems = [URLQueryItem(name: "q", value: query)]
-        let (data, response) = try await URLSession.shared.data(from: components.url!)
+        guard let url = components.url else { throw APIError.badURL }
+        let (data, response) = try await URLSession.shared.data(from: url)
         try check(response, data)
         return try JSONDecoder().decode([GeoResult].self, from: data)
     }
@@ -148,11 +151,13 @@ enum SancharaAPI {
 
     /// Streams a reading from `POST /api/chat`.
     ///
-    /// The route answers with plain UTF-8 text chunks rather than SSE, so this
-    /// reads raw bytes: a chunk boundary can split a multi-byte character, so
-    /// bytes are held back until they decode. Text is coalesced into small
-    /// batches — byte-at-a-time updates would redraw the transcript thousands
-    /// of times for a single reading.
+    /// The route answers with plain UTF-8 text chunks rather than SSE. They are
+    /// read as the network delivers them — a few dozen bytes to a few hundred
+    /// at a time — through a `URLSession` delegate, rather than one byte at a
+    /// time through `URLSession.bytes`, which cost an `await` per byte and
+    /// re-decoded the buffer on each. A chunk boundary can still split a
+    /// multi-byte character, so the decoder holds back an incomplete tail
+    /// until the rest arrives.
     static func chatStream(
         conversationId: String?,
         mode: ChatMode,
@@ -175,36 +180,29 @@ enum SancharaAPI {
                     // Readings can think for a while before the first byte.
                     req.timeoutInterval = 120
 
-                    let (bytes, response) = try await URLSession.shared.bytes(for: req)
-                    guard let http = response as? HTTPURLResponse else {
-                        throw APIError.server("The stars are unreachable right now.")
-                    }
+                    let (http, chunks) = try await ChunkedResponse.open(req)
                     guard (200..<300).contains(http.statusCode) else {
                         if http.statusCode == 401 { throw APIError.unauthorized }
                         var body = Data()
-                        for try await byte in bytes { body.append(byte) }
-                        throw APIError.server(
-                            String(data: body, encoding: .utf8) ?? "Something went wrong."
-                        )
+                        for try await chunk in chunks { body.append(chunk) }
+                        let message = String(data: body, encoding: .utf8)?
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                        throw APIError.server(message?.isEmpty == false ? message! : "Something went wrong.")
                     }
 
                     if let id = http.value(forHTTPHeaderField: "x-conversation-id") {
                         continuation.yield(.conversationId(id))
                     }
 
-                    var undecoded = Data()
-                    var batch = ""
-                    for try await byte in bytes {
-                        undecoded.append(byte)
-                        guard let piece = String(data: undecoded, encoding: .utf8) else { continue }
-                        undecoded.removeAll(keepingCapacity: true)
-                        batch += piece
-                        if batch.count >= 24 {
-                            continuation.yield(.text(batch))
-                            batch = ""
+                    var decoder = IncrementalUTF8()
+                    for try await chunk in chunks {
+                        if let text = decoder.decode(chunk), !text.isEmpty {
+                            continuation.yield(.text(text))
                         }
                     }
-                    if !batch.isEmpty { continuation.yield(.text(batch)) }
+                    if let tail = decoder.flush(), !tail.isEmpty {
+                        continuation.yield(.text(tail))
+                    }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -230,6 +228,140 @@ enum SancharaAPI {
             let message = String(data: data, encoding: .utf8) ?? "Something went wrong."
             throw APIError.server(message)
         }
+    }
+}
+
+// MARK: - Chunked responses
+
+/// A response whose body arrives as a stream of `Data` chunks.
+///
+/// `open` returns once the headers are in, so the status and the
+/// conversation id can be read before the first byte of the body. Each
+/// delegate callback becomes one element of the stream; cancelling the
+/// consuming task cancels the request.
+enum ChunkedResponse {
+    static func open(_ request: URLRequest) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, Error>) {
+        let delegate = Delegate()
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        delegate.session = session
+        let task = session.dataTask(with: request)
+        delegate.task = task
+
+        let chunks = AsyncThrowingStream<Data, Error> { continuation in
+            delegate.continuation = continuation
+            continuation.onTermination = { _ in
+                task.cancel()
+                session.finishTasksAndInvalidate()
+            }
+        }
+
+        let response: HTTPURLResponse = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (headers: CheckedContinuation<HTTPURLResponse, Error>) in
+                delegate.headers = headers
+                task.resume()
+            }
+        } onCancel: {
+            task.cancel()
+        }
+
+        return (response, chunks)
+    }
+
+    /// Bridges the delegate callbacks to the two continuations. All state is
+    /// guarded by a lock because the callbacks arrive on the session's queue.
+    private final class Delegate: NSObject, URLSessionDataDelegate {
+        var session: URLSession?
+        var task: URLSessionDataTask?
+
+        private let lock = NSLock()
+        private var _headers: CheckedContinuation<HTTPURLResponse, Error>?
+        private var _continuation: AsyncThrowingStream<Data, Error>.Continuation?
+        private var finished = false
+
+        var headers: CheckedContinuation<HTTPURLResponse, Error>? {
+            get { lock.withLock { _headers } }
+            set { lock.withLock { _headers = newValue } }
+        }
+
+        var continuation: AsyncThrowingStream<Data, Error>.Continuation? {
+            get { lock.withLock { _continuation } }
+            set { lock.withLock { _continuation = newValue } }
+        }
+
+        func urlSession(
+            _ session: URLSession,
+            dataTask: URLSessionDataTask,
+            didReceive response: URLResponse,
+            completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+        ) {
+            let pending = lock.withLock { () -> CheckedContinuation<HTTPURLResponse, Error>? in
+                defer { _headers = nil }
+                return _headers
+            }
+            if let http = response as? HTTPURLResponse {
+                pending?.resume(returning: http)
+                completionHandler(.allow)
+            } else {
+                pending?.resume(throwing: SancharaAPI.APIError.server("The stars are unreachable right now."))
+                completionHandler(.cancel)
+            }
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            continuation?.yield(data)
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            let (pending, stream) = lock.withLock { () -> (CheckedContinuation<HTTPURLResponse, Error>?, AsyncThrowingStream<Data, Error>.Continuation?) in
+                guard !finished else { return (nil, nil) }
+                finished = true
+                defer { _headers = nil; _continuation = nil }
+                return (_headers, _continuation)
+            }
+            if let error {
+                // A failure before the headers arrived fails the open; after,
+                // it fails the stream.
+                if let pending {
+                    pending.resume(throwing: error)
+                } else {
+                    stream?.finish(throwing: (error as NSError).code == NSURLErrorCancelled ? CancellationError() : error)
+                }
+            } else {
+                pending?.resume(throwing: SancharaAPI.APIError.server("The reading ended before it began."))
+                stream?.finish()
+            }
+            session.finishTasksAndInvalidate()
+        }
+    }
+}
+
+/// Decodes UTF-8 that arrives in arbitrary pieces, holding back an incomplete
+/// multi-byte sequence at the end of a piece until the next one completes it.
+struct IncrementalUTF8 {
+    private var buffer = Data()
+
+    /// The text that is complete so far, or nil if nothing decodes yet.
+    mutating func decode(_ data: Data) -> String? {
+        buffer.append(data)
+        // A UTF-8 scalar is at most four bytes, so at most three can be
+        // dangling. Try the whole buffer, then progressively shorter prefixes.
+        for cut in 0...min(3, buffer.count) {
+            let end = buffer.count - cut
+            if end == 0 { return nil }
+            if let text = String(data: buffer.prefix(end), encoding: .utf8) {
+                buffer.removeFirst(end)
+                return text
+            }
+        }
+        return nil
+    }
+
+    /// Whatever is left, decoded leniently (an invalid tail becomes U+FFFD
+    /// rather than being lost).
+    mutating func flush() -> String? {
+        defer { buffer.removeAll() }
+        guard !buffer.isEmpty else { return nil }
+        return String(decoding: buffer, as: UTF8.self)
     }
 }
 
@@ -262,6 +394,8 @@ struct BirthProfileInput {
 
     func multipartBody(boundary: String) -> Data {
         var body = Data()
+        func append(_ text: String) { body.append(Data(text.utf8)) }
+
         let fields: [(String, String)] = [
             ("first_name", firstName),
             ("last_name", lastName),
@@ -273,21 +407,18 @@ struct BirthProfileInput {
             ("timezone", timezone),
         ]
         for (name, value) in fields {
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n".data(using: .utf8)!)
-            body.append("\(value)\r\n".data(using: .utf8)!)
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+            append("\(value)\r\n")
         }
         if let photoJPEG, !photoJPEG.isEmpty {
-            body.append("--\(boundary)\r\n".data(using: .utf8)!)
-            body.append(
-                "Content-Disposition: form-data; name=\"photo\"; filename=\"avatar.jpg\"\r\n"
-                    .data(using: .utf8)!
-            )
-            body.append("Content-Type: image/jpeg\r\n\r\n".data(using: .utf8)!)
+            append("--\(boundary)\r\n")
+            append("Content-Disposition: form-data; name=\"photo\"; filename=\"avatar.jpg\"\r\n")
+            append("Content-Type: image/jpeg\r\n\r\n")
             body.append(photoJPEG)
-            body.append("\r\n".data(using: .utf8)!)
+            append("\r\n")
         }
-        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+        append("--\(boundary)--\r\n")
         return body
     }
 }
