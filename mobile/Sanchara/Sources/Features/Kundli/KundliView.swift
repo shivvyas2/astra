@@ -17,6 +17,9 @@ import SwiftUI
 struct KundliView: View {
     let details: BirthProfileDetails
     let chart: NatalChart
+    /// True when this view is a tab rather than a sheet: no Done button, no
+    /// inline title, and a `ScreenHeader` opening the scroll content instead.
+    var embedded = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedHouse: KundliHouse?
@@ -30,6 +33,13 @@ struct KundliView: View {
                 Theme.bg.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
+                        if embedded {
+                            ScreenHeader(
+                                eyebrow: "Birth chart",
+                                title: "Your kundli",
+                                blurb: "Where every planet sat the moment you were born. Tap a house to see what it holds. The PDF is at the bottom."
+                            )
+                        }
                         summary
                         chartBlock
                         dashaBlock
@@ -42,11 +52,15 @@ struct KundliView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle("Your kundli")
+            .navigationTitle(embedded ? "" : "Your kundli")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.muted)
+                if !embedded {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.fg)
+                    }
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -66,51 +80,43 @@ struct KundliView: View {
     /// whole diagram is oriented from it.
     private var summary: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(details.fullName)
-                    .font(.system(.title2, design: .serif))
+                    .font(.brutTitle(22))
                     .foregroundStyle(Theme.fg)
                 Text("\(birthLine)\n\(details.placeName)")
-                    .font(.footnote)
+                    .font(.brutMono(12, weight: .medium))
                     .foregroundStyle(Theme.muted)
             }
 
-            HStack(spacing: 0) {
-                statColumn("Lagna", chart.ascendantRashi.sanskrit, chart.ascendantDegreeText)
-                divider
-                statColumn("Chandra", rashiName(chart.moonSign), chart.moonSign)
-                divider
-                statColumn("Surya", rashiName(chart.sunSign), chart.sunSign)
+            HStack(spacing: 8) {
+                statCell("Lagna", chart.ascendantRashi.sanskrit, chart.ascendantDegreeText)
+                statCell("Chandra", rashiName(chart.moonSign), chart.moonSign)
+                statCell("Surya", rashiName(chart.sunSign), chart.sunSign)
             }
-            .padding(.vertical, 14)
-            .background(Theme.fieldFill)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                    .stroke(Theme.hairline, lineWidth: 1)
-            )
+            .padding(10)
+            .brutCard()
         }
     }
 
-    private var divider: some View {
-        Rectangle().fill(Theme.hairline).frame(width: 1, height: 30)
-    }
-
-    private func statColumn(_ label: String, _ value: String, _ caption: String) -> some View {
-        VStack(spacing: 3) {
-            Text(label)
-                .font(.system(size: 11, weight: .regular))
-                .textCase(.uppercase)
-                .tracking(1.4)
-                .foregroundStyle(Theme.muted)
+    private func statCell(_ label: String, _ value: String, _ caption: String) -> some View {
+        VStack(spacing: 4) {
+            Text(label).eyebrow()
             Text(value)
-                .font(.system(.subheadline, design: .serif))
+                .font(.brutTitle(15))
                 .foregroundStyle(Theme.fg)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
             Text(caption)
-                .font(.caption2)
-                .foregroundStyle(Theme.muted.opacity(0.75))
+                .font(.brutMono(10, weight: .medium))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 4)
+        .brutBordered(fill: Theme.surfaceRaised)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(label), \(value), \(caption)")
     }
@@ -147,7 +153,7 @@ struct KundliView: View {
             // learn how to interpret the chart." Most people meeting a North
             // Indian kundli for the first time assume the numbers are houses.
             Text("Houses sit in fixed places — the top diamond is always the first. The numeral in each is its rashi, counted from Mesha. Tap a house to see what it holds.")
-                .font(.footnote)
+                .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -161,32 +167,27 @@ struct KundliView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Vimshottari dasha").eyebrow()
                 periodRow("Mahadasha", dasha.mahadasha, until: dasha.mahadashaEnd)
-                Rectangle().fill(Theme.hairline).frame(height: 1)
+                BrutDivider(color: Theme.rule, thickness: 1)
                 periodRow("Antardasha", dasha.antardasha, until: dasha.antardashaEnd)
             }
             .padding(16)
-            .background(Theme.fieldFill)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                    .stroke(Theme.hairline, lineWidth: 1)
-            )
+            .brutCard()
         }
     }
 
     private func periodRow(_ label: String, _ lord: String, until: String) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(label)
-                .font(.footnote)
+                .font(.brutMono(12))
                 .foregroundStyle(Theme.muted)
             Spacer(minLength: 12)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(lord)
-                    .font(.system(.subheadline, design: .serif))
+                    .font(.brutTitle(15))
                     .foregroundStyle(Theme.fg)
                 Text("until \(shortDate(until))")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.muted.opacity(0.75))
+                    .font(.brutMono(11, weight: .medium))
+                    .foregroundStyle(Theme.muted)
             }
         }
         .accessibilityElement(children: .combine)
@@ -202,48 +203,53 @@ struct KundliView: View {
     /// Everything the diagram encodes, in rows. This is the accessible path
     /// through the chart and the one that survives the largest text sizes.
     private var planetTable: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("Grahas").eyebrow().padding(.bottom, 10)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Grahas").eyebrow()
 
-            ForEach(Array(chart.planets.enumerated()), id: \.element.id) { index, planet in
-                if index > 0 {
-                    Rectangle().fill(Theme.hairline).frame(height: 1)
-                }
-                Button {
-                    selectedHouse = chart.house(planet.house)
-                } label: {
-                    HStack(spacing: 12) {
-                        Text(planet.glyph)
-                            .font(.system(size: 17))
-                            .foregroundStyle(Theme.accent)
-                            .frame(width: 24)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(planet.name + (planet.retrograde ? " ℞" : ""))
-                                .font(.subheadline)
-                                .foregroundStyle(Theme.fg)
-                            if let nakshatra = planet.nakshatra {
-                                Text(nakshatra)
-                                    .font(.caption2)
-                                    .foregroundStyle(Theme.muted.opacity(0.75))
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(chart.planets.enumerated()), id: \.element.id) { index, planet in
+                    if index > 0 {
+                        Rectangle().fill(Theme.rule).frame(height: 1)
+                    }
+                    Button {
+                        selectedHouse = chart.house(planet.house)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Text(planet.glyph)
+                                .font(.system(size: 17))
+                                .foregroundStyle(Theme.accent)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(planet.name + (planet.retrograde ? " ℞" : ""))
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(Theme.fg)
+                                if let nakshatra = planet.nakshatra {
+                                    Text(nakshatra)
+                                        .font(.brutMono(11, weight: .medium))
+                                        .foregroundStyle(Theme.muted)
+                                }
+                            }
+                            Spacer(minLength: 8)
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(rashiName(planet.sign)) \(planet.degreeText)")
+                                    .font(.brutMono(12))
+                                    .foregroundStyle(Theme.fg)
+                                Text("House \(planet.house)")
+                                    .font(.brutMono(11, weight: .medium))
+                                    .foregroundStyle(Theme.muted)
                             }
                         }
-                        Spacer(minLength: 8)
-                        VStack(alignment: .trailing, spacing: 2) {
-                            Text("\(rashiName(planet.sign)) \(planet.degreeText)")
-                                .font(.system(.caption, design: .serif))
-                                .foregroundStyle(Theme.muted)
-                            Text("House \(planet.house)")
-                                .font(.caption2)
-                                .foregroundStyle(Theme.muted.opacity(0.75))
-                        }
+                        .padding(.vertical, 11)
+                        .contentShape(Rectangle())
                     }
-                    .padding(.vertical, 11)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(planet.spokenDescription)
+                    .accessibilityHint("Opens house \(planet.house)")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(planet.spokenDescription)
-                .accessibilityHint("Opens house \(planet.house)")
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 4)
+            .brutCard()
         }
     }
 
@@ -251,22 +257,22 @@ struct KundliView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SancharaSecondaryButton(
-                title: isPreparingPDF ? "Preparing…" : "Export as PDF"
+            SancharaPrimaryButton(
+                title: "Export as PDF",
+                isLoading: isPreparingPDF,
+                kind: .secondary
             ) {
                 Task { await exportPDF() }
             }
 
             if let errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(Theme.accent)
+                BrutNotice(text: errorMessage)
             }
 
             if let ayanamsa = chart.ayanamsa {
                 Text("Sidereal, Lahiri ayanamsa \(String(format: "%.2f", ayanamsa))°. Computed with the Swiss Ephemeris.")
-                    .font(.caption2)
-                    .foregroundStyle(Theme.muted.opacity(0.75))
+                    .font(.brutMono(10, weight: .medium))
+                    .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -311,28 +317,30 @@ struct HouseDetailSheet: View {
                             Text(house.isLagna ? "House 1 · Lagna" : "House \(house.number)")
                                 .eyebrow()
                             Text(house.rashi.sanskrit)
-                                .font(.system(.title, design: .serif))
-                                .foregroundStyle(Theme.fg)
+                                .brutHeading(28)
                             Text("\(house.rashi.english) · rashi \(house.rashi.number)")
-                                .font(.footnote)
+                                .font(.brutMono(12))
                                 .foregroundStyle(Theme.muted)
                         }
 
                         Text(house.domain)
-                            .font(.callout)
+                            .font(.brutBody(15))
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
 
                         if house.planets.isEmpty {
                             Text("No graha sits here. An empty house is read through its lord and the aspects reaching it — ask for a reading if you want that traced.")
-                                .font(.footnote)
-                                .foregroundStyle(Theme.muted.opacity(0.8))
+                                .font(.brutBody(13))
+                                .foregroundStyle(Theme.muted)
                                 .fixedSize(horizontal: false, vertical: true)
+                                .padding(14)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .brutBordered()
                         } else {
                             VStack(alignment: .leading, spacing: 0) {
                                 ForEach(Array(house.planets.enumerated()), id: \.element.id) { index, planet in
                                     if index > 0 {
-                                        Rectangle().fill(Theme.hairline).frame(height: 1)
+                                        Rectangle().fill(Theme.rule).frame(height: 1)
                                     }
                                     HStack(spacing: 14) {
                                         Text(planet.glyph)
@@ -341,10 +349,10 @@ struct HouseDetailSheet: View {
                                             .frame(width: 28)
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(planet.name + (planet.retrograde ? " ℞ retrograde" : ""))
-                                                .font(.subheadline)
+                                                .font(.system(size: 15, weight: .semibold))
                                                 .foregroundStyle(Theme.fg)
                                             Text(planet.nakshatra.map { "\(planet.degreeText) · \($0)" } ?? planet.degreeText)
-                                                .font(.caption)
+                                                .font(.brutMono(12))
                                                 .foregroundStyle(Theme.muted)
                                         }
                                         Spacer(minLength: 0)
@@ -354,6 +362,9 @@ struct HouseDetailSheet: View {
                                     .accessibilityLabel(planet.spokenDescription)
                                 }
                             }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 4)
+                            .brutCard()
                         }
                     }
                     .padding(24)
@@ -362,7 +373,9 @@ struct HouseDetailSheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.muted)
+                    Button("Done") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)

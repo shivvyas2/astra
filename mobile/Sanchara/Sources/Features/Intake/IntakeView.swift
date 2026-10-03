@@ -27,16 +27,15 @@ struct IntakeView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Birth details").eyebrow()
                         Text(isEditing ? "Update your details" : "Let's build your chart")
-                            .font(.system(size: 28, weight: .light))
-                            .tracking(-0.5)
-                            .foregroundStyle(Theme.fg)
+                            .brutHeading(28)
                         Text(
                             isEditing
                                 ? "Changing your birth data recomputes your chart."
                                 : "Your real chart comes from the date, time, and place you were born."
                         )
-                        .font(.system(size: 14))
+                        .font(.brutBody(14))
                         .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                     }
 
                     SancharaPhotoField(
@@ -71,16 +70,15 @@ struct IntakeView: View {
                             .colorScheme(.dark)
                             .frame(maxWidth: .infinity)
                         Text("As close as you know. A wrong hour moves the ascendant.")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.muted.opacity(0.8))
+                            .font(.brutBody(12))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
 
                     labelled("Birthplace") { placePicker }
 
                     if let error = form.errorMessage {
-                        Text(error)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.accent)
+                        BrutNotice(text: error)
                     }
 
                     SancharaPrimaryButton(
@@ -96,14 +94,10 @@ struct IntakeView: View {
 
                     if let onCancel {
                         Button("Cancel", action: onCancel)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.muted)
-                            .frame(maxWidth: .infinity)
+                            .buttonStyle(BrutButtonStyle(kind: .quiet))
                     } else {
                         Button("Sign out") { Task { await auth.signOut() } }
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.muted)
-                            .frame(maxWidth: .infinity)
+                            .buttonStyle(BrutButtonStyle(kind: .quiet))
                     }
                 }
                 .padding(.horizontal, 24)
@@ -133,30 +127,25 @@ struct IntakeView: View {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(place.name)
-                        .font(.system(size: 15))
+                        .font(.brutBody(15))
                         .foregroundStyle(Theme.fg)
                     Text(place.timezone)
-                        .font(.system(size: 12))
+                        .font(.brutMono(11, weight: .medium))
                         .foregroundStyle(Theme.muted)
                 }
                 Spacer()
                 Button("Change") { form.clearPlace() }
-                    .font(.system(size: 13))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(Theme.accent)
             }
             .padding(12)
-            .background(Theme.fieldFill)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                    .stroke(Theme.hairline, lineWidth: 1)
-            )
+            .brutBordered()
         } else {
             SancharaField(placeholder: "City of birth", text: $form.placeQuery)
 
             if form.isSearching {
                 Text("Searching…")
-                    .font(.system(size: 12))
+                    .font(.brutMono(11))
                     .foregroundStyle(Theme.muted)
             }
 
@@ -166,17 +155,16 @@ struct IntakeView: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(result.name)
-                            .font(.system(size: 14))
+                            .font(.brutBody(14))
                             .foregroundStyle(Theme.fg)
                         Text(result.timezone)
-                            .font(.system(size: 11))
+                            .font(.brutMono(11, weight: .medium))
                             .foregroundStyle(Theme.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 10)
                     .padding(.horizontal, 12)
-                    .background(Color.white.opacity(0.03))
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
+                    .brutBordered()
                     .contentShape(Rectangle())
                 }
             }
@@ -188,10 +176,8 @@ struct IntakeView: View {
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.muted)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).eyebrow()
             content()
         }
     }
@@ -201,7 +187,10 @@ struct IntakeView: View {
 @Observable
 @MainActor
 final class IntakeStore {
-    static let earliestBirthDate = Calendar.current.date(from: DateComponents(year: 1900, month: 1, day: 1))!
+    /// 1 January 1900. The fallback is the same instant as a Unix timestamp,
+    /// for the calendar that somehow cannot produce it.
+    static let earliestBirthDate = Calendar.current.date(from: DateComponents(year: 1900, month: 1, day: 1))
+        ?? Date(timeIntervalSince1970: -2_208_988_800)
 
     var firstName = ""
     var lastName = ""

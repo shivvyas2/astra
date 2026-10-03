@@ -45,11 +45,14 @@ struct CandidatesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { store.candidates = []; dismiss() }
-                        .foregroundStyle(Theme.muted)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
+            .toolbarBackground(Theme.bg, for: .navigationBar)
         }
         .tint(Theme.fg)
+        .presentationBackground(Theme.bg)
         .onAppear {
             // Pre-selected: the common case is that they are right, and the
             // work of confirming a good list should be one tap, not twelve.
@@ -61,8 +64,9 @@ struct CandidatesView: View {
 
     private var header: some View {
         Text("From things you've told me. Untick anything that isn't right — nothing is saved until you tap add.")
-            .font(.system(size: 13))
+            .font(.brutBody(13))
             .foregroundStyle(Theme.muted)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.top, 8)
@@ -72,24 +76,23 @@ struct CandidatesView: View {
     @ViewBuilder
     private var list: some View {
         if store.candidates.isEmpty {
-            VStack(spacing: 8) {
+            VStack(spacing: 0) {
                 Spacer()
-                Text("Nothing to add yet")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.fg)
-                Text("I couldn't find dated events in our conversations. You can pin moments yourself with the + button.")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.muted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 280)
+                BrutEmptyState(
+                    title: "Nothing to add yet",
+                    message: "I couldn't find dated events in our conversations. You can pin moments yourself with the + button.",
+                    systemImage: "magnifyingglass"
+                )
+                Spacer()
                 Spacer()
             }
+            .padding(.horizontal, 20)
         } else {
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach(store.candidates) { candidate in
                         row(candidate)
-                        Divider().overlay(Theme.hairline)
+                        Rectangle().fill(Theme.rule).frame(height: 1)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -104,28 +107,27 @@ struct CandidatesView: View {
                 if isChosen { chosen.remove(candidate.id) } else { chosen.insert(candidate.id) }
             } label: {
                 HStack(alignment: .top, spacing: 12) {
-                    Image(systemName: isChosen ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20))
-                        .foregroundStyle(isChosen ? Theme.accent : Theme.muted.opacity(0.5))
+                    checkbox(isChosen)
+                        .padding(.top, 1)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(candidate.title)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                         if let date = candidate.dateLabel {
                             Text(date)
-                                .font(.system(size: 11))
+                                .font(.brutMono(11, weight: .regular))
                                 .foregroundStyle(Theme.muted)
                         } else {
                             Text("When was this?")
-                                .font(.system(size: 11))
+                                .font(.brutMono(11))
                                 .foregroundStyle(Theme.accent)
                         }
                         if !candidate.evidence.isEmpty {
                             Text("“\(candidate.evidence)”")
                                 .font(.system(size: 12).italic())
-                                .foregroundStyle(Theme.muted.opacity(0.8))
+                                .foregroundStyle(Theme.muted)
                                 .multilineTextAlignment(.leading)
                                 .fixedSize(horizontal: false, vertical: true)
                                 .padding(.top, 2)
@@ -136,6 +138,7 @@ struct CandidatesView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityAddTraits(isChosen ? .isSelected : [])
 
             if candidate.isUndated {
                 yearPicker(for: candidate)
@@ -143,6 +146,21 @@ struct CandidatesView: View {
             }
         }
         .padding(.vertical, 12)
+    }
+
+    /// A square tick box: accent-filled with a mark when chosen, hollow when not.
+    private func checkbox(_ isChosen: Bool) -> some View {
+        ZStack {
+            Rectangle().fill(isChosen ? Theme.accent : Theme.surface)
+            if isChosen {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .black))
+                    .foregroundStyle(Theme.ink)
+            }
+        }
+        .frame(width: 20, height: 20)
+        .overlay(Rectangle().strokeBorder(Theme.line, lineWidth: Theme.lineWidth))
+        .accessibilityHidden(true)
     }
 
     /// A year, not a date: the scan only knew that it happened, and asking for
@@ -168,7 +186,7 @@ struct CandidatesView: View {
             }
         }
         .pickerStyle(.menu)
-        .font(.system(size: 13))
+        .font(.brutMono(13))
         .tint(years[candidate.id] == nil ? Theme.accent : Theme.fg)
     }
 

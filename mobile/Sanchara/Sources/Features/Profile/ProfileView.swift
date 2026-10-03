@@ -6,6 +6,10 @@ import UIKit
 /// `app/(app)/app/profile/page.tsx`.
 struct ProfileView: View {
     let profile: ProfileStore
+    /// True when this view is a tab rather than a sheet: no Done button, no
+    /// inline title, a `ScreenHeader` at the top, and no "View your kundli"
+    /// button because the Kundli tab is one tap away.
+    var embedded = false
 
     @Environment(AuthStore.self) private var auth
     @Environment(\.dismiss) private var dismiss
@@ -25,27 +29,41 @@ struct ProfileView: View {
                 Theme.bg.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
+                        if embedded {
+                            ScreenHeader(
+                                eyebrow: "Account",
+                                title: "You",
+                                blurb: "Your birth details, photo and account. Changing birth data recomputes your chart."
+                            )
+                        }
+
                         if let details = profile.details {
                             header(details)
                             detailCard(details)
                         }
 
                         VStack(spacing: 12) {
-                            // The kundli leads now that there is one to look at
-                            // in the app. The PDF is still reachable, from
-                            // inside the chart where exporting is the obvious
-                            // next thing rather than a second, competing button.
-                            SancharaPrimaryButton(title: "View your kundli") {
-                                showKundli = true
+                            if !embedded {
+                                // The kundli leads when this is a sheet. In the
+                                // tab bar the Kundli tab is one tap away, so a
+                                // button here would only compete with it. The
+                                // PDF is still reachable from inside the chart.
+                                SancharaPrimaryButton(title: "View your kundli") {
+                                    showKundli = true
+                                }
+                                .disabled(profile.chart == nil)
+                                .opacity(profile.chart == nil ? 0.5 : 1)
                             }
-                            .disabled(profile.chart == nil)
-                            .opacity(profile.chart == nil ? 0.5 : 1)
 
-                            SancharaSecondaryButton(title: "Edit birth details") { isEditing = true }
+                            SancharaPrimaryButton(title: "Edit birth details", kind: .secondary) {
+                                isEditing = true
+                            }
 
                             if profile.chart == nil {
-                                SancharaSecondaryButton(
-                                    title: isPreparingKundli ? "Preparing…" : "Download kundli (PDF)"
+                                SancharaPrimaryButton(
+                                    title: "Download kundli (PDF)",
+                                    isLoading: isPreparingKundli,
+                                    kind: .secondary
                                 ) {
                                     Task { await prepareKundli() }
                                 }
@@ -53,43 +71,11 @@ struct ProfileView: View {
                         }
 
                         if let errorMessage {
-                            Text(errorMessage)
-                                .font(.system(size: 13))
-                                .foregroundStyle(Theme.accent)
+                            BrutNotice(text: errorMessage)
                         }
 
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Suggestions").eyebrow()
-                            Text(SuggestionEngine.onDeviceStatus)
-                                .font(.system(size: 13))
-                                .foregroundStyle(Theme.muted)
-                            Text("Follow-up questions are written by Apple Intelligence on this device. Your readings are not sent anywhere for them.")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.muted.opacity(0.8))
-                        }
-                        .padding(.top, 4)
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            Text("Account").eyebrow()
-                            Button("Sign out") {
-                                Task {
-                                    await auth.signOut()
-                                    dismiss()
-                                }
-                            }
-                            .font(.system(size: 15))
-                            .foregroundStyle(Theme.fg)
-
-                            Button("Delete my account") { confirmDelete = true }
-                                .font(.system(size: 15))
-                                .foregroundStyle(Theme.accent)
-                                .disabled(isDeleting)
-
-                            Text("Deleting removes your chart, readings, and alerts permanently.")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.muted.opacity(0.8))
-                        }
-                        .padding(.top, 8)
+                        suggestionsBlock
+                        accountBlock
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 24)
@@ -97,11 +83,15 @@ struct ProfileView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-            .navigationTitle("Your profile")
+            .navigationTitle(embedded ? "" : "Your profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.muted)
+                if !embedded {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.fg)
+                    }
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -144,81 +134,128 @@ struct ProfileView: View {
                         AsyncImage(url: url) { image in
                             image.resizable().scaledToFill()
                         } placeholder: {
-                            Color.white.opacity(0.04)
+                            Theme.surface
                         }
                     } else {
                         ZStack {
-                            Theme.fieldFill
+                            Theme.surface
                             Text("Add photo")
-                                .font(.system(size: 11))
+                                .font(.brutMono(10))
                                 .foregroundStyle(Theme.muted)
                         }
                     }
                     if isUploadingPhoto {
-                        Color.black.opacity(0.45)
+                        Theme.bg.opacity(0.55)
                         ProgressView().tint(Theme.fg)
                     }
                 }
                 .frame(width: 64, height: 64)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
+                        .strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+                )
                 .overlay(alignment: .bottomTrailing) {
                     if !isUploadingPhoto {
                         Image(systemName: "camera.fill")
-                            .font(.system(size: 9))
-                            .foregroundStyle(Theme.bg)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Theme.ink)
                             .padding(5)
                             .background(Theme.fg)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Theme.bg, lineWidth: 1.5))
-                            .offset(x: 2, y: 2)
+                            .overlay(Rectangle().stroke(Theme.ink, lineWidth: 1.5))
+                            .offset(x: 4, y: 4)
                     }
                 }
             }
             .disabled(isUploadingPhoto)
             .accessibilityLabel(details.avatarUrl == nil ? "Add a profile photo" : "Change profile photo")
-            .padding(.bottom, 6)
+            .padding(.bottom, 8)
 
             Text(details.fullName)
-                .font(.system(size: 28, weight: .light))
-                .tracking(-0.5)
+                .font(.brutTitle(24))
                 .foregroundStyle(Theme.fg)
-            Text("Changing your birth data recomputes your chart.")
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.muted)
+            if !embedded {
+                // The embedded header's blurb already says this.
+                Text("Changing your birth data recomputes your chart.")
+                    .font(.brutBody(13))
+                    .foregroundStyle(Theme.muted)
+            }
         }
     }
 
     private func detailCard(_ details: BirthProfileDetails) -> some View {
         VStack(spacing: 0) {
-            detailRow("Born", value: formattedBirth(details))
-            Divider().overlay(Theme.hairline)
+            detailRow("Born", value: formattedBirth(details), mono: true)
+            BrutDivider(color: Theme.rule, thickness: 1)
             detailRow("Place", value: details.placeName)
-            Divider().overlay(Theme.hairline)
-            detailRow("Timezone", value: details.timezone)
+            BrutDivider(color: Theme.rule, thickness: 1)
+            detailRow("Timezone", value: details.timezone, mono: true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
-        .background(Theme.fieldFill)
-        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                .stroke(Theme.hairline, lineWidth: 1)
-        )
+        .brutCard()
     }
 
-    private func detailRow(_ label: String, value: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    private func detailRow(_ label: String, value: String, mono: Bool = false) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text(label)
-                .font(.system(size: 13))
+                .font(.brutMono(11))
+                .textCase(.uppercase)
+                .tracking(1.2)
                 .foregroundStyle(Theme.muted)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: 84, alignment: .leading)
             Text(value)
-                .font(.system(size: 15))
+                .font(mono ? .brutMono(13, weight: .medium) : .brutBody(15))
                 .foregroundStyle(Theme.fg)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 12)
+    }
+
+    private var suggestionsBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Suggestions").eyebrow()
+            Text(SuggestionEngine.onDeviceStatus)
+                .font(.brutBody(13))
+                .foregroundStyle(Theme.fg)
+            Text("Follow-up questions are written by Apple Intelligence on this device. Your readings are not sent anywhere for them.")
+                .font(.brutBody(12))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .brutBordered()
+    }
+
+    private var accountBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Account").eyebrow()
+
+            Button("Sign out") {
+                Task {
+                    await auth.signOut()
+                    dismiss()
+                }
+            }
+            .buttonStyle(BrutButtonStyle(kind: .quiet))
+
+            Button("Delete my account") { confirmDelete = true }
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Theme.accent)
+                .disabled(isDeleting)
+                .padding(.top, 4)
+
+            Text("Deleting removes your chart, readings, and alerts permanently.")
+                .font(.brutBody(12))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button("Show me around again") { WelcomeTour.reset() }
+                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                .padding(.top, 8)
+        }
+        .padding(.top, 8)
     }
 
     /// "15 June 1995 at 10:30" — the birth moment as it was where they were born.

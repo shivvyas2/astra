@@ -33,36 +33,32 @@ struct AddMomentView: View {
                         SancharaField(placeholder: "What happened?", text: $title)
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("WHEN").eyebrow()
+                            Text("When").eyebrow()
                             DatePicker("", selection: $date, in: range, displayedComponents: .date)
                                 .datePickerStyle(.compact)
                                 .labelsHidden()
                                 .colorScheme(.dark)
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .brutBordered()
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("HOW SURE ARE YOU?").eyebrow()
-                            Picker("", selection: $precision) {
-                                Text("That day").tag("day")
-                                Text("That month").tag("month")
-                                Text("That year").tag("year")
-                            }
-                            .pickerStyle(.segmented)
+                            Text("How sure are you?").eyebrow()
+                            BrutSegmented(
+                                options: [("day", "That day"), ("month", "That month"), ("year", "That year")],
+                                selection: $precision
+                            )
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("ANYTHING ELSE").eyebrow()
+                            Text("Anything else").eyebrow()
                             TextField("", text: $note, prompt: Text("Optional").foregroundStyle(Theme.muted), axis: .vertical)
                                 .lineLimit(3...6)
                                 .font(.system(size: 15))
                                 .foregroundStyle(Theme.fg)
                                 .padding(12)
-                                .background(Theme.fieldFill)
-                                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                                        .stroke(Theme.hairline, lineWidth: 1)
-                                )
+                                .brutBordered()
                         }
 
                         SancharaPrimaryButton(title: "Pin it") { save() }
@@ -76,11 +72,15 @@ struct AddMomentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }.foregroundStyle(Theme.muted)
+                    Button("Cancel") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
+            .toolbarBackground(Theme.bg, for: .navigationBar)
         }
         .tint(Theme.fg)
+        .presentationBackground(Theme.bg)
     }
 
     private func save() {
@@ -102,7 +102,7 @@ struct AddMomentView: View {
     /// a day the user never gave.
     private func normalised(_ value: Date) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
         let parts = calendar.dateComponents([.year, .month, .day], from: value)
         switch precision {
         case "year":

@@ -12,26 +12,18 @@ struct AlertDetailView: View {
                 Theme.bg.ignoresSafeArea()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        HStack(spacing: 8) {
-                            Circle().fill(severityColor(alert.severity)).frame(width: 6, height: 6)
-                            Text(alert.severity.uppercased())
-                                .font(.system(size: 11))
-                                .tracking(2)
-                                .foregroundStyle(Theme.muted)
-                            Text("·").foregroundStyle(Theme.muted)
+                        HStack(spacing: 10) {
+                            BrutTag(text: alert.severity, fill: severityColor(alert.severity), textColor: Theme.ink)
                             Text(alert.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.system(size: 11))
+                                .font(.brutMono(11))
                                 .foregroundStyle(Theme.muted)
                         }
 
-                        Text(alert.title)
-                            .font(.system(size: 24, weight: .light))
-                            .tracking(-0.4)
-                            .foregroundStyle(Theme.fg)
+                        Text(alert.title).brutHeading(26)
 
                         MarkdownText(markdown: alert.detail)
 
-                        SancharaPrimaryButton(title: "Ask Sanchara about this") {
+                        SancharaPrimaryButton(title: "Ask Sanchara about this", kind: .accent) {
                             onAsk(
                                 "Tell me more about this: \(alert.title). \(alert.body) "
                                     + "What should I watch for, and what can I do about it?"
@@ -46,7 +38,9 @@ struct AlertDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }.foregroundStyle(Theme.muted)
+                    Button("Close") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -55,10 +49,12 @@ struct AlertDetailView: View {
     }
 }
 
+/// The flat fill behind a severity tag. Warnings are the accent, cautions the
+/// yellow, and anything else sits quietly in muted.
 func severityColor(_ severity: String) -> Color {
     switch severity {
     case "warning": Theme.accent
-    case "caution": Color(hex: 0xF0B429)
+    case "caution": Theme.yellow
     default: Theme.muted
     }
 }

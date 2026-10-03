@@ -10,12 +10,16 @@ struct HistoryView: View {
             ZStack {
                 Theme.bg.ignoresSafeArea()
                 if chat.conversations.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("No readings yet").eyebrow()
-                        Text("Your past readings will collect here.")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.muted)
+                    VStack(spacing: 0) {
+                        BrutEmptyState(
+                            title: "No readings yet",
+                            message: "Every reading you ask for is saved here, with its mode and date.",
+                            systemImage: "clock"
+                        )
+                        .padding(.top, 16)
+                        Spacer()
                     }
+                    .padding(.horizontal, 16)
                 } else {
                     List {
                         ForEach(chat.conversations) { conversation in
@@ -28,7 +32,7 @@ struct HistoryView: View {
                                 row(for: conversation)
                             }
                             .listRowBackground(Color.clear)
-                            .listRowSeparatorTint(Theme.hairline)
+                            .listRowSeparatorTint(Theme.rule)
                         }
                     }
                     .listStyle(.plain)
@@ -43,11 +47,13 @@ struct HistoryView: View {
                         chat.newReading()
                         dismiss()
                     }
-                    .foregroundStyle(Theme.muted)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Theme.fg)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .foregroundStyle(Theme.muted)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -57,20 +63,18 @@ struct HistoryView: View {
     }
 
     private func row(for conversation: Conversation) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(conversation.title ?? "Reading")
-                .font(.system(size: 15))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.fg)
                 .lineLimit(2)
                 .multilineTextAlignment(.leading)
-            HStack(spacing: 6) {
-                Circle().fill(conversation.mode.dot).frame(width: 5, height: 5)
-                Text(conversation.mode.label)
-                Text("·")
+            HStack(spacing: 8) {
+                BrutTag(text: conversation.mode.label, fill: conversation.mode.dot)
                 Text(conversation.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    .font(.brutMono(11, weight: .regular))
+                    .foregroundStyle(Theme.muted)
             }
-            .font(.system(size: 12))
-            .foregroundStyle(Theme.muted)
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)

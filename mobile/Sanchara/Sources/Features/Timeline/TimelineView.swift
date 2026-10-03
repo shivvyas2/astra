@@ -8,6 +8,11 @@ import SwiftUI
 /// pinned should not dwarf the year the user got married. Time is carried by
 /// the year range and the "N years" caption instead.
 struct TimelineView: View {
+    /// True when this screen sits in the tab bar rather than in a sheet: no
+    /// "Done" button, no navigation title, and a header at the top of the
+    /// scroll that says what the screen is for.
+    var embedded = false
+
     @State private var store = TimelineStore()
     @State private var expanded: Set<String> = []
     @State private var showAdd = false
@@ -21,20 +26,25 @@ struct TimelineView: View {
                 Theme.bg.ignoresSafeArea()
                 content
             }
-            .navigationTitle("Your life")
+            .navigationTitle(embedded ? "" : "Your life")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.muted)
+                if !embedded {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Done") { dismiss() }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.fg)
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAdd = true } label: { Image(systemName: "plus") }
-                        .accessibilityLabel("Pin a moment")
+                    BrutIconButton(systemImage: "plus", label: "Pin a moment") { showAdd = true }
                         .disabled(store.state != .ready)
                 }
             }
+            .toolbarBackground(Theme.bg, for: .navigationBar)
         }
         .tint(Theme.fg)
+        .presentationBackground(Theme.bg)
         .task { await store.load() }
         .sheet(isPresented: $showExplainer) {
             PeriodExplainerView()
@@ -74,6 +84,15 @@ struct TimelineView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
+                    if embedded {
+                        ScreenHeader(
+                            eyebrow: "Life map",
+                            title: "Your life in periods",
+                            blurb: "Vimshottari dasha periods from birth onward. Pin what really happened and the readings get sharper.",
+                            accent: Theme.violet
+                        )
+                        .padding(.bottom, 20)
+                    }
                     if store.canOfferScan { scanOffer }
                     if let now = store.now, let band = store.currentBand {
                         NowCard(now: now, band: band, today: store.today, isWriting: store.isExplaining)
@@ -93,6 +112,7 @@ struct TimelineView: View {
                     footer
                 }
                 .padding(.horizontal, 16)
+                .padding(.top, embedded ? 8 : 0)
                 .padding(.bottom, 32)
             }
             .onAppear {
@@ -129,32 +149,33 @@ struct TimelineView: View {
     private var scanOffer: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(store.isRescan ? "You've told me more since last time" : "Fill this in from our conversations")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.brutTitle(16))
                 .foregroundStyle(Theme.fg)
+                .fixedSize(horizontal: false, vertical: true)
             Text(store.isRescan
                  ? "I can look through the new conversations for moments to add — you decide what stays."
                  : "You've mentioned things that happened to you. I can find them and place them against your chart — you decide what stays.")
-                .font(.system(size: 13))
+                .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
             SancharaPrimaryButton(title: store.isRescan ? "Find new moments" : "Find my moments", isLoading: store.isScanning) {
                 Task { await store.scan() }
             }
         }
         .padding(16)
-        .background(Theme.fieldFill)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .brutCard(line: Theme.yellow, shadow: Theme.yellow)
         .padding(.bottom, 20)
     }
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Periods are Vimshottari dasha, computed from your Moon's exact position at birth.")
-                .font(.system(size: 11))
-                .foregroundStyle(Theme.muted.opacity(0.7))
+                .font(.brutMono(11, weight: .regular))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
             Button("What are these periods?") { showExplainer = true }
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.accent)
+                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
         }
         .padding(.top, 20)
         .padding(.leading, 28)
@@ -162,7 +183,7 @@ struct TimelineView: View {
 
     private func message(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 14))
+            .font(.brutBody(14))
             .foregroundStyle(Theme.muted)
             .multilineTextAlignment(.center)
             .frame(maxWidth: 300)
@@ -184,48 +205,36 @@ private struct NowCard: View {
     let isWriting: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("WHERE YOU ARE NOW")
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(1.4)
-                .foregroundStyle(Theme.muted.opacity(0.8))
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Where you are now").eyebrow()
 
             HStack(alignment: .firstTextBaseline) {
                 Text(now.pairLabel)
-                    .font(.system(size: 20, weight: .semibold, design: .serif))
+                    .font(.brutTitle(20))
                     .foregroundStyle(Theme.fg)
                 Spacer(minLength: 8)
                 Text("\(band.startYear) – \(band.endYear)")
-                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .font(.brutMono(12))
                     .foregroundStyle(Theme.muted)
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.hairline)
-                    Capsule()
-                        .fill(Theme.accent)
-                        .frame(width: max(geo.size.width * band.progress(today: today), 2))
-                }
-            }
-            .frame(height: 3)
-            .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
+            BrutProgressBar(progress: band.progress(today: today), height: 6)
+                .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
 
             if let meaning = now.meaning, !meaning.isEmpty {
                 Text(meaning)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.fg.opacity(0.9))
+                    .font(.brutBody(14))
+                    .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(isWriting ? "Writing what this means for you…" : "A meaning for this period will appear here.")
-                    .font(.system(size: 13))
+                    .font(.brutBody(13))
                     .foregroundStyle(Theme.muted)
             }
         }
         .padding(16)
-        .background(Theme.fieldFill)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Theme.accent.opacity(0.35), lineWidth: 1))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .brutCard(fill: Theme.surface, line: Theme.accent, shadow: Theme.accent)
     }
 }
 
@@ -253,8 +262,8 @@ private struct BandRow: View {
                 if isExpanded {
                     if let meaning = band.meaning, !meaning.isEmpty {
                         Text(meaning)
-                            .font(.system(size: 13))
-                            .foregroundStyle(Theme.fg.opacity(0.85))
+                            .font(.brutBody(13))
+                            .foregroundStyle(Theme.fg)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 10)
                             // A meaning written before the moments changed is
@@ -279,16 +288,17 @@ private struct BandRow: View {
         .onTapGesture(perform: onToggle)
     }
 
-    /// The continuous line down the left, with a node at each period.
+    /// The continuous line down the left, with a square node at each period.
     private var spine: some View {
         VStack(spacing: 0) {
-            Circle()
-                .fill(band.isCurrent ? Theme.accent : Theme.muted.opacity(0.6))
-                .frame(width: band.isCurrent ? 10 : 6, height: band.isCurrent ? 10 : 6)
-                .padding(.top, 6)
             Rectangle()
-                .fill(Theme.hairline)
-                .frame(width: 1)
+                .fill(band.isCurrent ? Theme.accent : Theme.bg)
+                .frame(width: 8, height: 8)
+                .overlay(Rectangle().stroke(Theme.line, lineWidth: 1.5))
+                .padding(.top, 5)
+            Rectangle()
+                .fill(Theme.line)
+                .frame(width: Theme.lineWidth)
                 .frame(maxHeight: .infinity)
         }
         .frame(width: 20)
@@ -296,31 +306,24 @@ private struct BandRow: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(band.lord.uppercased())
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.brutMono(13, weight: .bold))
                     .tracking(1.5)
                     .foregroundStyle(tint)
                 if band.isCurrent {
-                    Text("NOW")
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(1)
-                        .foregroundStyle(Theme.bg)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Theme.accent)
-                        .clipShape(Capsule())
+                    BrutTag(text: "NOW")
                 }
                 Spacer(minLength: 0)
                 Text("\(band.startYear) – \(band.endYear)")
-                    .font(.system(size: 13, weight: .medium).monospacedDigit())
+                    .font(.brutMono(12))
                     .foregroundStyle(Theme.muted)
             }
             if let theme = band.theme, !theme.isEmpty {
                 Text(theme)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Theme.fg.opacity(0.85))
+                    .font(.brutBody(13))
+                    .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 6) {
@@ -330,48 +333,42 @@ private struct BandRow: View {
                     Text(band.eventCount == 1 ? "1 moment" : "\(band.eventCount) moments")
                 }
                 Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 9, weight: .bold))
             }
-            .font(.system(size: 11))
-            .foregroundStyle(Theme.muted.opacity(0.8))
+            .font(.brutMono(10, weight: .regular))
+            .foregroundStyle(Theme.muted)
         }
     }
 
     private var progressBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Theme.hairline)
-                Capsule()
-                    .fill(Theme.accent)
-                    .frame(width: geo.size.width * band.progress(today: today))
-            }
-        }
-        .frame(height: 2)
-        .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
+        BrutProgressBar(progress: band.progress(today: today), height: 6)
+            .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
     }
 
     private var antardashaList: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("SUB-PERIODS")
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(1.4)
-                .foregroundStyle(Theme.muted.opacity(0.6))
-            ForEach(band.antardashas, id: \.self) { sub in
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Sub-periods").eyebrow()
+                .padding(.bottom, 8)
+            ForEach(Array(band.antardashas.enumerated()), id: \.offset) { index, sub in
                 let isNow = sub.start <= today && today < sub.end
                 HStack {
                     Text("\(band.lord)–\(sub.lord)")
-                        .font(.system(size: 12, weight: isNow ? .semibold : .regular))
-                        .foregroundStyle(isNow ? Theme.accent : Theme.muted)
+                        .font(.brutMono(12, weight: isNow ? .bold : .regular))
+                        .foregroundStyle(isNow ? Theme.accent : Theme.fg)
                     Spacer(minLength: 8)
                     Text("\(String(sub.start.prefix(7))) – \(String(sub.end.prefix(7)))")
-                        .font(.system(size: 11).monospacedDigit())
-                        .foregroundStyle(Theme.muted.opacity(0.7))
+                        .font(.brutMono(11, weight: .regular))
+                        .foregroundStyle(Theme.muted)
+                }
+                .padding(.vertical, 6)
+                if index < band.antardashas.count - 1 {
+                    Rectangle().fill(Theme.rule).frame(height: 1)
                 }
             }
         }
         .padding(12)
-        .background(Theme.fieldFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .brutBordered(fill: Theme.bg)
     }
 }
 
@@ -383,13 +380,14 @@ private struct EventRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Circle()
-                .strokeBorder(Theme.accent, lineWidth: 1.5)
-                .frame(width: 7, height: 7)
+            Rectangle()
+                .fill(Theme.accent)
+                .frame(width: 8, height: 8)
+                .overlay(Rectangle().stroke(Theme.line, lineWidth: 1.5))
                 .padding(.top, 5)
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(event.title)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
@@ -399,12 +397,12 @@ private struct EventRow: View {
                         Text(during)
                     }
                 }
-                .font(.system(size: 11))
+                .font(.brutMono(11, weight: .regular))
                 .foregroundStyle(Theme.muted)
                 if let note = event.note, !note.isEmpty {
                     Text(note)
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.muted.opacity(0.85))
+                        .font(.brutBody(12))
+                        .foregroundStyle(Theme.muted)
                         .padding(.top, 2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
