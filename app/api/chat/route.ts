@@ -1,7 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { DateTime } from "luxon";
 import { createRouteSupabase } from "@/lib/supabase/route";
-import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
+import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, READING_EFFORT, DEEP_EFFORT } from "@/lib/anthropic";
 import { buildChartSystem, buildTodaySystem, buildNumerologySystem, ageOn } from "@/lib/astrology/prompt";
 import {
   computeNumerology,
@@ -242,8 +242,8 @@ export async function POST(request: Request) {
           ...(supportsAdaptiveThinking(model)
             ? { thinking: { type: "adaptive" } as unknown as Anthropic.ThinkingConfigParam }
             : {}),
-          // Routine readings think briefly; Deep pays for the full default.
-          ...(body.deep ? {} : LOW_EFFORT),
+          // Routine readings think at medium; Deep at high.
+          ...(body.deep ? DEEP_EFFORT : READING_EFFORT),
           system: [
             {
               type: "text",

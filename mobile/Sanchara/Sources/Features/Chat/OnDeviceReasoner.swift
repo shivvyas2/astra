@@ -200,8 +200,7 @@ final class TableLookupTool: Tool, @unchecked Sendable {
     private var called = false
 
     var wasCalled: Bool {
-        lock.lock(); defer { lock.unlock() }
-        return called
+        lock.withLock { called }
     }
 
     init(facts: ChartFacts) {
@@ -209,7 +208,9 @@ final class TableLookupTool: Tool, @unchecked Sendable {
     }
 
     func call(arguments: Arguments) async throws -> String {
-        lock.lock(); called = true; lock.unlock()
+        // Scoped, because a bare lock()/unlock() pair is unsafe across a
+        // suspension point and is rejected in async code.
+        lock.withLock { called = true }
 
         var rows: [String] = []
         if let body = arguments.body, let row = facts.body(named: body) { rows.append(row) }

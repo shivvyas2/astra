@@ -2,14 +2,14 @@ import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import { env } from "@/lib/env";
 
-// Default readings run on Sonnet 5 (intelligent + stable, with adaptive thinking for
-// well-reasoned interpretation). "Deep reading" upgrades to Opus 4.8.
-export const READING_MODEL = "claude-sonnet-5";
-export const DEEP_READING_MODEL = "claude-opus-4-8";
+// Default readings run on Sonnet 5.5 (adaptive thinking for well-reasoned
+// interpretation). "Deep reading" upgrades to Opus 5.5.
+export const READING_MODEL = "claude-sonnet-5-5";
+export const DEEP_READING_MODEL = "claude-opus-5-5";
 
 // Both current models support adaptive thinking (Haiku 4.5 would not).
 export function supportsAdaptiveThinking(model: string): boolean {
-  return model === "claude-sonnet-5" || model === "claude-opus-4-8";
+  return model === "claude-sonnet-5-5" || model === "claude-opus-5-5";
 }
 
 /**
@@ -31,6 +31,23 @@ export function supportsAdaptiveThinking(model: string): boolean {
  */
 export const LOW_EFFORT: { readonly output_config: { readonly effort: "low" } } = {
   output_config: { effort: "low" },
+};
+
+/**
+ * A chat reading: enough thought to connect the question's houses, the
+ * dasha lords and the dated sky before committing to an answer. Background
+ * jobs (extraction, alerts) stay on {@link LOW_EFFORT}.
+ */
+export const READING_EFFORT: { readonly output_config: { readonly effort: "medium" } } = {
+  output_config: { effort: "medium" },
+};
+
+/**
+ * Deep readings. Set explicitly because Opus 5.5 defaults to "medium", one
+ * level below what Deep used to get by omitting it.
+ */
+export const DEEP_EFFORT: { readonly output_config: { readonly effort: "high" } } = {
+  output_config: { effort: "high" },
 };
 
 let client: Anthropic | null = null;

@@ -30,29 +30,30 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(rgb(Theme.muted), [0x9A, 0x97, 0x8F])
     }
 
+    /// The accent is lime: the one vivid colour on the ground.
     func testAccentMatchesCSSToken() {
-        XCTAssertEqual(rgb(Theme.accent), [0xFF, 0x6B, 0x3D])
+        XCTAssertEqual(rgb(Theme.accent), [0xDF, 0xEE, 0x6B])
+    }
+
+    func testEmberMatchesCSSToken() {
+        XCTAssertEqual(rgb(Theme.ember), [0xFF, 0x6B, 0x3D])
     }
 
     func testVioletMatchesCSSToken() {
         XCTAssertEqual(rgb(Theme.violet), [0x7C, 0x6C, 0xFF])
     }
 
-    func testYellowMatchesCSSToken() {
-        XCTAssertEqual(rgb(Theme.yellow), [0xFF, 0xD2, 0x3F])
-    }
-
     /// Text on a bright fill is the ground colour, so a filled button reads
-    /// the same way the page does — ink on bone, inverted.
+    /// the same way the page does, inverted.
     func testInkIsTheBackground() {
         XCTAssertEqual(rgb(Theme.ink), rgb(Theme.bg))
     }
 
-    /// Borders are drawn in bone at full strength, two points thick, with a
-    /// four-point hard shadow. The look depends on these three staying put.
-    func testBrutalistGeometry() {
-        XCTAssertEqual(Theme.lineWidth, 2)
-        XCTAssertEqual(Theme.shadowOffset, 4)
-        XCTAssertEqual(Theme.cornerRadius, 4)
+    /// Structure is drawn with a one-point line and nothing casts a shadow.
+    /// The look depends on these staying put.
+    func testLineGeometry() {
+        XCTAssertEqual(Theme.lineWidth, 1)
+        XCTAssertEqual(Theme.shadowOffset, 0)
+        XCTAssertEqual(Theme.cardRadius, 24)
     }
 }
