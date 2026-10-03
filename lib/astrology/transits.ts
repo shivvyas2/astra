@@ -125,3 +125,71 @@ export function describeToday(nowLocal: {
     nowLocal.hour < 12 ? "morning" : nowLocal.hour < 17 ? "afternoon" : nowLocal.hour < 21 ? "evening" : "night";
   return `${nowLocal.weekdayLongDate}, ${part} in ${nowLocal.zone}`;
 }
+
+/** The slow bodies whose sign changes are worth dating ahead of time. */
+const INGRESS_BODIES = ["Saturn", "Jupiter", "Rahu", "Ketu", "Mars"] as const;
+/** The bodies whose stations are worth dating; the nodes are always retrograde. */
+const STATION_BODIES = ["Saturn", "Jupiter", "Mars"] as const;
+
+/**
+ * What changes in the sky over the coming months, dated and read against
+ * this person's chart, so a prediction can say "by January" rather than
+ * "soon".
+ *
+ * `samples` are transit charts for days ahead (the route takes 30, 90, 180,
+ * and 365 days out). For each slow body, the first sample whose sign differs
+ * from `today`'s is the ingress, dated to that sample's month — "by", because
+ * the sample is an upper bound, not the day itself. Stations are the same
+ * idea applied to the retrograde flag.
+ *
+ * Mirrors {@link describeGochara}: the house from the lagna and from the Moon
+ * are Vedic, so a Western chart gets only the sign and any natal body it
+ * lands on. Returns "" when nothing changes within the samples.
+ */
+export function describeUpcomingTransits(
+  natal: Chart,
+  today: Chart,
+  samples: { day: string; chart: Chart }[],
+): string {
+  const vedic = natal.tradition === "vedic";
+  const ordered = [...samples].sort((a, b) => a.day.localeCompare(b.day));
+  const planet = (chart: Chart, name: string) => chart.planets.find((p) => p.name === name);
+  const month = (day: string) => day.slice(0, 7);
+  const lines: string[] = [];
+
+  for (const name of INGRESS_BODIES) {
+    const now = planet(today, name);
+    if (!now) continue;
+    const sample = ordered.find((s) => {
+      const p = planet(s.chart, name);
+      return p !== undefined && p.sign !== now.sign;
+    });
+    if (!sample) continue;
+    const sign = planet(sample.chart, name)!.sign;
+
+    const detail: string[] = [];
+    if (vedic) {
+      detail.push(`house ${houseFrom(natal.ascendant.sign, sign)} from your ascendant`);
+      detail.push(`${ORDINAL[houseFrom(natal.moonSign, sign)]} from your Moon`);
+    }
+    const touching = natal.planets.filter((n) => n.sign === sign).map((n) => `natal ${n.name}`);
+    if (touching.length > 0) detail.push(`over ${joinWithAnd(touching)}`);
+
+    const where = detail.length > 0 ? ` (${detail.join(", ")})` : "";
+    lines.push(`- ${name} moves into ${sign} by ${month(sample.day)}${where}.`);
+  }
+
+  for (const name of STATION_BODIES) {
+    const now = planet(today, name);
+    if (!now) continue;
+    const sample = ordered.find((s) => {
+      const p = planet(s.chart, name);
+      return p !== undefined && p.retrograde !== now.retrograde;
+    });
+    if (!sample) continue;
+    const direction = planet(sample.chart, name)!.retrograde ? "retrograde" : "direct";
+    lines.push(`- ${name} turns ${direction} by ${month(sample.day)}.`);
+  }
+
+  return lines.join("\n");
+}

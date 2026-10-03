@@ -6,9 +6,11 @@ export type Turn = { role: "user" | "assistant"; content: string };
  * The API is stateless, so every turn re-sends the history and is billed for
  * it. A budget in characters keeps a long reading from crowding out the last
  * few exchanges, and keeps the bill flat on conversations that run for hours.
- * Roughly four characters to a token, so 6,000 characters is ~1,500 tokens.
+ * Roughly four characters to a token, so 9,000 characters is ~2,250 tokens.
+ * Raised from 6,000 when answers became specific: a committed, dated reading
+ * runs longer, and the turn it builds on has to still be in view.
  */
-export const HISTORY_BUDGET_CHARS = 6000;
+export const HISTORY_BUDGET_CHARS = 9000;
 
 export function selectHistory(turns: Turn[], budget: number = HISTORY_BUDGET_CHARS): Turn[] {
   const kept: Turn[] = [];

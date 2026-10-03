@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { selectHistory, type Turn } from "./history";
+import { selectHistory, HISTORY_BUDGET_CHARS, type Turn } from "./history";
 
 const turn = (role: Turn["role"], size: number, tag: string): Turn => ({
   role,
@@ -9,7 +9,7 @@ const turn = (role: Turn["role"], size: number, tag: string): Turn => ({
 describe("selectHistory", () => {
   it("keeps everything when it fits the budget", () => {
     const turns = [turn("user", 50, "q1"), turn("assistant", 100, "a1")];
-    expect(selectHistory(turns, 6000)).toEqual(turns);
+    expect(selectHistory(turns, HISTORY_BUDGET_CHARS)).toEqual(turns);
   });
 
   it("drops the oldest turns first", () => {
@@ -36,7 +36,13 @@ describe("selectHistory", () => {
     expect(kept[0].content.startsWith("huge")).toBe(true);
   });
 
+  it("defaults to a budget wide enough for a dated reading and the turn it builds on", () => {
+    expect(HISTORY_BUDGET_CHARS).toBe(9000);
+    const turns = [turn("user", 200, "q1"), turn("assistant", 4000, "a1"), turn("user", 200, "q2"), turn("assistant", 4000, "a2")];
+    expect(selectHistory(turns)).toEqual(turns);
+  });
+
   it("returns nothing for an empty conversation", () => {
-    expect(selectHistory([], 6000)).toEqual([]);
+    expect(selectHistory([], HISTORY_BUDGET_CHARS)).toEqual([]);
   });
 });

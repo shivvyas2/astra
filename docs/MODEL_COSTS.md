@@ -62,11 +62,11 @@ tokens — a quarter of the original. It was not made the default because chart
 work benefits from some reasoning.
 
 **3. A history budget.** `selectHistory` (`lib/data/history.ts`) re-sends the
-most recent turns up to 6,000 characters instead of a flat last-10, so one long
+most recent turns up to 9,000 characters instead of a flat last-10, so one long
 reading cannot crowd out the recent exchange and a conversation that runs all
 evening does not keep getting more expensive.
 
-**4. An explicit length rule.** The prompt asks for 160 words (320 on Deep)
+**4. An explicit length rule.** The prompt asks for 190 words (360 on Deep)
 rather than "be concise", which is what actually governs output spend.
 `max_tokens` is now 1,600 / 3,000 — a ceiling, not a target.
 

@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { DateTime } from "luxon";
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
-import { buildChartSystem, buildTodaySystem, buildNumerologySystem } from "@/lib/astrology/prompt";
+import { buildChartSystem, buildTodaySystem, buildNumerologySystem, ageOn } from "@/lib/astrology/prompt";
 import {
   computeNumerology,
   computeNameNumber,
@@ -10,20 +10,38 @@ import {
   numberRelationship,
   personalCycle,
 } from "@/lib/astrology/numerology";
-import { transitChart, describeGochara, describeToday } from "@/lib/astrology/transits";
+import {
+  transitChart,
+  describeGochara,
+  describeToday,
+  describeUpcomingTransits,
+  utcDayKey,
+} from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
 import { selectHistory } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
-import { describeTimelineForPrompt } from "@/lib/timeline/describe";
+import type { Timeline } from "@/lib/timeline/build";
+import { describeTimelineForPrompt, describeUpcomingPeriods } from "@/lib/timeline/describe";
 import { ensureCurrentChart, type BirthProfileRow } from "@/lib/data/birthProfile";
 
 export const runtime = "nodejs";
 
-/** A normal reading; "deep" buys a bigger model and room to say more. */
-const WORDS_STANDARD = 160;
-const WORDS_DEEP = 320;
+/**
+ * A normal reading; "deep" buys a bigger model and room to say more. Sized
+ * for a committed answer — what, when, how sure, and the placement behind
+ * it — rather than a general one, which is why they sit above the old 160/320.
+ */
+const WORDS_STANDARD = 190;
+const WORDS_DEEP = 360;
+
+/**
+ * How far ahead the sky is sampled for the UPCOMING block, in days. Four
+ * points are enough to date a slow body's next sign change or station to the
+ * month, and each is one cached ephemeris run per day per neighbourhood.
+ */
+const UPCOMING_SAMPLE_DAYS = [30, 90, 180, 365];
 
 export async function POST(request: Request) {
   const supabase = await createRouteSupabase(request);
@@ -76,6 +94,9 @@ export async function POST(request: Request) {
     });
     const num = computeNumerology(String(profile.birth_date));
     const maxWords = body.deep ? WORDS_DEEP : WORDS_STANDARD;
+    // Their age in whole years, on their own calendar date. Volatile only on
+    // a birthday, but it belongs with "today" rather than with the chart.
+    const age = ageOn(String(profile.birth_date), nowLocal);
 
     if (body.tradition === "numerology") {
       const fullName = `${profile.first_name} ${profile.last_name}`.trim();
@@ -91,52 +112,77 @@ export async function POST(request: Request) {
       });
       todaySystem = buildTodaySystem({
         today,
+        age,
         maxWords,
         personal: personalCycle(String(profile.birth_date), nowLocal.toFormat("yyyy-LL-dd")),
       });
     } else {
-      const chart = (profile.chart as { vedic: Chart; western: Chart })[body.tradition as Tradition];
+      const tradition = body.tradition as Tradition;
+      const chart = (profile.chart as { vedic: Chart; western: Chart })[tradition];
       // factsFor gates on chart.tradition, so this is undefined for western —
       // Western readings get no derived facts (no Vedic lordship, aspect,
       // dignity, or dosha technique). See lib/astrology/derived.ts.
       const derived = factsFor(chart);
+      const place = { lat: Number(profile.lat), lng: Number(profile.lng), tradition };
 
       // Live transits, computed once per day per neighbourhood and shared.
       let transits: string | undefined;
+      let todaySky: Chart | undefined;
       try {
-        transits = describeGochara(
-          chart,
-          await transitChart({
-            lat: Number(profile.lat),
-            lng: Number(profile.lng),
-            tradition: body.tradition as Tradition,
-          }),
-        );
+        todaySky = await transitChart(place);
+        transits = describeGochara(chart, todaySky);
       } catch {
         transits = undefined;
       }
 
+      // The same sky sampled months ahead, so a prediction can date the next
+      // sign change or station. Its own try/catch: losing it should not take
+      // SKY TODAY with it.
+      let upcomingTransits = "";
+      if (todaySky) {
+        try {
+          const samples = await Promise.all(
+            UPCOMING_SAMPLE_DAYS.map(async (days) => {
+              const day = DateTime.utc().plus({ days }).toISODate()!;
+              return { day, chart: await transitChart({ ...place, day }) };
+            }),
+          );
+          upcomingTransits = describeUpcomingTransits(chart, todaySky, samples);
+        } catch (err) {
+          console.error("chat upcoming transits skipped", err);
+        }
+      }
+
       stableSystem = buildChartSystem({
         firstName: profile.first_name,
-        tradition: body.tradition as Tradition,
+        tradition,
         chart,
         derived,
         numerology: num,
       });
 
       // What has actually happened in their life, so "why was 2021 so hard"
-      // is answered against their 2021 and not a generic one. Part of the
-      // cached block: it only changes when they pin or remove a moment.
+      // is answered against their 2021 and not a generic one. Loaded once and
+      // used twice: the moments go in the cached block, which only changes
+      // when they pin or remove one, and the period changes ahead go in the
+      // volatile block, because they are phrased relative to today.
+      let timeline: Timeline | null = null;
       try {
-        const timeline = await loadTimeline(supabase);
-        if (timeline) {
-          stableSystem += describeTimelineForPrompt(timeline, { tradition: body.tradition as Tradition });
-        }
+        timeline = await loadTimeline(supabase);
       } catch (err) {
         console.error("chat timeline context skipped", err);
       }
+      if (timeline) stableSystem += describeTimelineForPrompt(timeline, { tradition });
 
-      todaySystem = buildTodaySystem({ today, transits, maxWords });
+      // Dasha sub-periods are Vedic, as describeTimelineForPrompt already
+      // treats them; a Western reading gets the dated sky alone.
+      const upcomingPeriods =
+        timeline && tradition === "vedic"
+          ? describeUpcomingPeriods(timeline, nowLocal.toISODate() ?? utcDayKey())
+          : "";
+      const upcoming = [upcomingTransits, upcomingPeriods].filter(Boolean).join("\n");
+
+      todaySystem = buildTodaySystem({ today, age, transits, upcoming, maxWords });
     }
 
     conversationId = await getOrCreateConversation(

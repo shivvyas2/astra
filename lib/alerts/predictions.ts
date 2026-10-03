@@ -4,7 +4,7 @@ import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
-import { buildChartSystem, buildTodaySystem } from "@/lib/astrology/prompt";
+import { buildChartSystem, buildTodaySystem, ageOn } from "@/lib/astrology/prompt";
 import { computeNumerology } from "@/lib/astrology/numerology";
 import { transitChart, describeGochara } from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
@@ -111,6 +111,7 @@ async function writeDueReading(
     // for them here too would say the same thing twice in one prompt.
     transits: describeGochara(chart, transits, { includeAfflictions: false }),
     today: nowLocal.toFormat("cccc, LLLL d, yyyy"),
+    age: ageOn(profile.birth_date, nowLocal),
     slot,
     conditions,
   });
@@ -152,6 +153,8 @@ export async function composePrediction(args: {
   numerology: { mulank: number; bhagyank: number };
   transits: string;
   today: string;
+  /** Whole years lived today; omitted when the birth date does not parse. */
+  age?: number;
   slot: Slot;
   conditions: Condition[];
 }): Promise<AlertCopy> {
@@ -168,7 +171,7 @@ export async function composePrediction(args: {
     derived: factsFor(args.chart),
     numerology: args.numerology,
   });
-  const todayBlock = buildTodaySystem({ today: args.today, transits: args.transits, maxWords: 150 });
+  const todayBlock = buildTodaySystem({ today: args.today, age: args.age, transits: args.transits, maxWords: 150 });
 
   const task = `${SLOT_BRIEF[args.slot]}
 
