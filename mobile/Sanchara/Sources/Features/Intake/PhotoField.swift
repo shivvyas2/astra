@@ -1,7 +1,8 @@
 import PhotosUI
 import SwiftUI
 
-/// The circular "Add photo" control from `components/IntakeForm.tsx`.
+/// The "Add photo" control from `components/IntakeForm.tsx`, as a bordered
+/// square.
 ///
 /// Uses `PhotosPicker`, which runs out of process, so the app never asks for
 /// photo library permission — the person picks one image and only that image
@@ -30,18 +31,21 @@ struct SancharaPhotoField: View {
                         }
                     } else {
                         Text("Add photo")
-                            .font(.system(size: 11))
+                            .font(.brutMono(10))
                             .foregroundStyle(Theme.muted)
                     }
                     if isLoading {
-                        Color.black.opacity(0.4)
+                        Theme.bg.opacity(0.55)
                         ProgressView().tint(Theme.fg)
                     }
                 }
                 .frame(width: 72, height: 72)
-                .background(Theme.fieldFill)
-                .clipShape(Circle())
-                .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
+                        .strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+                )
             }
             .accessibilityLabel(preview == nil && existingURL == nil ? "Add a profile photo" : "Change profile photo")
         }

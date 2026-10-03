@@ -17,20 +17,23 @@ export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }
 
   return (
     <div className="relative w-full">
-      <input
-        value={q}
-        onChange={(e) => search(e.target.value)}
-        placeholder="Birthplace (city)"
-        className="w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent"
-      />
-      {picked && <p className="mt-1 text-xs text-muted">Selected: {picked}</p>}
+      <label className="block">
+        <span className="eyebrow mb-1.5 block">Birthplace</span>
+        <input
+          value={q}
+          onChange={(e) => search(e.target.value)}
+          placeholder="Birthplace (city)"
+          className="brut-field"
+        />
+      </label>
+      {picked && <p className="mt-1.5 text-xs text-accent">Selected: {picked}</p>}
       {results.length > 0 && !picked && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-y-auto rounded-lg border border-white/10 bg-bg">
+        <ul className="brut-card absolute z-10 mt-2 max-h-60 w-full overflow-y-auto">
           {results.map((r, i) => (
-            <li key={i}>
+            <li key={i} className="border-b-2 border-fg/10 last:border-b-0">
               <button type="button"
                 onClick={() => { onPick(r); setPicked(r.name); setResults([]); setQ(r.name); }}
-                className="block w-full truncate px-3 py-2 text-left text-sm hover:bg-white/10">
+                className="block w-full truncate px-3 py-2 text-left text-sm transition-colors hover:bg-surface-raised">
                 {r.name} <span className="text-muted">· {r.timezone}</span>
               </button>
             </li>

@@ -43,10 +43,10 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
   }
 
   return (
-    <form action={action} className="w-full max-w-md space-y-3">
-      <div className="flex flex-col items-center gap-1.5">
+    <form action={action} className="w-full max-w-md space-y-4">
+      <div className="flex items-center gap-4">
         <label className="cursor-pointer">
-          <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] text-center text-[10px] text-muted transition-colors hover:border-accent">
+          <div className="brut-bordered grid h-16 w-16 place-items-center overflow-hidden text-center text-[10px] font-bold uppercase tracking-wide text-muted transition-colors hover:border-accent">
             {preview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
@@ -57,18 +57,28 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
           <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; setPreview(f ? URL.createObjectURL(f) : null); }} />
         </label>
-        <span className="text-[11px] text-muted/70">Optional photo</span>
+        <div>
+          <p className="eyebrow">Photo</p>
+          <p className="mt-1 text-xs text-muted">Optional. PNG, JPEG or WebP.</p>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        <input name="first_name" required placeholder="First name" defaultValue={initial?.firstName ?? ""} className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
-        <input name="last_name" required placeholder="Last name" defaultValue={initial?.lastName ?? ""} className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
+      <div className="grid grid-cols-2 gap-3">
+        <label className="block">
+          <span className="eyebrow mb-1.5 block">First name</span>
+          <input name="first_name" required placeholder="First name" defaultValue={initial?.firstName ?? ""} className="brut-field" />
+        </label>
+        <label className="block">
+          <span className="eyebrow mb-1.5 block">Last name</span>
+          <input name="last_name" required placeholder="Last name" defaultValue={initial?.lastName ?? ""} className="brut-field" />
+        </label>
       </div>
 
-      <label className="block text-sm text-muted">Birth date
+      <label className="block">
+        <span className="eyebrow mb-1.5 block">Birth date</span>
         <input name="birth_date" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none [color-scheme:dark] focus:border-accent" />
-        <span className={`mt-1 block text-xs ${birthDate ? "text-accent" : "text-muted/60"}`}>
+          className="brut-field [color-scheme:dark]" />
+        <span className={`mt-1.5 block text-xs ${birthDate ? "text-accent" : "text-muted"}`}>
           {birthDate ? `Selected: ${prettyDate}` : "No date selected yet"}
         </span>
       </label>
@@ -76,12 +86,13 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
       <TimePicker initialTime={initial?.birthTime} />
 
       {!manual ? (
-        <>
+        <div>
           <PlaceAutocomplete onPick={setGeo} />
-          <button type="button" onClick={() => { setManual(true); setGeo(null); }} className="text-xs text-muted underline">
+          <button type="button" onClick={() => { setManual(true); setGeo(null); }}
+            className="mt-2 text-xs text-muted underline underline-offset-2 transition-colors hover:text-fg">
             Can&apos;t find your birthplace? Enter coordinates manually
           </button>
-        </>
+        </div>
       ) : (
         <ManualCoords onChange={manualGeo} onBack={() => { setManual(false); setGeo(null); }} />
       )}
@@ -90,7 +101,7 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
       <input type="hidden" name="lat" value={geo?.lat ?? ""} />
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
       <input type="hidden" name="timezone" value={geo?.timezone ?? ""} />
-      <button disabled={!geo} className="w-full rounded-lg bg-fg px-3 py-2.5 font-medium text-bg disabled:opacity-40">
+      <button disabled={!geo} className="brut-btn brut-btn-primary w-full py-3">
         {editing ? "Update my details" : "Save & build my chart"}
       </button>
       {geo && <p className="text-xs text-muted">{geo.name ? `${geo.name} · ` : ""}{geo.timezone}</p>}
@@ -119,19 +130,21 @@ function TimePicker({ initialTime }: { initialTime?: string }) {
   const hour24 = meridiem === "PM" ? (hour % 12) + 12 : hour % 12;
   const value = `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 
-  const selectCls =
-    "w-full min-w-0 cursor-pointer appearance-none rounded-lg border border-white/10 bg-white/[0.04] py-2.5 pl-3 pr-8 text-center outline-none transition-colors [color-scheme:dark] hover:border-white/20 focus:border-accent";
+  const selectCls = "brut-field cursor-pointer appearance-none pr-8 text-center [color-scheme:dark]";
   const chevron = {
     backgroundImage:
-      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239a978f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23f4f1ea' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
     backgroundRepeat: "no-repeat",
     backgroundPosition: "right 0.55rem center",
   } as const;
 
   return (
-    <div className="text-sm text-muted">
-      Birth time <span className="text-muted/70">(as exact as you know)</span>
-      <div className="mt-1 grid grid-cols-3 gap-2">
+    <div>
+      <div className="flex items-baseline gap-2">
+        <span className="eyebrow">Birth time</span>
+        <span className="text-xs text-muted">as exact as you know</span>
+      </div>
+      <div className="mt-1.5 grid grid-cols-3 gap-2">
         <select aria-label="Hour" value={hour} onChange={(e) => setHour(Number(e.target.value))} className={selectCls} style={chevron}>
           {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
             <option key={h} value={h}>{h}</option>
@@ -147,7 +160,7 @@ function TimePicker({ initialTime }: { initialTime?: string }) {
           <option value="PM">PM</option>
         </select>
       </div>
-      <span className="mt-1 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem} · noon is fine if unknown</span>
+      <span className="mt-1.5 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem} · noon is fine if unknown</span>
       <input type="hidden" name="birth_time" value={value} />
     </div>
   );
@@ -163,16 +176,17 @@ function ManualCoords({
     onChange(parseFloat(nLat), parseFloat(nLng), nPlace);
   }
   return (
-    <div className="w-full space-y-2 rounded-lg border border-white/10 p-3">
+    <div className="brut-bordered w-full space-y-2 p-3">
+      <span className="eyebrow block">Coordinates</span>
       <input value={place} onChange={(e) => { setPlace(e.target.value); push(lat, lng, e.target.value); }}
-        placeholder="Place name (optional)" className="w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
+        placeholder="Place name (optional)" className="brut-field" />
       <div className="grid grid-cols-2 gap-2">
         <input value={lat} onChange={(e) => { setLat(e.target.value); push(e.target.value, lng, place); }}
-          placeholder="Latitude" inputMode="decimal" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
+          placeholder="Latitude" inputMode="decimal" className="brut-field" />
         <input value={lng} onChange={(e) => { setLng(e.target.value); push(lat, e.target.value, place); }}
-          placeholder="Longitude" inputMode="decimal" className="min-w-0 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 outline-none focus:border-accent" />
+          placeholder="Longitude" inputMode="decimal" className="brut-field" />
       </div>
-      <button type="button" onClick={onBack} className="text-xs text-muted underline">Back to search</button>
+      <button type="button" onClick={onBack} className="text-xs text-muted underline underline-offset-2 transition-colors hover:text-fg">Back to search</button>
     </div>
   );
 }

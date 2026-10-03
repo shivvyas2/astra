@@ -29,9 +29,9 @@ final class AuthStore {
     }
 
     /// Supabase's default minimum. Stated up front rather than after a round trip.
-    static let minimumPasswordLength = 6
+    nonisolated static let minimumPasswordLength = 6
     /// Supabase emails a six-digit code.
-    static let codeLength = 6
+    nonisolated static let codeLength = 6
 
     var state: State = .loading
     var errorMessage: String?

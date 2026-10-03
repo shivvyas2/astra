@@ -128,7 +128,7 @@ struct KundliChartView: View {
                         .overlay {
                             if house.isLagna || selected?.number == house.number {
                                 HouseRegion(house: house.number)
-                                    .stroke(stroke(for: house), lineWidth: 1.25)
+                                    .stroke(stroke(for: house), lineWidth: 2.5)
                             }
                         }
                         .contentShape(HouseRegion(house: house.number))
@@ -140,7 +140,7 @@ struct KundliChartView: View {
                 }
 
                 KundliFrame()
-                    .stroke(Theme.chartLine, lineWidth: 1)
+                    .stroke(Theme.chartLine, lineWidth: Theme.lineWidth)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
 
@@ -175,15 +175,15 @@ struct KundliChartView: View {
     /// now gets a half-strength line, and full accent is kept for the house the
     /// person actually tapped.
     private func stroke(for house: KundliHouse) -> Color {
-        selected?.number == house.number ? Theme.accent : Theme.accent.opacity(0.5)
+        selected?.number == house.number ? Theme.accent : Theme.accent.opacity(0.6)
     }
 
     private func fill(for house: KundliHouse) -> Color {
-        if selected?.number == house.number { return Theme.accent.opacity(0.16) }
-        if house.isLagna { return Theme.accent.opacity(0.05) }
+        if selected?.number == house.number { return Theme.accent.opacity(0.35) }
+        if house.isLagna { return Theme.accent.opacity(0.12) }
         // Alternating houses get the faintest wash, so the twelve regions read
         // as distinct areas without twelve visible borders.
-        return house.number.isMultiple(of: 2) ? Color.white.opacity(0.02) : .clear
+        return house.number.isMultiple(of: 2) ? Theme.fg.opacity(0.03) : .clear
     }
 
     private func contents(_ house: KundliHouse) -> some View {

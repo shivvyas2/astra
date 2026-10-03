@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// The account control in the top bar: their photo when there is one, their
-/// initials when there is not, and never an empty grey circle.
+/// initials when there is not, and never an empty grey square.
 struct AvatarBadge: View {
     let details: BirthProfileDetails?
 
@@ -18,23 +18,26 @@ struct AvatarBadge: View {
                 AsyncImage(url: url) { image in
                     image.resizable().scaledToFill()
                 } placeholder: {
-                    initialsCircle
+                    initialsBlock
                 }
             } else {
-                initialsCircle
+                initialsBlock
             }
         }
         .frame(width: 28, height: 28)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(Theme.hairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
+                .strokeBorder(Theme.line, lineWidth: 1.5)
+        )
     }
 
-    private var initialsCircle: some View {
+    private var initialsBlock: some View {
         ZStack {
-            Theme.fieldFill
+            Theme.surface
             Text(initials)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Theme.muted)
+                .font(.brutMono(11, weight: .bold))
+                .foregroundStyle(Theme.fg)
         }
     }
 }

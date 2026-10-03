@@ -44,21 +44,17 @@ struct SignedInView: View {
             case .needsIntake:
                 IntakeView { await profile.load() }
             case .ready:
-                ChatView(profile: profile)
+                MainTabView(profile: profile)
             case .failed(let message):
                 ZStack {
                     Theme.bg.ignoresSafeArea()
                     VStack(spacing: 16) {
-                        Text(message)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.muted)
-                            .multilineTextAlignment(.center)
+                        BrutNotice(text: message, tone: .info)
                         SancharaSecondaryButton(title: "Try again") {
                             Task { await profile.load() }
                         }
                         Button("Sign out") { Task { await auth.signOut() } }
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.muted)
+                            .buttonStyle(BrutButtonStyle(kind: .quiet))
                     }
                     .frame(maxWidth: 320)
                     .padding(.horizontal, 24)

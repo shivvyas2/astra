@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildSystemPrompt, buildChartSystem, buildTodaySystem, buildNumerologySystem } from "./prompt";
+import { DateTime } from "luxon";
+import { buildSystemPrompt, buildChartSystem, buildTodaySystem, buildNumerologySystem, ageOn } from "./prompt";
 import { deriveFacts } from "./derived";
 import { loShu, numberRelationship } from "./numerology";
 import type { Chart } from "./types";
@@ -66,6 +67,118 @@ describe("buildSystemPrompt", () => {
     const a = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived });
     const b = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived });
     expect(a).toBe(b);
+  });
+
+  // Age and the UPCOMING block change over time (a birthday, a sub-period
+  // turning over), so they must be addressed to the volatile half only. The
+  // stable half is built from the same arguments either way; this pins that
+  // handing the full prompt builder age and upcoming leaves its prefix intact.
+  it("keeps age and the upcoming block out of the cacheable half", () => {
+    const stable = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived });
+    expect(stable).not.toContain("years old");
+    expect(stable).not.toContain("UPCOMING (");
+
+    const plain = buildSystemPrompt({ firstName: "Aditi", tradition: "vedic", chart, derived, today: "Tuesday" });
+    const dated = buildSystemPrompt({
+      firstName: "Aditi",
+      tradition: "vedic",
+      chart,
+      derived,
+      today: "Tuesday",
+      age: 34,
+      upcoming: "- Jupiter moves into Cancer by 2027-01.",
+    });
+    expect(plain.startsWith(stable)).toBe(true);
+    expect(dated.startsWith(stable)).toBe(true);
+    expect(dated).toContain("They are 34 years old.");
+    expect(dated).toContain("Jupiter moves into Cancer by 2027-01");
+  });
+});
+
+describe("the specific-and-personal rules", () => {
+  const p = buildChartSystem({ firstName: "Aditi", tradition: "vedic", chart, derived });
+
+  it("sit in the stable half, after How to answer and before Format", () => {
+    const how = p.indexOf("How to answer:");
+    const specific = p.indexOf("Be specific and personal:");
+    const format = p.indexOf("Format:");
+    expect(how).toBeGreaterThan(0);
+    expect(specific).toBeGreaterThan(how);
+    expect(format).toBeGreaterThan(specific);
+  });
+
+  it("address the reader by name about their own life", () => {
+    expect(p).toContain('Speak to Aditi about their life, not about "a person with this chart"');
+    expect(p).toContain("the LIFE TIMELINE and earlier turns");
+  });
+
+  it("require what, when, and exactly one confidence word", () => {
+    expect(p).toContain("Every prediction states three things");
+    expect(p).toContain("written as months and years");
+    expect(p).toContain("using exactly one of: likely, possible, unlikely");
+  });
+
+  it("forbid hedging with both outcomes and demand a first-sentence answer to yes/no", () => {
+    expect(p).toContain("Pick the outcome the chart favours and say it");
+    expect(p).toContain('never "may or may not"');
+    expect(p).toContain("A yes/no question gets a yes, a no, or a \"most likely yes/no\" in the first sentence");
+  });
+
+  it("reword the old tendencies line so the disclaimer cannot become an escape hatch", () => {
+    expect(p).not.toContain("never guaranteed outcomes");
+    expect(p).toContain("A prediction is your best reading of the chart said plainly, not a guarantee.");
+    expect(p).toContain("never as a way to avoid answering");
+    expect(p).toContain("No medical, legal, or financial guarantees.");
+  });
+});
+
+describe("buildTodaySystem age and upcoming", () => {
+  it("puts the age on its own line right after the date", () => {
+    const t = buildTodaySystem({ today: "Tuesday", age: 34 });
+    const lines = t.split("\n");
+    expect(lines[0].startsWith("Today is Tuesday.")).toBe(true);
+    expect(lines[1]).toBe("They are 34 years old.");
+  });
+
+  it("omits the age line when age is absent, including for zero-safe values", () => {
+    expect(buildTodaySystem({ today: "Tuesday" })).not.toContain("years old");
+    // Zero is a real age (a newborn's chart), not an absent one.
+    expect(buildTodaySystem({ today: "Tuesday", age: 0 })).toContain("They are 0 years old.");
+  });
+
+  it("renders the upcoming block with its heading and the instruction to take windows from it", () => {
+    const upcoming = "- Current sub-period: Venus–Mercury ends 2027-12 (about 14 months from now).\n- Saturn turns direct by 2026-11.";
+    const t = buildTodaySystem({ today: "Tuesday", transits: "- Saturn in Pisces.", upcoming });
+    expect(t).toContain("\n\nUPCOMING (dated, from the ephemeris and the dasha table):\n" + upcoming + "\n\nWhen you predict, take the window from here and name its dates.");
+    // After SKY TODAY, before the length rule.
+    expect(t.indexOf("UPCOMING (")).toBeGreaterThan(t.indexOf("SKY TODAY:"));
+    expect(t.indexOf("Length:")).toBeGreaterThan(t.indexOf("name its dates."));
+    expect(t).not.toContain("..");
+  });
+
+  it("omits the upcoming block when empty", () => {
+    expect(buildTodaySystem({ today: "Tuesday", upcoming: "" })).not.toContain("UPCOMING");
+    expect(buildTodaySystem({ today: "Tuesday" })).not.toContain("UPCOMING");
+  });
+});
+
+describe("ageOn", () => {
+  const zone = "Asia/Kolkata";
+  const at = (iso: string) => DateTime.fromISO(iso, { zone });
+
+  it("counts whole years, turning over on the birthday itself", () => {
+    expect(ageOn("1990-07-15", at("2026-07-14T23:00:00"))).toBe(35);
+    expect(ageOn("1990-07-15", at("2026-07-15T00:30:00"))).toBe(36);
+  });
+
+  it("reads the birthday in the reader's zone, not UTC", () => {
+    // 00:30 IST on the 15th is still the 14th in UTC; they have still turned 36 where they live.
+    expect(ageOn("1990-07-15", at("2026-07-15T00:30:00"))).toBe(36);
+  });
+
+  it("is undefined for an unparseable or future birth date", () => {
+    expect(ageOn("not-a-date", at("2026-07-15T12:00:00"))).toBeUndefined();
+    expect(ageOn("2030-01-01", at("2026-07-15T12:00:00"))).toBeUndefined();
   });
 });
 

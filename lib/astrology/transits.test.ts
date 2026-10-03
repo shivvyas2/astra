@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeGochara } from "./transits";
+import { describeGochara, describeUpcomingTransits } from "./transits";
 import type { Chart } from "./types";
 
 const natal: Chart = {
@@ -111,5 +111,101 @@ describe("describeGochara for a western chart", () => {
     expect(vedicText).toMatch(/house 9 from the ascendant/);
     expect(vedicText).toMatch(/1st from the Moon/);
     expect(vedicText).toContain("Sade Sati");
+  });
+});
+
+describe("describeUpcomingTransits", () => {
+  // The natal chart above: Scorpio lagna, Moon in Cancer, Sun in Leo, Saturn
+  // in Pisces. A sky with every slow body placed, then samples that move
+  // them one at a time so each line can be pinned to a date.
+  const sky = (planets: Chart["planets"]): Chart => ({ ...natal, planets });
+  const p = (name: string, sign: string, retrograde = false) => ({ name, sign, degree: 10, house: 1, retrograde });
+
+  const today = sky([
+    p("Saturn", "Pisces"),
+    p("Jupiter", "Gemini"),
+    p("Rahu", "Aquarius", true),
+    p("Ketu", "Leo", true),
+    p("Mars", "Virgo"),
+  ]);
+
+  // Given out of order on purpose: the function must sort by day itself.
+  const samples = [
+    {
+      day: "2027-01-02",
+      chart: sky([p("Saturn", "Aries"), p("Jupiter", "Cancer"), p("Rahu", "Capricorn", true), p("Ketu", "Cancer", true), p("Mars", "Aquarius")]),
+    },
+    {
+      day: "2026-11-01",
+      chart: sky([p("Saturn", "Pisces", true), p("Jupiter", "Gemini"), p("Rahu", "Aquarius", true), p("Ketu", "Leo", true), p("Mars", "Libra")]),
+    },
+    {
+      day: "2026-12-31",
+      chart: sky([p("Saturn", "Pisces", true), p("Jupiter", "Cancer"), p("Rahu", "Aquarius", true), p("Ketu", "Leo", true), p("Mars", "Scorpio")]),
+    },
+    {
+      day: "2027-04-02",
+      chart: sky([p("Saturn", "Aries"), p("Jupiter", "Cancer", true), p("Rahu", "Capricorn", true), p("Ketu", "Cancer", true), p("Mars", "Aries")]),
+    },
+  ];
+
+  const text = describeUpcomingTransits(natal, today, samples);
+
+  it("dates each slow body's first sign change to the earliest sample that shows it", () => {
+    // Mars reaches Libra by the 30-day sample, not Scorpio or Aquarius later.
+    expect(text).toContain("- Mars moves into Libra by 2026-11");
+    // Jupiter's Cancer ingress shows first in the 2026-12-31 sample, even
+    // though the 2027-01-02 sample was listed before it.
+    expect(text).toContain("- Jupiter moves into Cancer by 2026-12");
+    expect(text).toContain("- Saturn moves into Aries by 2027-01");
+    expect(text).toContain("- Rahu moves into Capricorn by 2027-01");
+    expect(text).toContain("- Ketu moves into Cancer by 2027-01");
+  });
+
+  it("counts the new sign from the ascendant and the Moon for a Vedic chart, and names the natal body it lands on", () => {
+    // Scorpio lagna: Cancer is the 9th sign; Cancer Moon: Cancer is the 1st.
+    expect(text).toContain("- Jupiter moves into Cancer by 2026-12 (house 9 from your ascendant, 1st from your Moon, over natal Moon).");
+    // Aries: 6th from Scorpio, 10th from Cancer; nothing natal there.
+    expect(text).toContain("- Saturn moves into Aries by 2027-01 (house 6 from your ascendant, 10th from your Moon).");
+  });
+
+  it("dates stations for Saturn, Jupiter, and Mars only", () => {
+    expect(text).toContain("- Saturn turns retrograde by 2026-11.");
+    expect(text).toContain("- Jupiter turns retrograde by 2027-04.");
+    expect(text).not.toMatch(/Mars turns/);
+    expect(text).not.toMatch(/Rahu turns|Ketu turns/);
+  });
+
+  it("puts the ingresses before the stations, one line each", () => {
+    const lines = text.split("\n");
+    const firstStation = lines.findIndex((l) => / turns /.test(l));
+    const lastIngress = lines.map((l) => / moves into /.test(l)).lastIndexOf(true);
+    expect(lastIngress).toBeLessThan(firstStation);
+    expect(lines.every((l) => l.startsWith("- ") && l.endsWith("."))).toBe(true);
+    expect(text).not.toContain("undefined");
+  });
+
+  it("turns direct when a body stops being retrograde", () => {
+    const retro = sky([p("Saturn", "Pisces", true)]);
+    const later = [{ day: "2026-11-01", chart: sky([p("Saturn", "Pisces", false)]) }];
+    expect(describeUpcomingTransits(natal, retro, later)).toBe("- Saturn turns direct by 2026-11.");
+  });
+
+  it("is empty when nothing changes, or when a body is missing from the samples", () => {
+    expect(describeUpcomingTransits(natal, today, [{ day: "2026-11-01", chart: today }])).toBe("");
+    expect(describeUpcomingTransits(natal, today, [])).toBe("");
+    // A sample without Saturn cannot report a Saturn change.
+    const noSaturn = [{ day: "2026-11-01", chart: sky([p("Jupiter", "Gemini")]) }];
+    expect(describeUpcomingTransits(natal, today, noSaturn)).toBe("");
+  });
+
+  it("gives a Western chart the sign and the natal body only, with no house counts", () => {
+    const western = { ...natal, tradition: "western" as const };
+    const w = describeUpcomingTransits(western, today, samples);
+    expect(w).toContain("- Jupiter moves into Cancer by 2026-12 (over natal Moon).");
+    expect(w).toContain("- Saturn moves into Aries by 2027-01.");
+    expect(w).not.toMatch(/from your ascendant/);
+    expect(w).not.toMatch(/from your Moon/);
+    expect(w).toContain("- Saturn turns retrograde by 2026-11.");
   });
 });

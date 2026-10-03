@@ -36,17 +36,20 @@ struct PeriodExplainerView: View {
             ZStack {
                 Theme.bg.ignoresSafeArea()
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 12) {
                         ForEach(sections, id: \.0) { title, text in
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 Text(title)
-                                    .font(.system(size: 15, weight: .semibold))
+                                    .font(.brutTitle(16))
                                     .foregroundStyle(Theme.fg)
                                 Text(text)
-                                    .font(.system(size: 14))
+                                    .font(.brutBody(14))
                                     .foregroundStyle(Theme.muted)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .brutBordered()
                         }
                     }
                     .padding(20)
@@ -56,10 +59,14 @@ struct PeriodExplainerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.muted)
+                    Button("Done") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
+            .toolbarBackground(Theme.bg, for: .navigationBar)
         }
         .tint(Theme.fg)
+        .presentationBackground(Theme.bg)
     }
 }

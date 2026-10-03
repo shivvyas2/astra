@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import type { Chart, Tradition } from "./types";
 import { factsFor, type Derived, type Dignity, type PlanetFact } from "./derived";
 import type { LoShu } from "./numerology";
@@ -148,7 +149,7 @@ ${chartFacts}${numLine}
 Accuracy:
 - Never state a placement, lordship, aspect, dasha, condition or number that is not listed above. Interpret only this data.
 - Every claim names the placement it reads from, the house that placement is in, and the technique — lordship, aspect, dignity, dasha, or transit. A sentence with no placement behind it does not go in the answer.
-- Describe tendencies and timing, never guaranteed outcomes. No medical, legal, or financial guarantees.
+- A prediction is your best reading of the chart said plainly, not a guarantee. Say that at most once, and never as a way to avoid answering. No medical, legal, or financial guarantees.
 - If the chart does not show what they asked about, say what it does show. If one missing detail would change your answer, ask one short question instead of guessing.
 
 How to answer:
@@ -157,6 +158,13 @@ How to answer:
 - Name the placement you are reading from, then say what it means in plain terms. Do not list the chart back at them.
 - In a conversation, build on what you already said instead of repeating it.
 - For anything about work, money, love, health, or family, say what the chart indicates and what it asks of them.
+
+Be specific and personal:
+- Speak to ${args.firstName} about their life, not about "a person with this chart". Use what they have told you (the LIFE TIMELINE and earlier turns) and refer back to it by name: the job, the city, the relationship, the year.
+- Commit. Every prediction states three things: what (a concrete event or decision — a job offer, a move, a payment that lands late, a conversation about marriage — not "changes" or "energy"), when (a dated window taken from the dasha dates, today's sky, or UPCOMING below, written as months and years), and how sure you are, using exactly one of: likely, possible, unlikely.
+- Pick the outcome the chart favours and say it. Never write both outcomes to be safe; never "may or may not"; never a list of things that "could" happen. If something would change your reading, say it in one clause at most.
+- A yes/no question gets a yes, a no, or a "most likely yes/no" in the first sentence, then the placement that says so.
+- Numbers are welcome when the chart gives them: the month a sub-period ends, the house a transit enters, how many years remain.
 
 Format:
 - Two or three short sections. Each is a bold markdown heading (for example **Career**) followed by one or two sentences, or a few "- " bullets.
@@ -176,11 +184,21 @@ Never invent, and never flatter. If the honest reading is unremarkable, say so p
  */
 export function buildTodaySystem(args: {
   today: string;
+  /** Whole years lived as of `today`; see {@link ageOn}. */
+  age?: number;
   transits?: string;
+  /**
+   * Dated changes ahead — sign ingresses, stations, the next sub-periods —
+   * from {@link describeUpcomingTransits} and {@link describeUpcomingPeriods}.
+   * Phrased relative to today ("about 14 months from now"), which is why it
+   * lives in this half even though a dasha boundary moves only once a year.
+   */
+  upcoming?: string;
   maxWords?: number;
   personal?: { year: number; month: number };
 }): string {
   const lines = [`Today is ${args.today}. Use it for anything about "today", "now", or the current period.`];
+  if (args.age !== undefined) lines.push(`They are ${args.age} years old.`);
   if (args.personal) {
     lines.push(
       `They are in personal year ${args.personal.year} and personal month ${args.personal.month}. ` +
@@ -196,8 +214,29 @@ export function buildTodaySystem(args: {
       "For anything about now, name the transiting planet and the natal house or planet it touches.",
     );
   }
+  if (args.upcoming) {
+    lines.push(
+      "",
+      "UPCOMING (dated, from the ephemeris and the dasha table):",
+      args.upcoming,
+      "",
+      "When you predict, take the window from here and name its dates.",
+    );
+  }
   lines.push(`Length: ${args.maxWords ?? 160} words or fewer unless they ask for more.`);
   return lines.join("\n");
+}
+
+/**
+ * Whole years lived on `now`'s calendar date, or undefined when the birth
+ * date does not parse. The birthday is read in `now`'s zone so someone born
+ * on the 2nd turns a year older on the 2nd where they live, not at UTC.
+ */
+export function ageOn(birthDate: string, now: DateTime): number | undefined {
+  const birth = DateTime.fromISO(birthDate, { zone: now.zone });
+  if (!birth.isValid || !now.isValid) return undefined;
+  const years = Math.floor(now.diff(birth, "years").years);
+  return years >= 0 ? years : undefined;
 }
 
 /** The whole system prompt as one string, for callers that do not cache. */
@@ -207,15 +246,19 @@ export function buildSystemPrompt(args: {
   chart: Chart;
   derived?: Derived;
   today?: string;
+  age?: number;
   numerology?: { mulank: number; bhagyank: number };
   transits?: string;
+  upcoming?: string;
   maxWords?: number;
 }): string {
   const chartPart = buildChartSystem({ ...args, derived: args.derived ?? factsFor(args.chart) });
   if (!args.today && !args.transits) return chartPart;
   return `${chartPart}\n\n${buildTodaySystem({
     today: args.today ?? "",
+    age: args.age,
     transits: args.transits,
+    upcoming: args.upcoming,
     maxWords: args.maxWords,
   })}`;
 }

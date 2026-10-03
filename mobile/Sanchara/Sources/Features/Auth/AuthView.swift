@@ -24,6 +24,10 @@ struct AuthView: View {
     @State private var mode: Mode = AuthStore.hasSignedInBefore ? .signIn : .signUp
     @State private var email = ""
     @State private var password = ""
+    /// Set just before the store moves us to sign-in on its own, so the
+    /// "you already have an account" message survives that switch. Every
+    /// other mode change is the person's doing and clears the messages.
+    @State private var keepMessagesOnNextModeChange = false
     @FocusState private var focus: Field?
 
     private enum Field { case email, password }
@@ -39,29 +43,22 @@ struct AuthView: View {
                     modePicker
 
                     Text(mode.title)
-                        .font(.system(size: 30, weight: .light))
-                        .tracking(-0.5)
-                        .foregroundStyle(Theme.fg)
+                        .brutHeading(30)
+                        .multilineTextAlignment(.center)
                         .padding(.top, 28)
 
                     Text(mode.subtitle)
-                        .font(.system(size: 14))
+                        .font(.brutBody(14))
                         .foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
                         .padding(.top, 8)
 
                     if let error = auth.errorMessage {
-                        Text(error)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.accent)
-                            .multilineTextAlignment(.center)
+                        BrutNotice(text: error)
                             .padding(.top, 16)
                     }
                     if let notice = auth.notice {
-                        Text(notice)
-                            .font(.system(size: 14))
-                            .foregroundStyle(Theme.muted)
-                            .multilineTextAlignment(.center)
+                        BrutNotice(text: notice, tone: .info)
                             .padding(.top, 16)
                     }
 
@@ -69,11 +66,11 @@ struct AuthView: View {
                         AppleSignInButton()
 
                         HStack(spacing: 10) {
-                            Rectangle().fill(Theme.hairline).frame(height: 1)
+                            BrutDivider(color: Theme.rule, thickness: 1)
                             Text("or")
-                                .font(.system(size: 12))
+                                .font(.brutMono(11))
                                 .foregroundStyle(Theme.muted)
-                            Rectangle().fill(Theme.hairline).frame(height: 1)
+                            BrutDivider(color: Theme.rule, thickness: 1)
                         }
                         .padding(.vertical, 2)
 
@@ -95,10 +92,10 @@ struct AuthView: View {
 
                             if mode == .signUp {
                                 Text("At least \(AuthStore.minimumPasswordLength) characters.")
-                                    .font(.system(size: 12))
+                                    .font(.brutMono(11, weight: .medium))
                                     .foregroundStyle(
                                         password.isEmpty || password.count >= AuthStore.minimumPasswordLength
-                                            ? Theme.muted.opacity(0.8)
+                                            ? Theme.muted
                                             : Theme.accent
                                     )
                             }
@@ -121,7 +118,7 @@ struct AuthView: View {
                             + Text(mode == .signUp ? "Sign in" : "Create one")
                             .foregroundStyle(Theme.fg)
                     }
-                    .font(.system(size: 14))
+                    .font(.system(size: 14, weight: .semibold))
                     .padding(.top, 20)
 
                     Spacer(minLength: 40)
@@ -134,8 +131,18 @@ struct AuthView: View {
         }
         .onChange(of: auth.shouldSwitchToSignIn) { _, shouldSwitch in
             // Sign-up found an existing account: move them to the right form
-            // with the email they already typed still in place.
-            if shouldSwitch { mode = .signIn }
+            // with the email they already typed still in place, and keep the
+            // message that explains why.
+            guard shouldSwitch, mode != .signIn else { return }
+            keepMessagesOnNextModeChange = true
+            mode = .signIn
+        }
+        .onChange(of: mode) { _, _ in
+            if keepMessagesOnNextModeChange {
+                keepMessagesOnNextModeChange = false
+            } else {
+                auth.clearMessages()
+            }
         }
     }
 
@@ -144,35 +151,12 @@ struct AuthView: View {
     }
 
     private var modePicker: some View {
-        HStack(spacing: 4) {
-            ForEach(Mode.allCases, id: \.rawValue) { option in
-                Button {
-                    guard mode != option else { return }
-                    mode = option
-                    auth.clearMessages()
-                } label: {
-                    Text(option.label)
-                        .font(.system(size: 14, weight: mode == option ? .medium : .regular))
-                        .foregroundStyle(mode == option ? Theme.fg : Theme.muted)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 9)
-                        .background(mode == option ? Color.white.opacity(0.08) : .clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 7))
-                }
-            }
-        }
-        .padding(3)
-        .background(Theme.fieldFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Theme.hairline, lineWidth: 1)
-        )
+        BrutSegmented(options: Mode.allCases.map { ($0, $0.label) }, selection: $mode)
     }
 
     private func switchMode() {
+        // `onChange(of: mode)` clears the messages.
         mode = mode == .signUp ? .signIn : .signUp
-        auth.clearMessages()
     }
 
     private func submit() {
@@ -205,19 +189,18 @@ struct VerifyCodeView: View {
                 Text(purpose == .signIn ? "Check your email" : "Confirm your email").eyebrow()
 
                 Text("Enter your code")
-                    .font(.system(size: 30, weight: .light))
-                    .tracking(-0.5)
-                    .foregroundStyle(Theme.fg)
+                    .brutHeading(30)
+                    .multilineTextAlignment(.center)
                     .padding(.top, 12)
 
                 Text("We sent a \(AuthStore.codeLength)-digit code to \(email).")
-                    .font(.system(size: 14))
+                    .font(.brutBody(14))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
                     .padding(.top, 8)
 
                 TextField("", text: $code, prompt: Text("000000").foregroundStyle(Theme.muted.opacity(0.5)))
-                    .font(.system(size: 28, weight: .light, design: .monospaced))
+                    .font(.brutMono(28, weight: .bold))
                     .tracking(8)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(Theme.fg)
@@ -226,12 +209,7 @@ struct VerifyCodeView: View {
                     .textContentType(.oneTimeCode)
                     .focused($focused)
                     .padding(.vertical, 14)
-                    .background(Theme.fieldFill)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.cornerRadius)
-                            .stroke(Theme.hairline, lineWidth: 1)
-                    )
+                    .brutBordered()
                     .padding(.top, 24)
                     .onChange(of: code) { _, entered in
                         let digits = AuthStore.normalizedCode(entered)
@@ -245,16 +223,11 @@ struct VerifyCodeView: View {
                     }
 
                 if let error = auth.errorMessage {
-                    Text(error)
-                        .font(.system(size: 14))
-                        .foregroundStyle(Theme.accent)
-                        .multilineTextAlignment(.center)
+                    BrutNotice(text: error)
                         .padding(.top, 12)
                 }
                 if let notice = auth.notice {
-                    Text(notice)
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.muted)
+                    BrutNotice(text: notice, tone: .info)
                         .padding(.top, 12)
                 }
 
@@ -265,13 +238,12 @@ struct VerifyCodeView: View {
                 .padding(.top, 16)
 
                 Button("Send a new code") { Task { await auth.resendCode() } }
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.muted)
-                    .padding(.top, 16)
+                    .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                    .padding(.top, 12)
 
                 Button("Use a different email") { Task { await auth.signOut() } }
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.muted.opacity(0.8))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
                     .padding(.top, 10)
 
                 Spacer()

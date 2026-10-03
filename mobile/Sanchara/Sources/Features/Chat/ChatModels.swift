@@ -17,18 +17,30 @@ enum ChatMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// The dot colours from `components/Chat.tsx`.
+    /// One line on what the mode reads from, shown wherever the mode is
+    /// chosen. The old control was an unlabelled dot that cycled on tap, and
+    /// nobody knew what the three states were.
+    var blurb: String {
+        switch self {
+        case .vedic: "Sidereal chart, dashas and today's transits"
+        case .western: "Tropical chart with Placidus houses"
+        case .numerology: "Your numbers, from your name and birth date"
+        }
+    }
+
+    /// The mode's colour, shared with the web.
     var dot: Color {
         switch self {
         case .vedic: Theme.accent
-        case .western: Color(hex: 0x6B74FF)
-        case .numerology: Color(hex: 0xF0B429)
+        case .western: Theme.violet
+        case .numerology: Theme.yellow
         }
     }
 
     var next: ChatMode {
         let all = ChatMode.allCases
-        return all[(all.firstIndex(of: self)! + 1) % all.count]
+        guard let index = all.firstIndex(of: self) else { return .vedic }
+        return all[(index + 1) % all.count]
     }
 
     init(dbValue: String) {

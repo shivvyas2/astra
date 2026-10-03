@@ -4,6 +4,41 @@ All notable changes to Sanchara are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **The transcript no longer stutters, and you can scroll it.** The reading
+  screen used to scroll to the bottom on every streamed chunk, fighting any
+  attempt to scroll up and leaving the last lines just out of view. It now
+  follows only while you are at the bottom, jumps once per new turn, and offers
+  "Jump to latest" when you have scrolled away. The repeating animations and
+  the blurred glow that cost frames during streaming are gone, the network
+  layer reads the reply in chunks instead of one byte at a time, and arriving
+  text is folded in at most every 80ms. The web chat got the same scroll fix.
+- Force unwraps on the network path and in mode switching were removed.
+
+### Added
+
+- **Five named places.** The iOS app is now a tab bar: Today, Ask, Kundli,
+  Life, You. The kundli was previously reachable only from Siri and the widget.
+  Every screen opens with one line saying what it is for, and a one-time
+  "What's where" sheet lists the five places. The reading mode is a labelled
+  menu rather than a dot that cycled on tap.
+- **Committed readings.** Every prediction now names what, when (a dated
+  window), and how sure, picks the outcome the chart favours instead of
+  writing both, and answers yes/no questions in the first sentence. The model
+  is given the user's age, the end of the current sub-period and the next two,
+  and the slow planets' upcoming sign changes to anchor those dates.
+
+### Changed
+
+- **A new look.** Dark neo-brutalism on both platforms: flat fills, 2pt bone
+  borders, hard offset shadows, heavy headings, monospaced labels, and three
+  flat accents (orange, violet, yellow). The closing "In simple words" section
+  of every reading is lifted into a yellow callout. The marketing page is
+  unchanged.
+
 ## [0.3.0] - 2026-09-18
 
 ### Added

@@ -238,7 +238,7 @@ struct TimelinePayload: Decodable {
 /// formatters are pinned to UTC. Parsing in the device's zone would slide a
 /// morning event onto the previous day west of Greenwich.
 enum TimelineDate {
-    private static let utc = TimeZone(identifier: "UTC")!
+    private static let utc = TimeZone(secondsFromGMT: 0) ?? .current
 
     private static let iso: DateFormatter = {
         let f = DateFormatter()

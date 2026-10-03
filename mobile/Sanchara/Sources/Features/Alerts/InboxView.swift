@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Everything Sanchara has sent: the twice-daily readings, kept by date, and the
-/// dosha alerts. One sheet, two tabs, so the bell means "things for you".
+/// dosha alerts. One screen, two tabs, so the bell means "things for you".
 struct InboxView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case daily
@@ -16,6 +16,10 @@ struct InboxView: View {
     @Binding var tab: Tab
     /// Sends a question into a fresh reading and closes the inbox.
     var onAsk: (String) -> Void
+    /// True when this screen sits in the tab bar rather than in a sheet: no
+    /// "Done" button, no navigation title, and a header above the picker that
+    /// says what the screen is for.
+    var embedded = false
 
     @Environment(\.dismiss) private var dismiss
 
@@ -24,6 +28,16 @@ struct InboxView: View {
             ZStack {
                 Theme.bg.ignoresSafeArea()
                 VStack(spacing: 0) {
+                    if embedded {
+                        ScreenHeader(
+                            eyebrow: "Today",
+                            title: "Your readings",
+                            blurb: "Sanchara writes you a reading every morning and night from today's sky and your chart. Alerts come only when a dosha or hard transit starts or ends."
+                        )
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 12)
+                    }
                     picker
                     switch tab {
                     case .daily: dailyList
@@ -31,11 +45,15 @@ struct InboxView: View {
                     }
                 }
             }
-            .navigationTitle(tab == .daily ? "Your readings" : "Alerts")
+            .navigationTitle(embedded ? "" : (tab == .daily ? "Your readings" : "Alerts"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }.foregroundStyle(Theme.muted)
+                if !embedded {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { dismiss() }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Theme.fg)
+                    }
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -63,40 +81,26 @@ struct InboxView: View {
         }
     }
 
+    /// The two tabs, with the unread counts as tags beside them rather than
+    /// badges inside the segments.
     private var picker: some View {
-        HStack(spacing: 4) {
-            ForEach(Tab.allCases) { option in
-                Button {
-                    tab = option
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(option.label)
-                        let unread = option == .daily ? daily.unreadCount : alerts.unreadCount
-                        if unread > 0 {
-                            Text("\(unread)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(Theme.bg)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Theme.accent)
-                                .clipShape(Capsule())
-                        }
+        HStack(spacing: 10) {
+            BrutSegmented(options: Tab.allCases.map { ($0, $0.label) }, selection: $tab)
+            if daily.unreadCount > 0 || alerts.unreadCount > 0 {
+                HStack(spacing: 6) {
+                    if daily.unreadCount > 0 {
+                        BrutTag(text: "Daily \(daily.unreadCount)")
                     }
-                    .font(.system(size: 14, weight: tab == option ? .medium : .regular))
-                    .foregroundStyle(tab == option ? Theme.fg : Theme.muted)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 9)
-                    .background(tab == option ? Color.white.opacity(0.08) : .clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    if alerts.unreadCount > 0 {
+                        BrutTag(text: "Alerts \(alerts.unreadCount)")
+                    }
                 }
+                .fixedSize()
             }
         }
-        .padding(3)
-        .background(Theme.fieldFill)
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.hairline, lineWidth: 1))
         .padding(.horizontal, 16)
         .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 
     @ViewBuilder
@@ -104,7 +108,8 @@ struct InboxView: View {
         if daily.readings.isEmpty {
             emptyState(
                 title: "No readings yet",
-                message: "Sanchara writes you a reading each morning and each night. They collect here by date."
+                message: "Sanchara writes you a reading each morning and each night. They collect here by date.",
+                systemImage: "sun.max"
             )
         } else {
             List {
@@ -113,14 +118,10 @@ struct InboxView: View {
                         ForEach(day.readings) { reading in
                             Button { daily.selected = reading } label: { row(for: reading) }
                                 .listRowBackground(Color.clear)
-                                .listRowSeparatorTint(Theme.hairline)
+                                .listRowSeparatorTint(Theme.rule)
                         }
                     } header: {
-                        Text(day.label)
-                            .font(.system(size: 11))
-                            .tracking(2)
-                            .textCase(.uppercase)
-                            .foregroundStyle(Theme.muted)
+                        Text(day.label).eyebrow()
                     }
                 }
             }
@@ -134,14 +135,15 @@ struct InboxView: View {
         if alerts.alerts.isEmpty {
             emptyState(
                 title: "Nothing flagged",
-                message: "If a dosha or a difficult transit starts, you'll hear about it here."
+                message: "If a dosha or a difficult transit starts, you'll hear about it here.",
+                systemImage: "bell"
             )
         } else {
             List {
                 ForEach(alerts.alerts) { alert in
                     Button { alerts.selected = alert } label: { alertRow(alert) }
                         .listRowBackground(Color.clear)
-                        .listRowSeparatorTint(Theme.hairline)
+                        .listRowSeparatorTint(Theme.rule)
                 }
             }
             .listStyle(.plain)
@@ -149,41 +151,44 @@ struct InboxView: View {
         }
     }
 
-    private func emptyState(title: String, message: String) -> some View {
-        VStack(spacing: 8) {
+    private func emptyState(title: String, message: String, systemImage: String) -> some View {
+        VStack(spacing: 0) {
             Spacer()
-            Text(title).eyebrow()
-            Text(message)
-                .font(.system(size: 14))
-                .foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
+            BrutEmptyState(title: title, message: message, systemImage: systemImage)
             Spacer()
             Spacer()
         }
+        .padding(.horizontal, 16)
+    }
+
+    /// A small bordered tile for the row's icon.
+    private func iconTile(_ systemImage: String, tint: Color) -> some View {
+        Image(systemName: systemImage)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(tint)
+            .frame(width: 32, height: 32)
+            .brutBordered(fill: Theme.surfaceRaised)
     }
 
     private func row(for reading: DailyReading) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: reading.isMorning ? "sun.max" : "moon.stars")
-                .font(.system(size: 13))
-                .foregroundStyle(reading.isMorning ? Theme.accent : Color(hex: 0x6B74FF))
-                .frame(width: 18)
-                .padding(.top, 2)
-                .opacity(reading.isUnread ? 1 : 0.45)
+        HStack(alignment: .top, spacing: 12) {
+            iconTile(reading.isMorning ? "sun.max" : "moon.stars", tint: reading.isMorning ? Theme.accent : Theme.violet)
+                .opacity(reading.isUnread ? 1 : 0.5)
             VStack(alignment: .leading, spacing: 4) {
                 Text(reading.title)
-                    .font(.system(size: 15, weight: reading.isUnread ? .semibold : .regular))
+                    .font(.system(size: 15, weight: reading.isUnread ? .bold : .semibold))
                     .foregroundStyle(Theme.fg)
                     .multilineTextAlignment(.leading)
                 Text(reading.body)
-                    .font(.system(size: 13))
+                    .font(.brutBody(13))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
                 Text(reading.slotLabel)
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.muted.opacity(0.7))
+                    .font(.brutMono(10))
+                    .textCase(.uppercase)
+                    .tracking(1)
+                    .foregroundStyle(Theme.muted)
             }
         }
         .padding(.vertical, 6)
@@ -192,25 +197,25 @@ struct InboxView: View {
     }
 
     private func alertRow(_ alert: SancharaAlert) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Circle()
-                .fill(severityColor(alert.severity))
-                .frame(width: 6, height: 6)
-                .padding(.top, 6)
-                .opacity(alert.isUnread ? 1 : 0.35)
+        HStack(alignment: .top, spacing: 12) {
+            iconTile("bell", tint: severityColor(alert.severity))
+                .opacity(alert.isUnread ? 1 : 0.5)
             VStack(alignment: .leading, spacing: 4) {
                 Text(alert.title)
-                    .font(.system(size: 15, weight: alert.isUnread ? .semibold : .regular))
+                    .font(.system(size: 15, weight: alert.isUnread ? .bold : .semibold))
                     .foregroundStyle(Theme.fg)
                     .multilineTextAlignment(.leading)
                 Text(alert.body)
-                    .font(.system(size: 13))
+                    .font(.brutBody(13))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.leading)
                     .lineLimit(3)
-                Text(alert.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.muted.opacity(0.7))
+                HStack(spacing: 8) {
+                    BrutTag(text: alert.severity, fill: severityColor(alert.severity), textColor: Theme.ink)
+                    Text(alert.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.brutMono(10, weight: .regular))
+                        .foregroundStyle(Theme.muted)
+                }
             }
         }
         .padding(.vertical, 6)
@@ -234,26 +239,22 @@ struct DailyReadingView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack(spacing: 8) {
                             Image(systemName: reading.isMorning ? "sun.max" : "moon.stars")
-                                .font(.system(size: 12))
-                                .foregroundStyle(reading.isMorning ? Theme.accent : Color(hex: 0x6B74FF))
-                            Text(reading.slotLabel.uppercased())
-                                .font(.system(size: 11))
-                                .tracking(2)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(reading.isMorning ? Theme.accent : Theme.violet)
+                            Text(reading.slotLabel).eyebrow()
+                            Text("·")
+                                .font(.brutMono(11))
                                 .foregroundStyle(Theme.muted)
-                            Text("·").foregroundStyle(Theme.muted)
                             Text(DailyReadingDay(date: reading.forDate, readings: []).label)
-                                .font(.system(size: 11))
+                                .font(.brutMono(11))
                                 .foregroundStyle(Theme.muted)
                         }
 
-                        Text(reading.title)
-                            .font(.system(size: 24, weight: .light))
-                            .tracking(-0.4)
-                            .foregroundStyle(Theme.fg)
+                        Text(reading.title).brutHeading(26)
 
                         MarkdownText(markdown: reading.detail)
 
-                        SancharaPrimaryButton(title: "Ask Sanchara about this") {
+                        SancharaPrimaryButton(title: "Ask Sanchara about this", kind: .accent) {
                             onAsk("About my \(reading.slotLabel.lowercased()) reading: \(reading.title). \(reading.body) Tell me more.")
                         }
                         .padding(.top, 8)
@@ -265,7 +266,9 @@ struct DailyReadingView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }.foregroundStyle(Theme.muted)
+                    Button("Close") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Theme.fg)
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)

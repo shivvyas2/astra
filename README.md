@@ -120,9 +120,10 @@ mobile/
 │   ├── Resources/             Asset catalog: icon, launch colour
 │   ├── Sources/
 │   │   ├── SancharaApp.swift  Entry point
-│   │   ├── RootView.swift     Routes between auth, intake, and chat
-│   │   ├── Design/            Theme, shared components, reading card
+│   │   ├── RootView.swift     Routes between auth, intake, and the tab shell
+│   │   ├── Design/            Theme tokens, neo-brutalist components, reading card
 │   │   ├── Features/
+│   │   │   ├── Shell/         The five-tab shell and the one-time tour
 │   │   │   ├── Auth/          Email code and Apple sign-in
 │   │   │   ├── Intake/        Birth details and profile photo
 │   │   │   ├── Chat/          Readings, history, on-device answers

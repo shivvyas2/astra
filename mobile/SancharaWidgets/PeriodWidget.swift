@@ -146,7 +146,7 @@ struct PeriodWidgetView: View {
                 .foregroundStyle(Theme.muted)
 
             Text(period.pairLabel)
-                .font(.system(.headline, design: .serif))
+                .font(.system(.headline, weight: .heavy))
                 .foregroundStyle(Theme.fg)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -162,8 +162,8 @@ struct PeriodWidgetView: View {
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.hairline)
-                    Capsule()
+                    Rectangle().fill(Theme.rule)
+                    Rectangle()
                         .fill(Theme.accent)
                         .frame(width: max(geo.size.width * period.progress, 2))
                 }
