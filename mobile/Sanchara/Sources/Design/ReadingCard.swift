@@ -7,6 +7,10 @@ import SwiftUI
 /// Sanchara is dark-only by design (`UIUserInterfaceStyle: Dark` in
 /// `Info.plist`), and a card that went light inside Siri while the app stayed
 /// dark would read as a different product.
+///
+/// Same language as the app: a flat accent block beside a monospaced eyebrow,
+/// a heavy title, plain body. No gradients, nothing blurred — a widget is
+/// redrawn by the system and should cost it nothing.
 struct ReadingCard: View {
     let eyebrow: String
     let title: String
@@ -17,14 +21,19 @@ struct ReadingCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(eyebrow)
-                .font(.system(size: 10, weight: .regular))
-                .textCase(.uppercase)
-                .tracking(2)
-                .foregroundStyle(Theme.muted)
+            HStack(spacing: 6) {
+                Rectangle()
+                    .fill(Theme.accent)
+                    .frame(width: 8, height: 8)
+                Text(eyebrow)
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .textCase(.uppercase)
+                    .tracking(1.6)
+                    .foregroundStyle(Theme.muted)
+            }
 
             Text(title)
-                .font(.system(.headline, design: .serif))
+                .font(.system(.headline, weight: .heavy))
                 .foregroundStyle(Theme.fg)
                 .fixedSize(horizontal: false, vertical: true)
 
