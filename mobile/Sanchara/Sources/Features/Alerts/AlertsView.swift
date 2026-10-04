@@ -9,9 +9,9 @@ struct AlertDetailView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .ember)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 18) {
                         HStack(spacing: 10) {
                             BrutTag(text: alert.severity, fill: severityColor(alert.severity), textColor: Theme.ink)
                             Text(alert.createdAt.formatted(date: .abbreviated, time: .shortened))
@@ -19,7 +19,11 @@ struct AlertDetailView: View {
                                 .foregroundStyle(Theme.muted)
                         }
 
-                        Text(alert.title).brutHeading(26)
+                        Text(alert.title)
+                            .brutHeading(34)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        BrutDivider()
 
                         MarkdownText(markdown: alert.detail)
 
@@ -31,15 +35,16 @@ struct AlertDetailView: View {
                         }
                         .padding(.top, 8)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 24)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 32)
                 }
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Close") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                 }
             }
@@ -49,12 +54,12 @@ struct AlertDetailView: View {
     }
 }
 
-/// The flat fill behind a severity tag. Warnings are the accent, cautions the
-/// yellow, and anything else sits quietly in muted.
+/// The flat fill behind a severity tag. Warnings are ember, cautions the lime
+/// accent, and anything else sits quietly in muted.
 func severityColor(_ severity: String) -> Color {
     switch severity {
-    case "warning": Theme.accent
-    case "caution": Theme.yellow
+    case "warning": Theme.ember
+    case "caution": Theme.accent
     default: Theme.muted
     }
 }

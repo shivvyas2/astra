@@ -23,7 +23,7 @@ struct TimelineView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .violet)
                 content
             }
             .navigationTitle(embedded ? "" : "Your life")
@@ -89,7 +89,8 @@ struct TimelineView: View {
                             eyebrow: "Life map",
                             title: "Your life in periods",
                             blurb: "Vimshottari dasha periods from birth onward. Pin what really happened and the readings get sharper.",
-                            accent: Theme.violet
+                            accent: Theme.violet,
+                            titleSize: 36
                         )
                         .padding(.bottom, 20)
                     }
@@ -98,6 +99,7 @@ struct TimelineView: View {
                         NowCard(now: now, band: band, today: store.today, isWriting: store.isExplaining)
                             .padding(.bottom, 24)
                     }
+                    if hasNoMoments { firstMomentHint }
                     ForEach(store.periods) { band in
                         BandRow(
                             band: band,
@@ -137,6 +139,31 @@ struct TimelineView: View {
         }
     }
 
+    /// True once the periods have loaded and not one moment is pinned in any
+    /// of them: the moment to say what the "+" is for.
+    private var hasNoMoments: Bool {
+        !store.periods.isEmpty && store.periods.allSatisfy { store.eventsIn($0).isEmpty }
+    }
+
+    /// The empty timeline's way forward: pin one real moment.
+    private var firstMomentHint: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Pin your first moment")
+                .font(.brutTitle(18))
+                .foregroundStyle(Theme.fg)
+            Text("A move, a job, a loss, a wedding. Each one you place sharpens the readings for the periods around it.")
+                .font(.brutBody(14))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            SancharaPrimaryButton(title: "Pin a moment", kind: .accent) { showAdd = true }
+                .padding(.top, 4)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .brutCard()
+        .padding(.bottom, 28)
+    }
+
     private func toggle(_ band: DashaBand) {
         withAnimation(Theme.ease) {
             if expanded.contains(band.id) { expanded.remove(band.id) } else { expanded.insert(band.id) }
@@ -162,9 +189,9 @@ struct TimelineView: View {
                 Task { await store.scan() }
             }
         }
-        .padding(16)
+        .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .brutCard(line: Theme.yellow, shadow: Theme.yellow)
+        .brutCard(line: Theme.accent.opacity(0.6))
         .padding(.bottom, 20)
     }
 
@@ -174,8 +201,17 @@ struct TimelineView: View {
                 .font(.brutMono(11, weight: .regular))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            Button("What are these periods?") { showExplainer = true }
-                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+            Button { showExplainer = true } label: {
+                HStack(spacing: 6) {
+                    Text("What are these periods?")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .accessibilityHidden(true)
+                }
+                .frame(minHeight: 44)
+            }
+            .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
         }
         .padding(.top, 20)
         .padding(.leading, 28)
@@ -205,26 +241,36 @@ private struct NowCard: View {
     let isWriting: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Where you are now").eyebrow()
 
-            HStack(alignment: .firstTextBaseline) {
-                Text(now.pairLabel)
-                    .font(.brutTitle(20))
-                    .foregroundStyle(Theme.fg)
-                Spacer(minLength: 8)
-                Text("\(band.startYear) – \(band.endYear)")
-                    .font(.brutMono(12))
-                    .foregroundStyle(Theme.muted)
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    lordText
+                    subText
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    lordText
+                    subText
+                }
             }
+            .padding(.top, 10)
+            .padding(.bottom, 8)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(now.pairLabel)
 
-            BrutProgressBar(progress: band.progress(today: today), height: 6)
-                .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
+            DataRow(label: "Main period", value: "\(band.startYear) – \(band.endYear)", valueSize: 22)
+            DataRow(label: "Progress", value: "\(percent)%", valueSize: 22, showsRule: false)
+
+            BrutProgressBar(progress: band.progress(today: today))
+                .accessibilityLabel("\(percent) percent through this period")
+                .padding(.bottom, 16)
 
             if let meaning = now.meaning, !meaning.isEmpty {
                 Text(meaning)
-                    .font(.brutBody(14))
+                    .font(.brutBody(15))
                     .foregroundStyle(Theme.fg)
+                    .lineSpacing(2)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(isWriting ? "Writing what this means for you…" : "A meaning for this period will appear here.")
@@ -232,9 +278,26 @@ private struct NowCard: View {
                     .foregroundStyle(Theme.muted)
             }
         }
-        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .brutCard(fill: Theme.surface, line: Theme.accent, shadow: Theme.accent)
+    }
+
+    private var percent: Int { Int(band.progress(today: today) * 100) }
+
+    private var lordText: some View {
+        Text(now.lord)
+            .font(.brutDisplay(56))
+            .tracking(-56 * 0.035)
+            .foregroundStyle(Theme.accent)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+    }
+
+    private var subText: some View {
+        Text("– \(now.antardasha)")
+            .font(.brutDisplay(24))
+            .tracking(-24 * 0.03)
+            .foregroundStyle(Theme.muted)
+            .lineLimit(1)
     }
 }
 
@@ -270,7 +333,7 @@ private struct BandRow: View {
                             // still shown — dimmed, and about to be replaced.
                             .opacity(band.stale ? 0.6 : 1)
                     }
-                    antardashaList.padding(.top, 12)
+                    antardashaList.padding(.top, 14)
                 }
                 if !events.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
@@ -288,41 +351,49 @@ private struct BandRow: View {
         .onTapGesture(perform: onToggle)
     }
 
-    /// The continuous line down the left, with a square node at each period.
+    /// The continuous line down the left, with a round node at each period:
+    /// lime and filled for the one running now, outlined otherwise.
     private var spine: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(band.isCurrent ? Theme.accent : Theme.bg)
-                .frame(width: 8, height: 8)
-                .overlay(Rectangle().stroke(Theme.line, lineWidth: 1.5))
-                .padding(.top, 5)
+        ZStack(alignment: .top) {
             Rectangle()
                 .fill(Theme.line)
                 .frame(width: Theme.lineWidth)
                 .frame(maxHeight: .infinity)
+            Group {
+                if band.isCurrent {
+                    Circle().fill(Theme.accent)
+                } else {
+                    Circle()
+                        .fill(Theme.bg)
+                        .overlay(Circle().strokeBorder(Theme.lineStrong.opacity(0.6), lineWidth: Theme.lineWidth))
+                }
+            }
+            .frame(width: 10, height: 10)
+            .padding(.top, 12)
         }
         .frame(width: 20)
-        .padding(.trailing, 8)
+        .padding(.trailing, 10)
+        .accessibilityHidden(true)
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(band.lord.uppercased())
-                    .font(.brutMono(13, weight: .bold))
-                    .tracking(1.5)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(band.lord)
+                    .font(.brutDisplay(26))
+                    .tracking(-26 * 0.03)
                     .foregroundStyle(tint)
                 if band.isCurrent {
-                    BrutTag(text: "NOW")
+                    BrutTag(text: "Now")
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
                 Text("\(band.startYear) – \(band.endYear)")
-                    .font(.brutMono(12))
+                    .font(.brutMono(13))
                     .foregroundStyle(Theme.muted)
             }
             if let theme = band.theme, !theme.isEmpty {
                 Text(theme)
-                    .font(.brutBody(13))
+                    .font(.brutBody(14))
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -332,43 +403,56 @@ private struct BandRow: View {
                     Text("·")
                     Text(band.eventCount == 1 ? "1 moment" : "\(band.eventCount) moments")
                 }
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
             }
-            .font(.brutMono(10, weight: .regular))
+            .font(.brutMono(11, weight: .regular))
             .foregroundStyle(Theme.muted)
+            .frame(minHeight: 32)
         }
+        .padding(.top, 2)
     }
 
     private var progressBar: some View {
-        BrutProgressBar(progress: band.progress(today: today), height: 6)
+        BrutProgressBar(progress: band.progress(today: today))
             .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
     }
 
     private var antardashaList: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Sub-periods").eyebrow()
-                .padding(.bottom, 8)
+                .padding(.bottom, 6)
             ForEach(Array(band.antardashas.enumerated()), id: \.offset) { index, sub in
                 let isNow = sub.start <= today && today < sub.end
-                HStack {
+                HStack(alignment: .firstTextBaseline) {
+                    if isNow {
+                        Circle().fill(Theme.accent).frame(width: 6, height: 6)
+                            .accessibilityHidden(true)
+                    }
                     Text("\(band.lord)–\(sub.lord)")
-                        .font(.brutMono(12, weight: isNow ? .bold : .regular))
+                        .font(.system(size: 14, weight: isNow ? .semibold : .regular))
                         .foregroundStyle(isNow ? Theme.accent : Theme.fg)
                     Spacer(minLength: 8)
                     Text("\(String(sub.start.prefix(7))) – \(String(sub.end.prefix(7)))")
                         .font(.brutMono(11, weight: .regular))
-                        .foregroundStyle(Theme.muted)
+                        .foregroundStyle(isNow ? Theme.accent : Theme.muted)
                 }
-                .padding(.vertical, 6)
+                .padding(.vertical, 10)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(isNow ? .isSelected : [])
                 if index < band.antardashas.count - 1 {
-                    Rectangle().fill(Theme.rule).frame(height: 1)
+                    BrutDivider()
                 }
             }
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .brutBordered(fill: Theme.bg)
+        .brutBordered()
     }
 }
 
@@ -380,11 +464,11 @@ private struct EventRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Rectangle()
-                .fill(Theme.accent)
-                .frame(width: 8, height: 8)
-                .overlay(Rectangle().stroke(Theme.line, lineWidth: 1.5))
+            Circle()
+                .strokeBorder(Theme.accent, lineWidth: 1.5)
+                .frame(width: 9, height: 9)
                 .padding(.top, 5)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(event.title)
                     .font(.system(size: 14, weight: .semibold))

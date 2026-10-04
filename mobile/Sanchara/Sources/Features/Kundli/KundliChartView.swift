@@ -128,7 +128,7 @@ struct KundliChartView: View {
                         .overlay {
                             if house.isLagna || selected?.number == house.number {
                                 HouseRegion(house: house.number)
-                                    .stroke(stroke(for: house), lineWidth: 2.5)
+                                    .stroke(stroke(for: house), lineWidth: selected?.number == house.number ? 1.5 : 1)
                             }
                         }
                         .contentShape(HouseRegion(house: house.number))
@@ -175,12 +175,12 @@ struct KundliChartView: View {
     /// now gets a half-strength line, and full accent is kept for the house the
     /// person actually tapped.
     private func stroke(for house: KundliHouse) -> Color {
-        selected?.number == house.number ? Theme.accent : Theme.accent.opacity(0.6)
+        selected?.number == house.number ? Theme.accent : Theme.accent.opacity(0.55)
     }
 
     private func fill(for house: KundliHouse) -> Color {
-        if selected?.number == house.number { return Theme.accent.opacity(0.35) }
-        if house.isLagna { return Theme.accent.opacity(0.12) }
+        if selected?.number == house.number { return Theme.accent.opacity(0.28) }
+        if house.isLagna { return Theme.accent.opacity(0.10) }
         // Alternating houses get the faintest wash, so the twelve regions read
         // as distinct areas without twelve visible borders.
         return house.number.isMultiple(of: 2) ? Theme.fg.opacity(0.03) : .clear
@@ -189,10 +189,10 @@ struct KundliChartView: View {
     private func contents(_ house: KundliHouse) -> some View {
         VStack(spacing: 2) {
             // The rashi numeral is how a kundli is read — it identifies the sign
-            // sitting in a fixed house. Serif, because every printed panchanga
-            // sets these numerals in one, and it separates data from interface.
+            // sitting in a fixed house. Set in the text face at medium weight,
+            // in step with the rest of the screen's numerals.
             Text("\(house.rashi.number)")
-                .font(.system(size: numeralSize, weight: .regular, design: .serif))
+                .font(.system(size: numeralSize, weight: .medium))
                 .foregroundStyle(house.isLagna ? Theme.accent : Theme.muted)
 
             if !house.planets.isEmpty {

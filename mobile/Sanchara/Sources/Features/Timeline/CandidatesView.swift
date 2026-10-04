@@ -33,7 +33,7 @@ struct CandidatesView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .violet)
                 VStack(spacing: 0) {
                     header
                     list
@@ -90,9 +90,9 @@ struct CandidatesView: View {
         } else {
             ScrollView {
                 VStack(spacing: 0) {
-                    ForEach(store.candidates) { candidate in
+                    ForEach(Array(store.candidates.enumerated()), id: \.element.id) { index, candidate in
+                        if index > 0 { BrutDivider() }
                         row(candidate)
-                        Rectangle().fill(Theme.rule).frame(height: 1)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -108,7 +108,7 @@ struct CandidatesView: View {
             } label: {
                 HStack(alignment: .top, spacing: 12) {
                     checkbox(isChosen)
-                        .padding(.top, 1)
+                        .padding(.top, -3)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(candidate.title)
                             .font(.system(size: 14, weight: .semibold))
@@ -135,6 +135,7 @@ struct CandidatesView: View {
                     }
                     Spacer(minLength: 0)
                 }
+                .frame(minHeight: 44, alignment: .top)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -142,24 +143,28 @@ struct CandidatesView: View {
 
             if candidate.isUndated {
                 yearPicker(for: candidate)
-                    .padding(.leading, 32)
+                    .padding(.leading, 36)
             }
         }
         .padding(.vertical, 12)
     }
 
-    /// A square tick box: accent-filled with a mark when chosen, hollow when not.
+    /// A round tick box: lime-filled with an ink mark when chosen, outlined
+    /// when not.
     private func checkbox(_ isChosen: Bool) -> some View {
         ZStack {
-            Rectangle().fill(isChosen ? Theme.accent : Theme.surface)
             if isChosen {
+                Circle().fill(Theme.accent)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .black))
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Theme.ink)
+            } else {
+                Circle().fill(Theme.fg.opacity(0.04))
+                Circle().strokeBorder(Theme.lineStrong.opacity(0.6), lineWidth: Theme.lineWidth)
             }
         }
-        .frame(width: 20, height: 20)
-        .overlay(Rectangle().strokeBorder(Theme.line, lineWidth: Theme.lineWidth))
+        .frame(width: 24, height: 24)
+        .animation(Theme.snap, value: isChosen)
         .accessibilityHidden(true)
     }
 

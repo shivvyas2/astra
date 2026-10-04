@@ -31,9 +31,9 @@ enum ChatMode: String, CaseIterable, Identifiable, Sendable {
     /// The mode's colour, shared with the web.
     var dot: Color {
         switch self {
-        case .vedic: Theme.accent
+        case .vedic: Theme.ember
         case .western: Theme.violet
-        case .numerology: Theme.yellow
+        case .numerology: Theme.accent
         }
     }
 

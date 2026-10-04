@@ -34,28 +34,43 @@ struct PeriodExplainerView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .violet)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(sections, id: \.0) { title, text in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(title)
-                                    .font(.brutTitle(16))
-                                    .foregroundStyle(Theme.fg)
-                                Text(text)
-                                    .font(.brutBody(14))
-                                    .foregroundStyle(Theme.muted)
-                                    .fixedSize(horizontal: false, vertical: true)
+                    VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Your periods").eyebrow()
+                            Text("What the periods are")
+                                .brutHeading(34)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                        .padding(.bottom, 24)
+
+                        ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+                            if index > 0 { BrutDivider() }
+                            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                                NumberBadge(number: index + 1)
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(section.0)
+                                        .font(.brutTitle(17))
+                                        .foregroundStyle(Theme.fg)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                    Text(section.1)
+                                        .font(.brutBody(14))
+                                        .foregroundStyle(Theme.muted)
+                                        .lineSpacing(2)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
                             }
-                            .padding(16)
+                            .padding(.vertical, 18)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .brutBordered()
+                            .accessibilityElement(children: .combine)
                         }
                     }
                     .padding(20)
                 }
             }
-            .navigationTitle("Your periods")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

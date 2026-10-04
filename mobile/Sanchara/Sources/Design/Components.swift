@@ -667,12 +667,12 @@ struct BrutEmptyState: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .topTrailing) {
+        .background(alignment: .topTrailing) {
             OrbitDecoration(color: Theme.fg.opacity(0.22))
                 .frame(width: 96, height: 96)
                 .offset(x: 14, y: -18)
-                .clipped()
         }
+        .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .brutCard()
     }
 }

@@ -7,8 +7,8 @@ import UIKit
 struct ProfileView: View {
     let profile: ProfileStore
     /// True when this view is a tab rather than a sheet: no Done button, no
-    /// inline title, a `ScreenHeader` at the top, and no "View your kundli"
-    /// button because the Kundli tab is one tap away.
+    /// inline title, the "Hello," hero as the screen's header, and no "View
+    /// your kundli" button because the Kundli tab is one tap away.
     var embedded = false
 
     @Environment(AuthStore.self) private var auth
@@ -26,20 +26,15 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .dusk)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if embedded {
-                            ScreenHeader(
-                                eyebrow: "Account",
-                                title: "You",
-                                blurb: "Your birth details, photo and account. Changing birth data recomputes your chart."
-                            )
+                    VStack(alignment: .leading, spacing: 32) {
+                        if embedded || profile.details != nil {
+                            hero(profile.details)
                         }
 
                         if let details = profile.details {
-                            header(details)
-                            detailCard(details)
+                            detailTable(details)
                         }
 
                         VStack(spacing: 12) {
@@ -74,6 +69,7 @@ struct ProfileView: View {
                             BrutNotice(text: errorMessage)
                         }
 
+                        helpBlock
                         suggestionsBlock
                         accountBlock
                     }
@@ -123,107 +119,124 @@ struct ProfileView: View {
         }
     }
 
-    private func header(_ details: BirthProfileDetails) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // Changing the photo is its own one-tap action here. Routing it
-            // through the birth-details form would mean re-submitting a chart
-            // to swap a picture.
-            PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
-                ZStack {
-                    if let url = details.avatarUrl.flatMap(URL.init(string:)) {
-                        AsyncImage(url: url) { image in
-                            image.resizable().scaledToFill()
-                        } placeholder: {
-                            Theme.surface
-                        }
-                    } else {
-                        ZStack {
-                            Theme.surface
-                            Text("Add photo")
-                                .font(.brutMono(10))
-                                .foregroundStyle(Theme.muted)
+    /// "Hello, Asha" with the round photo beside it, sitting on an orbit — the
+    /// reference's "Hello Taurus," hero. In the tab it is the screen's header.
+    private func hero(_ details: BirthProfileDetails?) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("You").eyebrow()
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Hello,")
+                            .brutHeading(44)
+                        if let first = details?.firstName, !first.isEmpty {
+                            Text(first)
+                                .font(.brutDisplay(44))
+                                .tracking(-44 * 0.035)
+                                .foregroundStyle(Theme.accent)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.5)
                         }
                     }
-                    if isUploadingPhoto {
-                        Theme.bg.opacity(0.55)
-                        ProgressView().tint(Theme.fg)
-                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
                 }
-                .frame(width: 64, height: 64)
-                .clipShape(RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: Theme.cornerRadius, style: .continuous)
-                        .strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
-                )
-                .overlay(alignment: .bottomTrailing) {
-                    if !isUploadingPhoto {
-                        Image(systemName: "camera.fill")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Theme.ink)
-                            .padding(5)
-                            .background(Theme.fg)
-                            .overlay(Rectangle().stroke(Theme.ink, lineWidth: 1.5))
-                            .offset(x: 4, y: 4)
-                    }
-                }
-            }
-            .disabled(isUploadingPhoto)
-            .accessibilityLabel(details.avatarUrl == nil ? "Add a profile photo" : "Change profile photo")
-            .padding(.bottom, 8)
-
-            Text(details.fullName)
-                .font(.brutTitle(24))
-                .foregroundStyle(Theme.fg)
-            if !embedded {
-                // The embedded header's blurb already says this.
-                Text("Changing your birth data recomputes your chart.")
-                    .font(.brutBody(13))
-                    .foregroundStyle(Theme.muted)
-            }
-        }
-    }
-
-    private func detailCard(_ details: BirthProfileDetails) -> some View {
-        VStack(spacing: 0) {
-            detailRow("Born", value: formattedBirth(details), mono: true)
-            BrutDivider(color: Theme.rule, thickness: 1)
-            detailRow("Place", value: details.placeName)
-            BrutDivider(color: Theme.rule, thickness: 1)
-            detailRow("Timezone", value: details.timezone, mono: true)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 4)
-        .brutCard()
-    }
-
-    private func detailRow(_ label: String, value: String, mono: Bool = false) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(label)
-                .font(.brutMono(11))
-                .textCase(.uppercase)
-                .tracking(1.2)
-                .foregroundStyle(Theme.muted)
-                .frame(width: 84, alignment: .leading)
-            Text(value)
-                .font(mono ? .brutMono(13, weight: .medium) : .brutBody(15))
-                .foregroundStyle(Theme.fg)
                 .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let details {
+                    ZStack {
+                        OrbitDecoration(color: Theme.fg.opacity(0.3))
+                            .frame(width: 140, height: 140)
+                        avatarPicker(details)
+                    }
+                    .frame(width: 140, height: 140)
+                }
+            }
+
+            Text(
+                embedded
+                    ? "Your birth details, photo and account."
+                    : "Changing your birth data recomputes your chart."
+            )
+            .font(.brutBody(15))
+            .foregroundStyle(Theme.muted)
+            .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.vertical, 12)
+    }
+
+    private func avatarPicker(_ details: BirthProfileDetails) -> some View {
+        // Changing the photo is its own one-tap action here. Routing it
+        // through the birth-details form would mean re-submitting a chart
+        // to swap a picture.
+        PhotosPicker(selection: $photoItem, matching: .images, photoLibrary: .shared()) {
+            AvatarCircle(
+                image: nil,
+                url: details.avatarUrl.flatMap(URL.init(string:)),
+                isLoading: isUploadingPhoto
+            )
+            .contentShape(Circle())
+        }
+        .buttonStyle(DipButtonStyle())
+        .disabled(isUploadingPhoto)
+        .accessibilityLabel(details.avatarUrl == nil ? "Add a profile photo" : "Change profile photo")
+    }
+
+    private func detailTable(_ details: BirthProfileDetails) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Birth details").eyebrow()
+                .padding(.bottom, 4)
+            BrutDivider()
+            DataRow(label: "Born", value: formattedBirth(details), valueSize: 20)
+            DataRow(label: "Place", value: details.placeName, valueSize: 20)
+            DataRow(label: "Timezone", value: details.timezone, valueSize: 20)
+        }
+    }
+
+    private var helpBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Help").eyebrow()
+                .padding(.bottom, 4)
+            BrutDivider()
+            Button {
+                WelcomeTour.reset()
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Replay the tutorial")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.fg)
+                        Text("What each tab is for, in a minute.")
+                            .font(.brutBody(13))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows the welcome tour again")
+            BrutDivider()
+        }
     }
 
     private var suggestionsBlock: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Suggestions").eyebrow()
             Text(SuggestionEngine.onDeviceStatus)
-                .font(.brutBody(13))
+                .font(.brutBody(14))
                 .foregroundStyle(Theme.fg)
             Text("Follow-up questions are written by Apple Intelligence on this device. Your readings are not sent anywhere for them.")
                 .font(.brutBody(12))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .brutBordered()
     }
@@ -238,24 +251,26 @@ struct ProfileView: View {
                     dismiss()
                 }
             }
-            .buttonStyle(BrutButtonStyle(kind: .quiet))
+            .buttonStyle(BrutButtonStyle(kind: .secondary))
 
-            Button("Delete my account") { confirmDelete = true }
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Theme.accent)
-                .disabled(isDeleting)
-                .padding(.top, 4)
-
-            Text("Deleting removes your chart, readings, and alerts permanently.")
-                .font(.brutBody(12))
-                .foregroundStyle(Theme.muted)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Button("Show me around again") { WelcomeTour.reset() }
+            VStack(alignment: .leading, spacing: 2) {
+                Button {
+                    confirmDelete = true
+                } label: {
+                    Text("Delete my account")
+                        .foregroundStyle(Theme.ember)
+                }
                 .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
-                .padding(.top, 8)
+                .frame(minHeight: 44)
+                .disabled(isDeleting)
+
+                Text("Deleting removes your chart, readings, and alerts permanently.")
+                    .font(.brutBody(12))
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 4)
+            }
         }
-        .padding(.top, 8)
     }
 
     /// "15 June 1995 at 10:30" — the birth moment as it was where they were born.

@@ -47,7 +47,7 @@ struct SignedInView: View {
                 MainTabView(profile: profile)
             case .failed(let message):
                 ZStack {
-                    Theme.bg.ignoresSafeArea()
+                    Atmosphere(mood: .dusk)
                     VStack(spacing: 16) {
                         BrutNotice(text: message, tone: .info)
                         SancharaSecondaryButton(title: "Try again") {
@@ -68,10 +68,19 @@ struct SignedInView: View {
 struct LoadingScreen: View {
     var body: some View {
         ZStack {
-            Theme.bg.ignoresSafeArea()
-            ProgressView().tint(Theme.muted)
+            Atmosphere(mood: .dusk)
+            VStack(spacing: 14) {
+                Sparkle()
+                    .fill(Theme.fg)
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+                Text("Sanchara").brutHeading(28)
+                ProgressView()
+                    .tint(Theme.accent)
+                    .padding(.top, 4)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Loading Sanchara")
         }
     }
 }
-
-

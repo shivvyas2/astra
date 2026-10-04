@@ -14,6 +14,7 @@ struct AddMomentView: View {
     @State private var note = ""
     @State private var date = Date()
     @State private var precision = "month"
+    @FocusState private var noteFocused: Bool
     @Environment(\.dismiss) private var dismiss
 
     private var range: ClosedRange<Date> {
@@ -27,20 +28,35 @@ struct AddMomentView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .plain)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        SancharaField(placeholder: "What happened?", text: $title)
+                    VStack(alignment: .leading, spacing: 26) {
+                        Text("Pin a moment")
+                            .brutHeading(34)
+                            .accessibilityAddTraits(.isHeader)
+
+                        SancharaField(placeholder: "What happened?", text: $title, label: "Moment")
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("When").eyebrow()
-                            DatePicker("", selection: $date, in: range, displayedComponents: .date)
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
-                                .colorScheme(.dark)
-                                .padding(8)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .brutBordered()
+                            HStack {
+                                Text("Date")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(Theme.muted)
+                                Spacer(minLength: 8)
+                                DatePicker("When", selection: $date, in: range, displayedComponents: .date)
+                                    // The range and the saved string are UTC days
+                                    // (`TimelineDate`), so the picker must show UTC
+                                    // days too, or it reads a day early west of
+                                    // Greenwich and saves a day early east of it.
+                                    .environment(\.timeZone, TimeZone(secondsFromGMT: 0) ?? .current)
+                                    .datePickerStyle(.compact)
+                                    .labelsHidden()
+                                    .colorScheme(.dark)
+                                    .tint(Theme.accent)
+                            }
+                            .frame(minHeight: 44)
+                            Rectangle().fill(Theme.line).frame(height: Theme.lineWidth)
                         }
 
                         VStack(alignment: .leading, spacing: 8) {
@@ -53,22 +69,26 @@ struct AddMomentView: View {
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Anything else").eyebrow()
-                            TextField("", text: $note, prompt: Text("Optional").foregroundStyle(Theme.muted), axis: .vertical)
-                                .lineLimit(3...6)
-                                .font(.system(size: 15))
+                            TextField("", text: $note, prompt: Text("Optional").foregroundStyle(Theme.muted.opacity(0.8)), axis: .vertical)
+                                .lineLimit(2...6)
+                                .font(.system(size: 17))
                                 .foregroundStyle(Theme.fg)
-                                .padding(12)
-                                .brutBordered()
+                                .focused($noteFocused)
+                                .padding(.vertical, 10)
+                            Rectangle()
+                                .fill(noteFocused ? Theme.accent : Theme.line)
+                                .frame(height: noteFocused ? 2 : 1)
+                                .animation(Theme.snap, value: noteFocused)
                         }
 
-                        SancharaPrimaryButton(title: "Pin it") { save() }
+                        SancharaPrimaryButton(title: "Pin it", kind: .accent) { save() }
                             .disabled(!canSave)
                             .opacity(canSave ? 1 : 0.5)
                     }
                     .padding(20)
                 }
             }
-            .navigationTitle("Pin a moment")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

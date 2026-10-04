@@ -34,24 +34,33 @@ struct AuthView: View {
 
     var body: some View {
         ZStack {
-            Theme.bg.ignoresSafeArea()
+            Atmosphere(mood: .dusk)
 
             ScrollView {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 60)
-
+                VStack(alignment: .leading, spacing: 0) {
                     modePicker
+                        .padding(.top, 12)
+
+                    // The hero: an orbit to the right, above the headline,
+                    // never behind anything that has to be read.
+                    HStack {
+                        Spacer(minLength: 0)
+                        OrbitDecoration(color: Theme.fg.opacity(0.3))
+                            .frame(width: 150, height: 110)
+                    }
+                    .padding(.top, 8)
 
                     Text(mode.title)
-                        .brutHeading(30)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 28)
+                        .brutHeading(40)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
 
                     Text(mode.subtitle)
-                        .font(.brutBody(14))
+                        .font(.brutBody(15))
                         .foregroundStyle(Theme.muted)
-                        .multilineTextAlignment(.center)
-                        .padding(.top, 8)
+                        .lineSpacing(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
 
                     if let error = auth.errorMessage {
                         BrutNotice(text: error)
@@ -62,7 +71,7 @@ struct AuthView: View {
                             .padding(.top, 16)
                     }
 
-                    VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 20) {
                         AppleSignInButton()
 
                         HStack(spacing: 10) {
@@ -72,21 +81,22 @@ struct AuthView: View {
                                 .foregroundStyle(Theme.muted)
                             BrutDivider(color: Theme.rule, thickness: 1)
                         }
-                        .padding(.vertical, 2)
 
                         SancharaField(
                             placeholder: "you@email.com",
                             text: $email,
                             keyboard: .emailAddress,
-                            textContentType: .username
+                            textContentType: .username,
+                            label: "Email"
                         )
                         .focused($focus, equals: .email)
 
-                        VStack(alignment: .leading, spacing: 6) {
+                        VStack(alignment: .leading, spacing: 8) {
                             SancharaSecureField(
                                 placeholder: "password",
                                 text: $password,
-                                textContentType: mode == .signUp ? .newPassword : .password
+                                textContentType: mode == .signUp ? .newPassword : .password,
+                                label: "Password"
                             )
                             .focused($focus, equals: .password)
 
@@ -96,34 +106,57 @@ struct AuthView: View {
                                     .foregroundStyle(
                                         password.isEmpty || password.count >= AuthStore.minimumPasswordLength
                                             ? Theme.muted
-                                            : Theme.accent
+                                            : Theme.ember
                                     )
                             }
                         }
+                    }
+                    .padding(.top, 28)
 
-                        SancharaPrimaryButton(title: mode.cta, isLoading: auth.isWorking) {
-                            submit()
+                    // The way forward, as in the reference: the other path
+                    // on the left, the round arrow that submits on the right.
+                    HStack(alignment: .center, spacing: 16) {
+                        Button(action: switchMode) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(mode == .signUp ? "Already have an account?" : "New to Sanchara?")
+                                    .foregroundStyle(Theme.muted)
+                                Text(mode == .signUp ? "Sign in" : "Create one")
+                                    .foregroundStyle(Theme.fg)
+                                    .underline()
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .frame(minHeight: 44, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
 
-                        SancharaSecondaryButton(title: codeLabel) {
-                            focus = nil
-                            Task { await auth.sendEmailCode(email: email) }
+                        Spacer(minLength: 0)
+
+                        if auth.isWorking {
+                            ProgressView()
+                                .tint(Theme.ink)
+                                .frame(width: 60, height: 60)
+                                .background(Circle().fill(Theme.accent))
+                                .accessibilityLabel("Working")
+                        } else {
+                            CircleButton(systemImage: "arrow.right", label: mode.cta, fill: .accent, size: 60) {
+                                submit()
+                            }
                         }
                     }
-                    .padding(.top, 24)
+                    .padding(.top, 32)
 
-                    Button(action: switchMode) {
-                        Text(mode == .signUp ? "Already have an account?  " : "New to Sanchara?  ")
-                            .foregroundStyle(Theme.muted)
-                            + Text(mode == .signUp ? "Sign in" : "Create one")
-                            .foregroundStyle(Theme.fg)
+                    Button(codeLabel) {
+                        focus = nil
+                        Task { await auth.sendEmailCode(email: email) }
                     }
-                    .font(.system(size: 14, weight: .semibold))
-                    .padding(.top, 20)
+                    .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                    .frame(minHeight: 44)
+                    .padding(.top, 12)
 
                     Spacer(minLength: 40)
                 }
-                .frame(maxWidth: 380)
+                .frame(maxWidth: 420)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
             }
@@ -182,75 +215,101 @@ struct VerifyCodeView: View {
 
     var body: some View {
         ZStack {
-            Theme.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                Spacer()
+            Atmosphere(mood: .dusk)
 
-                Text(purpose == .signIn ? "Check your email" : "Confirm your email").eyebrow()
-
-                Text("Enter your code")
-                    .brutHeading(30)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 12)
-
-                Text("We sent a \(AuthStore.codeLength)-digit code to \(email).")
-                    .font(.brutBody(14))
-                    .foregroundStyle(Theme.muted)
-                    .multilineTextAlignment(.center)
-                    .padding(.top, 8)
-
-                TextField("", text: $code, prompt: Text("000000").foregroundStyle(Theme.muted.opacity(0.5)))
-                    .font(.brutMono(28, weight: .bold))
-                    .tracking(8)
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(Theme.fg)
-                    .keyboardType(.numberPad)
-                    // iOS offers the code straight from the email above the keyboard.
-                    .textContentType(.oneTimeCode)
-                    .focused($focused)
-                    .padding(.vertical, 14)
-                    .brutBordered()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack {
+                        Spacer(minLength: 0)
+                        OrbitDecoration(color: Theme.fg.opacity(0.3))
+                            .frame(width: 150, height: 110)
+                    }
                     .padding(.top, 24)
-                    .onChange(of: code) { _, entered in
-                        let digits = AuthStore.normalizedCode(entered)
-                        if digits != entered { code = digits }
-                        // Six digits is the whole code; making them press a
-                        // button as well would be ceremony.
-                        if digits.count == AuthStore.codeLength {
-                            focused = false
-                            Task { await auth.verifyCode(digits) }
-                        }
+
+                    Text(purpose == .signIn ? "Check your email" : "Confirm your email").eyebrow()
+
+                    Text("Enter your code")
+                        .brutHeading(40)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+
+                    Text("We sent a \(AuthStore.codeLength)-digit code to \(email).")
+                        .font(.brutBody(15))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 10)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Code").eyebrow()
+                        TextField("", text: $code, prompt: Text("000000").foregroundStyle(Theme.muted.opacity(0.5)))
+                            .font(.brutMono(36, weight: .semibold))
+                            .tracking(14)
+                            .foregroundStyle(Theme.fg)
+                            .keyboardType(.numberPad)
+                            // iOS offers the code straight from the email above the keyboard.
+                            .textContentType(.oneTimeCode)
+                            .focused($focused)
+                            .padding(.vertical, 8)
+                            .onChange(of: code) { _, entered in
+                                let digits = AuthStore.normalizedCode(entered)
+                                if digits != entered { code = digits }
+                                // Six digits is the whole code; making them press a
+                                // button as well would be ceremony.
+                                if digits.count == AuthStore.codeLength {
+                                    focused = false
+                                    Task { await auth.verifyCode(digits) }
+                                }
+                            }
+                        Rectangle()
+                            .fill(focused ? Theme.accent : Theme.line)
+                            .frame(height: focused ? 2 : 1)
+                            .animation(Theme.snap, value: focused)
+                    }
+                    .padding(.top, 32)
+
+                    if let error = auth.errorMessage {
+                        BrutNotice(text: error)
+                            .padding(.top, 16)
+                    }
+                    if let notice = auth.notice {
+                        BrutNotice(text: notice, tone: .info)
+                            .padding(.top, 16)
                     }
 
-                if let error = auth.errorMessage {
-                    BrutNotice(text: error)
-                        .padding(.top, 12)
+                    HStack(alignment: .center, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Button("Send a new code") { Task { await auth.resendCode() } }
+                                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                                .frame(minHeight: 44)
+                            Button("Use a different email") { Task { await auth.signOut() } }
+                                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                                .frame(minHeight: 44)
+                        }
+
+                        Spacer(minLength: 0)
+
+                        if auth.isWorking {
+                            ProgressView()
+                                .tint(Theme.ink)
+                                .frame(width: 60, height: 60)
+                                .background(Circle().fill(Theme.accent))
+                                .accessibilityLabel("Working")
+                        } else {
+                            CircleButton(systemImage: "arrow.right", label: "Continue", fill: .accent, size: 60) {
+                                focused = false
+                                Task { await auth.verifyCode(code) }
+                            }
+                        }
+                    }
+                    .padding(.top, 32)
+
+                    Spacer(minLength: 40)
                 }
-                if let notice = auth.notice {
-                    BrutNotice(text: notice, tone: .info)
-                        .padding(.top, 12)
-                }
-
-                SancharaPrimaryButton(title: "Continue", isLoading: auth.isWorking) {
-                    focused = false
-                    Task { await auth.verifyCode(code) }
-                }
-                .padding(.top, 16)
-
-                Button("Send a new code") { Task { await auth.resendCode() } }
-                    .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
-                    .padding(.top, 12)
-
-                Button("Use a different email") { Task { await auth.signOut() } }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.muted)
-                    .padding(.top, 10)
-
-                Spacer()
-                Spacer()
+                .frame(maxWidth: 420)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 24)
             }
-            .frame(maxWidth: 340)
-            .padding(.horizontal, 24)
+            .scrollDismissesKeyboard(.interactively)
         }
         .onAppear { focused = true }
     }

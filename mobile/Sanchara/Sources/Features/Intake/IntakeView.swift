@@ -20,21 +20,23 @@ struct IntakeView: View {
 
     var body: some View {
         ZStack {
-            Theme.bg.ignoresSafeArea()
+            Atmosphere(mood: .dusk)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 28) {
+                    VStack(alignment: .leading, spacing: 10) {
                         Text("Birth details").eyebrow()
-                        Text(isEditing ? "Update your details" : "Let's build your chart")
-                            .brutHeading(28)
+                        Text(isEditing ? "Update your details." : "Let's build your chart.")
+                            .brutHeading(40)
+                            .fixedSize(horizontal: false, vertical: true)
                         Text(
                             isEditing
                                 ? "Changing your birth data recomputes your chart."
                                 : "Your real chart comes from the date, time, and place you were born."
                         )
-                        .font(.brutBody(14))
+                        .font(.brutBody(15))
                         .foregroundStyle(Theme.muted)
+                        .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -45,59 +47,70 @@ struct IntakeView: View {
                         isLoading: form.isLoadingPhoto
                     )
 
-                    HStack(spacing: 10) {
-                        SancharaField(placeholder: "First name", text: $form.firstName)
-                        SancharaField(placeholder: "Last name", text: $form.lastName)
+                    HStack(alignment: .top, spacing: 16) {
+                        SancharaField(placeholder: "First", text: $form.firstName, label: "First name")
+                        SancharaField(placeholder: "Last", text: $form.lastName, label: "Last name")
                     }
 
-                    labelled("Birth date") {
-                        DatePicker(
-                            "",
-                            selection: $form.birthDate,
-                            in: IntakeStore.earliestBirthDate...Date(),
-                            displayedComponents: .date
-                        )
-                        .datePickerStyle(.wheel)
-                        .labelsHidden()
-                        .colorScheme(.dark)
-                        .frame(maxWidth: .infinity)
-                    }
-
-                    labelled("Birth time") {
-                        DatePicker("", selection: $form.birthTime, displayedComponents: .hourAndMinute)
-                            .datePickerStyle(.wheel)
-                            .labelsHidden()
-                            .colorScheme(.dark)
-                            .frame(maxWidth: .infinity)
+                    // Birthday and time of birth side by side, as in the
+                    // reference: a label, a compact picker, one line beneath.
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .top, spacing: 16) {
+                            underlined("Birthday") {
+                                DatePicker(
+                                    "",
+                                    selection: $form.birthDate,
+                                    in: IntakeStore.earliestBirthDate...Date(),
+                                    displayedComponents: .date
+                                )
+                                .datePickerStyle(.compact)
+                                .labelsHidden()
+                                .colorScheme(.dark)
+                                .tint(Theme.accent)
+                                .accessibilityLabel("Birthday")
+                            }
+                            underlined("Time of birth") {
+                                DatePicker("", selection: $form.birthTime, displayedComponents: .hourAndMinute)
+                                    .datePickerStyle(.compact)
+                                    .labelsHidden()
+                                    .colorScheme(.dark)
+                                    .tint(Theme.accent)
+                                    .accessibilityLabel("Time of birth")
+                            }
+                        }
                         Text("As close as you know. A wrong hour moves the ascendant.")
                             .font(.brutBody(12))
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    labelled("Birthplace") { placePicker }
+                    placePicker
 
                     if let error = form.errorMessage {
                         BrutNotice(text: error)
                     }
 
-                    SancharaPrimaryButton(
-                        title: isEditing ? "Update my details" : "Save & build my chart",
-                        isLoading: form.isSaving
-                    ) {
-                        Task {
-                            if await form.save() { await onSaved() }
+                    VStack(spacing: 8) {
+                        SancharaPrimaryButton(
+                            title: isEditing ? "Update my details" : "Save & build my chart",
+                            isLoading: form.isSaving
+                        ) {
+                            Task {
+                                if await form.save() { await onSaved() }
+                            }
                         }
-                    }
-                    .disabled(!form.isComplete || form.isSaving)
-                    .opacity(form.isComplete ? 1 : 0.4)
+                        .disabled(!form.isComplete || form.isSaving)
+                        .opacity(form.isComplete ? 1 : 0.4)
 
-                    if let onCancel {
-                        Button("Cancel", action: onCancel)
-                            .buttonStyle(BrutButtonStyle(kind: .quiet))
-                    } else {
-                        Button("Sign out") { Task { await auth.signOut() } }
-                            .buttonStyle(BrutButtonStyle(kind: .quiet))
+                        if let onCancel {
+                            Button("Cancel", action: onCancel)
+                                .buttonStyle(BrutButtonStyle(kind: .quiet))
+                                .frame(minHeight: 44)
+                        } else {
+                            Button("Sign out") { Task { await auth.signOut() } }
+                                .buttonStyle(BrutButtonStyle(kind: .quiet))
+                                .frame(minHeight: 44)
+                        }
                     }
                 }
                 .padding(.horizontal, 24)
@@ -124,62 +137,86 @@ struct IntakeView: View {
     @ViewBuilder
     private var placePicker: some View {
         if let place = form.place {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(place.name)
-                        .font(.brutBody(15))
-                        .foregroundStyle(Theme.fg)
-                    Text(place.timezone)
-                        .font(.brutMono(11, weight: .medium))
-                        .foregroundStyle(Theme.muted)
-                }
-                Spacer()
-                Button("Change") { form.clearPlace() }
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(Theme.accent)
-            }
-            .padding(12)
-            .brutBordered()
-        } else {
-            SancharaField(placeholder: "City of birth", text: $form.placeQuery)
-
-            if form.isSearching {
-                Text("Searching…")
-                    .font(.brutMono(11))
-                    .foregroundStyle(Theme.muted)
-            }
-
-            ForEach(form.results) { result in
-                Button {
-                    form.pick(result)
-                } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(result.name)
-                            .font(.brutBody(14))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Place of birth").eyebrow()
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(place.name)
+                            .font(.system(size: 17))
                             .foregroundStyle(Theme.fg)
-                        Text(result.timezone)
+                        Text(place.timezone)
                             .font(.brutMono(11, weight: .medium))
                             .foregroundStyle(Theme.muted)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 12)
-                    .brutBordered()
-                    .contentShape(Rectangle())
+                    Spacer(minLength: 8)
+                    Button("Change") { form.clearPlace() }
+                        .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                        .frame(minHeight: 44)
+                        .accessibilityHint("Clears the birthplace so you can search again")
+                }
+                .padding(.vertical, 4)
+                BrutDivider(color: Theme.line)
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 0) {
+                SancharaField(placeholder: "City of birth", text: $form.placeQuery, label: "Place of birth")
+
+                if form.isSearching {
+                    Text("Searching…")
+                        .font(.brutMono(11))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.top, 10)
+                }
+
+                ForEach(Array(form.results.enumerated()), id: \.element.id) { index, result in
+                    Button {
+                        form.pick(result)
+                    } label: {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(result.name)
+                                    .font(.brutBody(15))
+                                    .foregroundStyle(Theme.fg)
+                                    .multilineTextAlignment(.leading)
+                                Text(result.timezone)
+                                    .font(.brutMono(11, weight: .medium))
+                                    .foregroundStyle(Theme.muted)
+                            }
+                            Spacer(minLength: 8)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Theme.muted)
+                                .accessibilityHidden(true)
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if index < form.results.count - 1 {
+                        BrutDivider()
+                    }
                 }
             }
         }
     }
 
+    /// An eyebrow label over a control, with a single quiet line beneath —
+    /// the underlined field, for controls that are not text.
     @ViewBuilder
-    private func labelled<Content: View>(
+    private func underlined<Content: View>(
         _ title: String,
         @ViewBuilder content: () -> Content
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title).eyebrow()
             content()
+                .frame(minHeight: 44, alignment: .leading)
+            Rectangle()
+                .fill(Theme.line)
+                .frame(height: Theme.lineWidth)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

@@ -40,8 +40,8 @@ struct MainTabView: View {
         /// which is also the colour of its screen header.
         var color: Color {
             switch self {
-            case .today: Theme.yellow
-            case .ask: Theme.accent
+            case .today: Theme.accent
+            case .ask: Theme.ember
             case .kundli: Theme.fg
             case .life: Theme.violet
             case .you: Theme.fg
@@ -165,7 +165,7 @@ struct MainTabView: View {
         } else {
             NavigationStack {
                 ZStack {
-                    Theme.bg.ignoresSafeArea()
+                    Atmosphere(mood: .dusk)
                     VStack(alignment: .leading, spacing: 20) {
                         ScreenHeader(
                             eyebrow: "Birth chart",
@@ -185,7 +185,7 @@ struct MainTabView: View {
                     .padding(20)
                 }
                 .navigationTitle("")
-                .toolbarBackground(Theme.bg, for: .navigationBar)
+                .toolbarBackground(.hidden, for: .navigationBar)
             }
         }
     }
@@ -216,60 +216,71 @@ struct MainTabView: View {
 
 // MARK: - The bar
 
-/// Five blocks in a row, the selected one filled. Labels are always shown:
-/// an icon alone is the thing people could not read.
+/// A floating capsule of five places, the selected one filled in its own
+/// colour. Labels are always shown: an icon alone is the thing people could
+/// not read.
+///
+/// Placed with `safeAreaInset`, so every page's content stops above it and
+/// nothing is hidden behind the bar; the pages' colour fields still run
+/// underneath, which is what lets it read as floating.
 struct BrutTabBar: View {
     @Binding var selection: MainTabView.Tab
     var badge: (MainTabView.Tab) -> Int = { _ in 0 }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             ForEach(MainTabView.Tab.allCases) { tab in
                 let selected = selection == tab
                 let count = badge(tab)
                 Button {
                     withAnimation(Theme.snap) { selection = tab }
                 } label: {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Image(systemName: tab.symbol)
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 16, weight: .semibold))
+                            .frame(height: 20)
+                            .overlay(alignment: .topTrailing) {
+                                if count > 0 {
+                                    Text(count > 9 ? "9+" : "\(count)")
+                                        .font(.system(size: 9, weight: .bold).monospacedDigit())
+                                        .foregroundStyle(Theme.ink)
+                                        .padding(.horizontal, 4)
+                                        .frame(minWidth: 15, minHeight: 15)
+                                        .background(Capsule().fill(Theme.accent))
+                                        .overlay(Capsule().stroke(Theme.surface, lineWidth: 2))
+                                        .offset(x: 11, y: -6)
+                                        .accessibilityHidden(true)
+                                }
+                            }
                         Text(tab.title)
-                            .font(.brutMono(9, weight: .bold))
-                            .textCase(.uppercase)
-                            .tracking(0.8)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                     }
-                    .foregroundStyle(selected ? Theme.ink : Theme.fg)
+                    .foregroundStyle(selected ? Theme.ink : Theme.muted)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(selected ? tab.color : Theme.bg)
-                    .overlay(alignment: .topTrailing) {
-                        if count > 0 {
-                            Text(count > 9 ? "9+" : "\(count)")
-                                .font(.brutMono(9, weight: .bold))
-                                .foregroundStyle(Theme.ink)
-                                .padding(.horizontal, 4)
-                                .padding(.vertical, 1)
-                                .background(Theme.accent)
-                                .overlay(Rectangle().stroke(Theme.ink, lineWidth: 1.5))
-                                .padding(6)
+                    .frame(height: 52)
+                    .background {
+                        if selected {
+                            Capsule().fill(tab.color)
                         }
                     }
-                    .contentShape(Rectangle())
+                    .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(count > 0 ? "\(tab.title), \(count) unread" : tab.title)
                 .accessibilityHint(tab.blurb)
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
-
-                if tab != MainTabView.Tab.allCases.last {
-                    Rectangle().fill(Theme.line).frame(width: Theme.lineWidth)
-                }
             }
         }
-        .overlay(alignment: .top) {
-            Rectangle().fill(Theme.line).frame(height: Theme.lineWidth)
+        .padding(5)
+        .background {
+            Capsule().fill(Theme.surface.opacity(0.92))
+            Capsule().strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
         }
-        .background(Theme.bg.ignoresSafeArea(edges: .bottom))
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tabs")
     }

@@ -22,7 +22,7 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Theme.bg.ignoresSafeArea()
+                Atmosphere(mood: .ember)
 
                 if chat.messages.isEmpty {
                     openingScreen
@@ -39,7 +39,7 @@ struct ChatView: View {
             }
             .navigationTitle("")
             .toolbar { toolbar }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.hidden, for: .navigationBar)
             .navigationBarTitleDisplayMode(.inline)
         }
         .tint(Theme.fg)
@@ -74,12 +74,8 @@ struct ChatView: View {
 
     private var openingScreen: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                ScreenHeader(
-                    eyebrow: "Ask",
-                    title: greeting,
-                    blurb: "Ask about work, love, money, a decision, a year. Every answer is read from your real birth chart, not your Sun sign."
-                )
+            VStack(alignment: .leading, spacing: 26) {
+                hero
 
                 modeRow
 
@@ -88,35 +84,38 @@ struct ChatView: View {
                 if suggestions.isThinking {
                     ShimmerText("Thinking of what to ask…", active: !reduceMotion)
                 } else if !suggestions.suggestions.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 0) {
                         Text("Try asking").eyebrow()
-                        ForEach(suggestions.suggestions, id: \.self) { question in
+                            .padding(.bottom, 4)
+                        ForEach(Array(suggestions.suggestions.enumerated()), id: \.element) { index, question in
+                            if index > 0 { BrutDivider() }
                             Button {
                                 suggestions.clear()
                                 chat.send(question)
                             } label: {
-                                HStack(spacing: 10) {
+                                HStack(spacing: 12) {
                                     Text(question)
-                                        .font(.brutBody(14))
+                                        .font(.brutBody(16))
                                         .foregroundStyle(Theme.fg)
                                         .multilineTextAlignment(.leading)
                                         .fixedSize(horizontal: false, vertical: true)
                                     Spacer(minLength: 8)
                                     Image(systemName: "arrow.up.right")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundStyle(Theme.muted)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(Theme.accent)
+                                        .accessibilityHidden(true)
                                 }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 12)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .brutBordered()
+                                .padding(.vertical, 14)
+                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityHint("Asks this question")
                         }
                     }
                 }
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 20)
             .padding(.vertical, 16)
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
@@ -124,11 +123,35 @@ struct ChatView: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
-    private var greeting: String {
-        if let firstName = profile.details?.firstName, !firstName.isEmpty {
-            return "Read your stars, \(firstName)"
+    /// One large phrase, a line saying what the screen is for, and an orbit
+    /// in the empty space above them — never behind the words.
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Ask").eyebrow()
+            greeting
+                .brutHeading(40)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Ask about work, love, money, a decision, a year. Every answer is read from your real birth chart, not your Sun sign.")
+                .font(.brutBody(15))
+                .foregroundStyle(Theme.muted)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        return "Read your stars"
+        .padding(.top, 92)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(alignment: .topTrailing) {
+            OrbitDecoration(color: Theme.fg.opacity(0.3))
+                .frame(width: 170, height: 120)
+                .offset(x: 18, y: -18)
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var greeting: Text {
+        if let firstName = profile.details?.firstName, !firstName.isEmpty {
+            return Text("Read your stars,\n") + Text(firstName).foregroundStyle(Theme.accent)
+        }
+        return Text("Read your stars.")
     }
 
     /// Clears the transcript for a fresh reading. The previous one stays
@@ -216,11 +239,13 @@ struct ChatView: View {
                         }
                     } label: {
                         Label("Jump to latest", systemImage: "arrow.down")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.ink)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .brutBordered(fill: Theme.fg)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(Capsule().fill(Theme.fg))
+                            .frame(minHeight: 44)
+                            .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
                     .padding(.bottom, 10)
@@ -261,16 +286,16 @@ struct ChatView: View {
             Text(message.content)
                 .font(.brutBody(15))
                 .foregroundStyle(Theme.fg)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .brutCard(fill: Theme.surfaceRaised)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .brutCard(fill: Theme.fg.opacity(0.06), radius: 22)
                 .frame(maxWidth: 300, alignment: .trailing)
                 .accessibilityLabel("You asked: \(message.content)")
         case .assistant:
             HStack(alignment: .top, spacing: 12) {
-                Rectangle()
+                Capsule()
                     .fill(message.source == .onDevice ? Theme.muted : Theme.accent)
-                    .frame(width: 4)
+                    .frame(width: 2)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 10) {
                     if message.content.isEmpty {
@@ -363,26 +388,23 @@ struct ChatView: View {
                     .onSubmit { chat.sendCurrentInput() }
                     .padding(.vertical, 10)
 
-                Button {
+                CircleButton(systemImage: "arrow.up", label: "Send", fill: .accent, size: 40) {
                     inputFocused = false
                     chat.sendCurrentInput()
-                } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 16, weight: .black))
-                        .foregroundStyle(Theme.ink)
-                        .frame(width: 38, height: 38)
-                        .background(canSend ? Theme.fg : Theme.muted)
-                        .overlay(Rectangle().stroke(Theme.line, lineWidth: Theme.lineWidth))
                 }
-                .buttonStyle(.plain)
                 .disabled(!canSend)
-                .accessibilityLabel("Send")
+                .opacity(canSend ? 1 : 0.35)
                 .padding(.bottom, 4)
             }
-            .padding(.leading, 12)
+            .padding(.leading, 18)
             .padding(.trailing, 4)
-            .padding(.vertical, 2)
-            .brutBordered()
+            .padding(.vertical, 0)
+            .background {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Theme.fg.opacity(0.04))
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+            }
 
             HStack(spacing: 8) {
                 modeMenu
@@ -411,25 +433,29 @@ struct ChatView: View {
                         Text(mode.label)
                         Text(mode.blurb)
                     } icon: {
-                        Image(systemName: chat.mode == mode ? "checkmark.square.fill" : "square")
+                        Image(systemName: chat.mode == mode ? "checkmark.circle.fill" : "circle")
                     }
                 }
             }
         } label: {
-            HStack(spacing: 6) {
-                Rectangle().fill(chat.mode.dot).frame(width: 8, height: 8)
-                    .overlay(Rectangle().stroke(Theme.line, lineWidth: 1.5))
+            HStack(spacing: 7) {
+                Circle().fill(chat.mode.dot).frame(width: 8, height: 8)
                 Text(chat.mode.label)
-                    .font(.brutMono(11, weight: .bold))
-                    .textCase(.uppercase)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.fg)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.muted)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .brutBordered()
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background {
+                Capsule().fill(Theme.fg.opacity(0.04))
+                Capsule().strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+            }
+            // A taller hit area than the capsule shows.
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
         .accessibilityLabel("Reading mode: \(chat.mode.label). \(chat.mode.blurb). Opens a list of modes.")
     }
@@ -439,7 +465,7 @@ struct ChatView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarLeading) {
-            BrutIconButton(systemImage: "clock", label: "Past readings") {
+            CircleButton(systemImage: "clock", label: "Past readings", size: 36) {
                 showHistory = true
             }
         }
@@ -452,7 +478,7 @@ struct ChatView: View {
         }
 
         ToolbarItem(placement: .topBarTrailing) {
-            BrutIconButton(systemImage: "square.and.pencil", label: "New reading") {
+            CircleButton(systemImage: "square.and.pencil", label: "New reading", size: 36) {
                 startNewReading()
             }
         }
@@ -522,9 +548,9 @@ struct StreamingCaret: View {
         SwiftUI.TimelineView(.periodic(from: .now, by: 0.6)) { context in
             let phase = Int(context.date.timeIntervalSinceReferenceDate / 0.6)
             let visible = !active || phase.isMultiple(of: 2)
-            Rectangle()
+            Capsule()
                 .fill(Theme.accent)
-                .frame(width: 10, height: 16)
+                .frame(width: 3, height: 17)
                 .opacity(visible ? 1 : 0)
                 .accessibilityHidden(true)
         }
