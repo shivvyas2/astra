@@ -20,6 +20,30 @@ All notable changes to Sanchara are recorded here. The format follows
 
 ### Added
 
+- **An admin dashboard that tracks everything, on the web and on iPhone.**
+  `/admin` now opens on an overview for the last 7, 30 or 90 days: users, new
+  sign-ups, active users, readings and Deep share, model spend in total, today
+  and per reading, memory (facts, conversation summaries, open and settled
+  predictions with a hit rate), daily readings, alerts sent, push devices and
+  life events, with a day-by-day chart, readings by mode, spend by model and
+  by kind of call, and the ten biggest spenders. The Users list searches and
+  sorts, and each person's page shows their chart, plan, memory, predictions,
+  a timeline of everything that happened to them, and read-only transcripts.
+  Admins get the same screens on iPhone: an "Admin" row on You opens the
+  dashboard full-screen, backed by a JSON API under `/api/admin/*` that the
+  iOS app and the web admin share. The dashboard has its own light look,
+  taken from the reference dashboard rather than the app's dark theme.
+- **Every model call is recorded with its cost.** `model_usage` (migration
+  `0010_usage.sql`) keeps one row per call: who, which kind (reading, Deep,
+  memory, daily, alert, extraction), which model, the tokens in, cached and
+  out, and the price in USD. Duplicate sends of the same question within a
+  short window are answered once and paid for once. `GET /api/usage` reports
+  a person's own counts for the day. None of it limits anything.
+- **No limits, on purpose.** There are no daily or monthly caps, no plan
+  gating and no 429s; Deep readings are open to everyone. Heavy use is
+  flagged in the admin dashboard, never blocked. Savings come only from the
+  server side: prompt caching, the on-device and Haiku memory passes, and
+  deduping repeated requests.
 - **AI consent before the first reading (web and iOS).** A full screen, in the
   app's own look, says plainly what a reading sends (birth details, chart,
   your messages, remembered facts), to whom (Anthropic, to write the reading;
@@ -91,11 +115,20 @@ All notable changes to Sanchara are recorded here. The format follows
 
 ### Changed
 
-- **A new look.** Dark neo-brutalism on both platforms: flat fills, 2pt bone
-  borders, hard offset shadows, heavy headings, monospaced labels, and three
-  flat accents (orange, violet, yellow). The closing "In simple words" section
-  of every reading is lifted into a yellow callout. The marketing page is
-  unchanged.
+- **A new look, twice.** First a dark neo-brutalist pass on both platforms:
+  flat fills, 2pt bone borders, hard offset shadows, heavy headings,
+  monospaced labels and three flat accents (orange, violet, yellow), with the
+  closing "In simple words" section of every reading lifted into a callout.
+  Then, on iPhone, the look the owner's references asked for: one huge lime
+  word on dark, soft colour fields, outlined rounded cards, underlined fields,
+  round arrow buttons, and orbits and sparkles in the background. Lime is the
+  accent, ember is kept for warnings and anything destructive. The web app
+  and the marketing page still wear the first pass.
+- **The app is called Astrya.** Every user-facing "Sanchara" is now
+  "Astrya": the Home Screen name, the prompt persona, the kundli PDF name,
+  the Spotlight keyword and the copy on both platforms. Identifiers, the
+  `sanchara://` link scheme and stored settings keep their old names so
+  installed widgets and preferences keep working.
 
 ## [0.3.0] - 2026-09-18
 

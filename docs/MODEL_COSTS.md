@@ -51,15 +51,18 @@ adaptive, effort "low"       719
 thinking disabled            328
 ```
 
-All three cited the same real placements, so routine readings run at
-`effort: "low"` (`LOW_EFFORT` in `lib/anthropic.ts`) and Deep readings keep the
-default. Dosha alerts, which run once per user per day on Opus, also use low
-effort with `max_tokens` cut from 4,096 to 1,600.
+All three cited the same real placements. Routine readings ran at `low` for
+a while; since 2026-10-03 they run at `effort: "medium"` (`READING_EFFORT` in
+`lib/anthropic.ts`) on Sonnet 5.5, and Deep readings at `high` (`DEEP_EFFORT`)
+on Opus 5.5. That is a deliberate spend: the owner chose better-reasoned,
+more personal predictions over the saving, and it is not to be walked back.
+`LOW_EFFORT` is kept for the background jobs that only summarise facts: the
+dosha alerts (once per user per day on Opus, `max_tokens` cut from 4,096 to
+1,600) and the memory pass on the server.
 
-If you ever want the cheapest possible standard reading, swapping `LOW_EFFORT`
-for `thinking: { type: "disabled" }` on the non-deep path takes output to ~328
-tokens — a quarter of the original. It was not made the default because chart
-work benefits from some reasoning.
+`thinking: { type: "disabled" }` on the non-deep path would take output to
+~328 tokens, a quarter of the original. It is listed here only so nobody
+rediscovers it: chart work needs the reasoning.
 
 **3. A history budget.** `selectHistory` (`lib/data/history.ts`) re-sends the
 most recent turns up to 9,000 characters instead of a flat last-10, so one long
@@ -149,7 +152,7 @@ fetched.
 Every turn logs one line:
 
 ```
-chat usage conv=<id> model=claude-sonnet-5 in=13 cache_write=0 cache_read=2867 out=538
+chat usage conv=<id> model=claude-sonnet-5-5 in=13 cache_write=0 cache_read=2867 out=538
 ```
 
 `cache_read` staying at 0 across a conversation means something reintroduced a
@@ -188,3 +191,13 @@ rather than trusting an estimate here.
 This needs iOS 26 and Apple Intelligence. Everywhere else, every turn is a paid
 turn, exactly as documented above. See `docs/SIRI_AND_WIDGETS.md`, in particular
 the note on why nothing shown to the on-device model may name astrology.
+
+## What is never done to save money
+
+Astrya has no usage limits: no daily or monthly caps, no 429s, Deep readings
+open to everyone, no plan gating. Cost is handled on this side only, with the
+levers above (caching, the on-device and Haiku side passes, deduping repeated
+requests). Lowering reading effort, swapping the reading model for a cheaper
+one, shortening answers or trimming history are off the table because each
+one lowers the reading. Heavy use is made visible in the admin dashboard
+("Heavy use" flags, top spenders, cost per reading), never blocked.
