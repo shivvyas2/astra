@@ -29,6 +29,9 @@ final class DeepLink {
     /// Read and cleared by the view that handles it. Nil when nothing is waiting.
     var pending: Destination?
 
+    /// Re-announces a tapped alert or reading until the tab view takes it.
+    private var relay: Task<Void, Never>?
+
     private init() {}
 
     /// Called on launch and on every return to the foreground.
@@ -61,12 +64,48 @@ final class DeepLink {
     /// `sanchara://timeline` and friends. A widget tap opens the app through
     /// the URL directly, so there is no app-group hop here — the destination
     /// is set straight away. Unknown paths are ignored rather than guessed.
+    ///
+    /// `sanchara://alert/<id>` and `sanchara://reading/<id>` come from the
+    /// alert and reading widgets. They open exactly what a tapped notification
+    /// for the same row opens, through the same path.
     func handle(url: URL) {
         guard Self.isDeepLink(url) else { return }
         switch url.host?.lowercased() {
         case "timeline": pending = .timeline
         case "kundli": pending = .kundli
+        case "alert":
+            if let id = Self.itemID(url) { deliver(TappedNotification(id: id, kind: .alert)) }
+        case "reading":
+            if let id = Self.itemID(url) { deliver(TappedNotification(id: id, kind: .daily)) }
         default: break
+        }
+    }
+
+    /// The `<id>` in `sanchara://alert/<id>`.
+    nonisolated static func itemID(_ url: URL) -> String? {
+        let id = url.pathComponents.first { $0 != "/" }
+        return (id?.isEmpty ?? true) ? nil : id
+    }
+
+    /// Hands a tapped alert or reading to the tab view via `PushStore.pending`.
+    ///
+    /// The tab view watches that value with `onChange`, which never fires for
+    /// a value set before the view existed — a tap that cold-launches the app.
+    /// So until the view clears it (which is how it says "handled"), the value
+    /// is briefly withdrawn and set again, which reads as a change once the
+    /// view is on screen. Gives up after ten seconds.
+    func deliver(_ tapped: TappedNotification) {
+        relay?.cancel()
+        PushStore.shared.pending = tapped
+        relay = Task { @MainActor in
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(400))
+                guard !Task.isCancelled, PushStore.shared.pending == tapped else { return }
+                PushStore.shared.pending = nil
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled, PushStore.shared.pending == nil else { return }
+                PushStore.shared.pending = tapped
+            }
         }
     }
 }

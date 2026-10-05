@@ -43,12 +43,13 @@ struct HistoryView: View {
                     .padding(.bottom, 32)
                 }
             }
+            .refreshable { await chat.loadConversations() }
             .navigationTitle("Readings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }

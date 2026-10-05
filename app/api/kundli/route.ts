@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   return new Response(Buffer.from(pdf), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": 'attachment; filename="sanchara-kundli.pdf"',
+      "content-disposition": 'attachment; filename="astrya-kundli.pdf"',
       "cache-control": "no-store",
     },
   });

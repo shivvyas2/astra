@@ -118,7 +118,7 @@ struct AuthView: View {
                     HStack(alignment: .center, spacing: 16) {
                         Button(action: switchMode) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(mode == .signUp ? "Already have an account?" : "New to Sanchara?")
+                                Text(mode == .signUp ? "Already have an account?" : "New to Astrya?")
                                     .foregroundStyle(Theme.muted)
                                 Text(mode == .signUp ? "Sign in" : "Create one")
                                     .foregroundStyle(Theme.fg)

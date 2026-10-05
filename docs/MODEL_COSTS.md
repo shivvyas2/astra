@@ -70,6 +70,80 @@ evening does not keep getting more expensive.
 rather than "be concise", which is what actually governs output spend.
 `max_tokens` is now 1,600 / 3,000 — a ceiling, not a target.
 
+## The memory pass, and where it runs
+
+After a reading finishes, one pass keeps three kinds of memory current: the
+standing facts (`user_facts`, from what the user said), the conversation's
+rolling summary (`conversation_memories`), and the dated predictions the
+reading made (`predictions`). It runs in one of two places.
+
+**On an iPhone with Apple Intelligence, on the device.** The chat request
+carries `memory: "on-device"`, the server skips its pass, and the phone's
+on-device model (guided generation into `ConversationNotes`,
+`mobile/Sanchara/Sources/Features/Chat/OnDeviceMemory.swift`) writes the notes
+and posts them to `/api/memory/ingest`, which validates them and writes them
+under RLS. **$0 in model spend.** If the on-device model cannot run (a refusal,
+assets not downloaded), the phone asks the server to run its pass for that turn
+instead, so the turn is billed as below rather than lost.
+
+**Everywhere else, one Claude Haiku 4.5 call** (`lib/memory/extract.ts`,
+`claude-haiku-4-5`, $1/M in, $5/M out, JSON-schema-constrained, no thinking).
+One call returns facts, summary, topics and predictions together; three
+separate calls would have paid for the rules and the reading three times.
+
+- Input: the rules (~1,000 tokens when the message can hold a fact, ~500 when
+  it cannot; then the facts list is left out too), the facts on file (up to
+  40, ~15 tokens each), the conversation's summary so far (~100), the message,
+  and the reading (~350). Roughly 1,000 to 2,300 tokens.
+- Output: a summary (~100 tokens), topics, zero to three predictions (~40
+  each) and usually no fact changes. Roughly 150 to 300 tokens.
+- **About $0.002 to $0.004 per turn.** Below Haiku's 4,096-token minimum
+  cacheable prefix, so it is not cached. Every turn that produced a reading
+  runs it, because every reading can move the summary and most make a dated
+  prediction; v1 skipped turns with no first-person words because it only
+  looked for facts.
+
+Each server pass logs `memory usage model=claude-haiku-4-5 in=… out=…`. An
+iPhone turn logs nothing, which is the point.
+
+## Memory in the reading's prompt
+
+`lib/memory/select.ts` picks what a reading sees instead of sending every
+fact, and holds all of it under **600 tokens** (four characters a token,
+erring high), guidance included:
+
+- **Standing notes, up to ~440 tokens**, in a system block after the cached
+  chart: the core facts (work, relationships, home, two each), the three most
+  recent other conversations, and predictions due now. It depends only on what
+  is stored, never on the question, so within a conversation it is identical
+  turn to turn and is a cache read (0.1x) from the second turn, like v1's
+  facts block.
+- **A question note, up to ~160 tokens**, as a text block ahead of the newest
+  user message: facts, older summaries and predictions on the topics the
+  question names (keyword and house-number matching, no model call). It sits
+  after the conversation's cache breakpoint and is never stored, so it never
+  costs the cache. At full Sonnet input price it is at most ~$0.0003 a turn,
+  and it is empty for a question that names no topic.
+
+## Per turn, before and after
+
+Sonnet 5.5 reading, mid-conversation. The reading itself (~$0.008) is
+unchanged in all three columns; these are the memory costs on top. Estimated
+from token counts, not yet measured in production.
+
+| | v1 (facts only) | Now, server pass | Now, iPhone on-device |
+|---|---|---|---|
+| Memory model call | $0 to $0.002, skipped on most chart questions | ~$0.002 to $0.004, every reading turn | **$0** |
+| Memory in the prompt | 150 to 800 tokens, cached from turn 2 | at most 600 tokens: ~440 cached, ~160 fresh | same |
+| Memory cost per turn | ~$0.0005 to $0.002 | ~$0.002 to $0.004 | **~$0.0001 to $0.0004** |
+| What is remembered | facts | facts, summaries, predictions | facts, summaries, predictions |
+
+The server path costs a little more per turn than v1 because it now remembers
+three things on every turn instead of facts on some. The iPhone path remembers
+the same three things for close to nothing, and "what do you know about me?"
+there costs nothing at all: it is answered from the notes the phone already
+fetched.
+
 ## Watching it in production
 
 Every turn logs one line:

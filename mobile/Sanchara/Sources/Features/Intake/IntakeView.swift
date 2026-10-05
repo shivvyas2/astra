@@ -7,6 +7,9 @@ import SwiftUI
 struct IntakeView: View {
     /// Existing details, when the screen is opened to edit rather than to create.
     var initial: BirthProfileDetails?
+    /// Opened from the kundli's "Add birth time": starts with the time picker
+    /// showing rather than the "I don't know" panel.
+    var addingBirthTime = false
     /// Present only when shown as a sheet from the profile.
     var onCancel: (() -> Void)?
     /// Called after the chart is built, so the app can move on to the reading.
@@ -26,7 +29,7 @@ struct IntakeView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Birth details").eyebrow()
-                        Text(isEditing ? "Update your details." : "Let's build your chart.")
+                        Text(addingBirthTime ? "Add your birth time." : isEditing ? "Update your details." : "Let's build your chart.")
                             .brutHeading(40)
                             .fixedSize(horizontal: false, vertical: true)
                         Text(
@@ -52,39 +55,7 @@ struct IntakeView: View {
                         SancharaField(placeholder: "Last", text: $form.lastName, label: "Last name")
                     }
 
-                    // Birthday and time of birth side by side, as in the
-                    // reference: a label, a compact picker, one line beneath.
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .top, spacing: 16) {
-                            underlined("Birthday") {
-                                DatePicker(
-                                    "",
-                                    selection: $form.birthDate,
-                                    in: IntakeStore.earliestBirthDate...Date(),
-                                    displayedComponents: .date
-                                )
-                                .datePickerStyle(.compact)
-                                .labelsHidden()
-                                .colorScheme(.dark)
-                                .tint(Theme.accent)
-                                .accessibilityLabel("Birthday")
-                            }
-                            underlined("Time of birth") {
-                                DatePicker("", selection: $form.birthTime, displayedComponents: .hourAndMinute)
-                                    .datePickerStyle(.compact)
-                                    .labelsHidden()
-                                    .colorScheme(.dark)
-                                    .tint(Theme.accent)
-                                    .accessibilityLabel("Time of birth")
-                            }
-                        }
-                        Text("As close as you know. A wrong hour moves the ascendant.")
-                            .font(.brutBody(12))
-                            .foregroundStyle(Theme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    placePicker
+                    BirthDetailsFields(form: form)
 
                     if let error = form.errorMessage {
                         BrutNotice(text: error)
@@ -125,98 +96,12 @@ struct IntakeView: View {
             didPrefill = true
             if let initial {
                 form.prefill(from: initial)
+                if addingBirthTime { form.birthTimeKnown = true }
             } else if let name = AppleSignIn.rememberedName {
                 form.firstName = name.first
                 form.lastName = name.last
             }
         }
-    }
-
-    // MARK: - Birthplace
-
-    @ViewBuilder
-    private var placePicker: some View {
-        if let place = form.place {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Place of birth").eyebrow()
-                HStack(alignment: .center, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(place.name)
-                            .font(.system(size: 17))
-                            .foregroundStyle(Theme.fg)
-                        Text(place.timezone)
-                            .font(.brutMono(11, weight: .medium))
-                            .foregroundStyle(Theme.muted)
-                    }
-                    Spacer(minLength: 8)
-                    Button("Change") { form.clearPlace() }
-                        .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
-                        .frame(minHeight: 44)
-                        .accessibilityHint("Clears the birthplace so you can search again")
-                }
-                .padding(.vertical, 4)
-                BrutDivider(color: Theme.line)
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                SancharaField(placeholder: "City of birth", text: $form.placeQuery, label: "Place of birth")
-
-                if form.isSearching {
-                    Text("Searching…")
-                        .font(.brutMono(11))
-                        .foregroundStyle(Theme.muted)
-                        .padding(.top, 10)
-                }
-
-                ForEach(Array(form.results.enumerated()), id: \.element.id) { index, result in
-                    Button {
-                        form.pick(result)
-                    } label: {
-                        HStack(spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(result.name)
-                                    .font(.brutBody(15))
-                                    .foregroundStyle(Theme.fg)
-                                    .multilineTextAlignment(.leading)
-                                Text(result.timezone)
-                                    .font(.brutMono(11, weight: .medium))
-                                    .foregroundStyle(Theme.muted)
-                            }
-                            Spacer(minLength: 8)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(Theme.muted)
-                                .accessibilityHidden(true)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .padding(.vertical, 10)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    if index < form.results.count - 1 {
-                        BrutDivider()
-                    }
-                }
-            }
-        }
-    }
-
-    /// An eyebrow label over a control, with a single quiet line beneath —
-    /// the underlined field, for controls that are not text.
-    @ViewBuilder
-    private func underlined<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).eyebrow()
-            content()
-                .frame(minHeight: 44, alignment: .leading)
-            Rectangle()
-                .fill(Theme.line)
-                .frame(height: Theme.lineWidth)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -233,6 +118,10 @@ final class IntakeStore {
     var lastName = ""
     var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: Date()) ?? Date()
     var birthTime = Calendar.current.date(from: DateComponents(hour: 12, minute: 0)) ?? Date()
+    /// Off when they do not know their birth time: the picker gives way to
+    /// an explanation and an optional rough part of day.
+    var birthTimeKnown = true
+    var approxTime: ApproxTime?
     var placeQuery = "" {
         didSet { scheduleSearch() }
     }
@@ -257,9 +146,12 @@ final class IntakeStore {
 
     private var searchTask: Task<Void, Never>?
 
+    /// Off for a saved person, whose last name is optional.
+    var requiresLastName = true
+
     var isComplete: Bool {
         !firstName.trimmingCharacters(in: .whitespaces).isEmpty
-            && !lastName.trimmingCharacters(in: .whitespaces).isEmpty
+            && (!requiresLastName || !lastName.trimmingCharacters(in: .whitespaces).isEmpty)
             && place != nil
     }
 
@@ -273,6 +165,8 @@ final class IntakeStore {
         // The picker only reads the time components, so the parsed reference
         // date can be used as-is.
         if let time = Self.timeFormatter.date(from: details.birthTimeShort) { birthTime = time }
+        birthTimeKnown = details.isTimeKnown
+        approxTime = details.isTimeKnown ? nil : ApproxTime(clock: details.birthTimeShort)
         place = GeoResult(
             name: details.placeName,
             lat: details.lat,
@@ -338,24 +232,34 @@ final class IntakeStore {
         isSaving = true
         defer { isSaving = false }
 
-        let input = BirthProfileInput(
-            firstName: firstName.trimmingCharacters(in: .whitespaces),
-            lastName: lastName.trimmingCharacters(in: .whitespaces),
-            birthDate: Self.dateFormatter.string(from: birthDate),
-            birthTime: Self.timeFormatter.string(from: birthTime),
-            placeName: place.name,
-            lat: place.lat,
-            lng: place.lng,
-            timezone: place.timezone,
-            photoJPEG: photoJPEG
-        )
+        var input = birthInput(for: place)
+        input.photoJPEG = photoJPEG
         do {
             try await SancharaAPI.saveProfile(input)
+            NotificationCenter.default.post(name: .birthDetailsSaved, object: nil)
             return true
         } catch {
             errorMessage = error.localizedDescription
             return false
         }
+    }
+
+    /// The form as the API's birth fields. Shared by the account's own intake
+    /// and by a saved person (`PersonFormView`), which adds its own label and
+    /// relationship.
+    func birthInput(for place: GeoResult) -> BirthProfileInput {
+        BirthProfileInput(
+            firstName: firstName.trimmingCharacters(in: .whitespaces),
+            lastName: lastName.trimmingCharacters(in: .whitespaces),
+            birthDate: Self.dateFormatter.string(from: birthDate),
+            birthTime: birthTimeKnown ? Self.timeFormatter.string(from: birthTime) : (approxTime?.clock ?? "12:00"),
+            placeName: place.name,
+            lat: place.lat,
+            lng: place.lng,
+            timezone: place.timezone,
+            birthTimeKnown: birthTimeKnown,
+            birthTimeApprox: birthTimeKnown ? nil : approxTime?.rawValue
+        )
     }
 
     /// The picked values are wall-clock at the birthplace, exactly as the web

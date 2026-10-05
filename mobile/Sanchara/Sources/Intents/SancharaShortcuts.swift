@@ -6,7 +6,7 @@ import AppIntents
 /// shortcut first" and "Siri can do this". Every phrase has to contain
 /// `\(.applicationName)`, which is why they all read a little formally — that
 /// token is replaced by the app name and by whatever the person has renamed it
-/// to, so "ask Sanchara where Saturn is" keeps working for someone who calls it
+/// to, so "ask Astrya where Saturn is" keeps working for someone who calls it
 /// something else.
 ///
 /// Ten is the ceiling Apple sets, and fewer is better: these are the four

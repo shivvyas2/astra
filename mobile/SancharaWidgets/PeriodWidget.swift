@@ -3,9 +3,9 @@ import WidgetKit
 
 /// The dasha period the user is in, on the Home and Lock Screens.
 ///
-/// Like the reading widget it never fetches: the app writes the current period
-/// and its one-line theme to the app group after every timeline load, and this
-/// only reads. The dates alone are also in the cached chart, so the widget can
+/// It does not fetch: the app writes the current period and its one-line theme
+/// to the app group after every timeline load (and on each background
+/// refresh), and this only reads. The dates alone are also in the cached chart, so the widget can
 /// draw a period before the server has written a meaning for it — the theme is
 /// the part that arrives later, and the layout leaves room for it either way.
 ///
@@ -124,86 +124,99 @@ struct PeriodWidgetView: View {
                             .progressViewStyle(.linear)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                case .systemSmall:
+                    small(period)
                 default:
-                    card(period)
+                    medium(period)
                 }
+            } else if family.isAccessory {
+                Text("Astrya")
             } else {
-                empty
+                WidgetEmpty(
+                    eyebrow: "Your period",
+                    headline: "Your periods",
+                    message: "Open Astrya to map the chapters of your life."
+                )
             }
         }
-        .widgetURL(URL(string: "sanchara://timeline"))
+        .widgetURL(WidgetLink.timeline)
         .containerBackground(for: .widget) {
-            family == .accessoryRectangular || family == .accessoryInline
-                ? AnyView(Color.clear) : AnyView(Theme.bg)
+            if family.isAccessory {
+                Color.clear
+            } else {
+                WidgetGround(tint: Theme.violet)
+            }
         }
     }
 
-    private func card(_ period: PeriodEntry.Period) -> some View {
+    /// The lord, very large; the sub-period beneath; how far through.
+    private func small(_ period: PeriodEntry.Period) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("YOUR PERIOD")
-                .font(.system(size: 10, weight: .regular))
-                .tracking(2)
+            WidgetHeader(eyebrow: "Your period")
+            Spacer(minLength: 0)
+            WidgetDisplay(text: period.lord, size: 32, lines: 1)
+            Text(period.antardasha.isEmpty ? period.yearsLabel : "with \(period.antardasha)")
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.muted)
-
-            Text(period.pairLabel)
-                .font(.system(.headline, weight: .heavy))
-                .foregroundStyle(Theme.fg)
                 .lineLimit(1)
-                .minimumScaleFactor(0.8)
-
-            HStack(spacing: 6) {
-                Text(period.yearsLabel).monospacedDigit()
-                Text("·")
-                Text(period.leftLabel)
-            }
-            .font(.system(size: 11))
-            .foregroundStyle(Theme.muted)
-            .lineLimit(1)
-
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(Theme.rule)
-                    Rectangle()
-                        .fill(Theme.accent)
-                        .frame(width: max(geo.size.width * period.progress, 2))
-                }
-            }
-            .frame(height: 3)
-
-            if let theme = period.theme {
-                Text(theme)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.fg.opacity(0.85))
-                    .lineLimit(family == .systemSmall ? 2 : 3)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 2)
-            }
+            WidgetProgress(value: period.progress)
+                .padding(.top, 4)
+            Text(period.leftLabel)
+                .font(.brutMono(10))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "\(period.pairLabel), \(period.yearsLabel), \(Int(period.progress * 100)) percent through. \(period.theme ?? "")"
-        )
+        .accessibilityLabel(accessibility(period))
     }
 
-    private var empty: some View {
+    private func medium(_ period: PeriodEntry.Period) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("SANCHARA")
-                .font(.system(size: 10, weight: .regular))
-                .tracking(2)
-                .foregroundStyle(Theme.muted)
-            Text("Open Sanchara to map your periods.")
-                .font(.system(size: 13))
-                .foregroundStyle(Theme.fg)
-                .fixedSize(horizontal: false, vertical: true)
+            WidgetHeader(eyebrow: "Your period · \(period.yearsLabel)")
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(period.lord)
+                    .font(.system(size: 30, weight: .medium))
+                    .tracking(-30 * 0.035)
+                    .foregroundStyle(Theme.fg)
+                    .lineLimit(1)
+                Text(period.antardasha.isEmpty ? "" : "with \(period.antardasha)")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+            }
+            .minimumScaleFactor(0.8)
+            if let theme = period.theme {
+                Text(theme)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.fg.opacity(0.78))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            WidgetProgress(value: period.progress)
+            HStack {
+                Text("\(Int((period.progress * 100).rounded()))% through")
+                Spacer(minLength: 4)
+                Text(period.leftLabel)
+            }
+            .font(.brutMono(10))
+            .foregroundStyle(Theme.muted)
+            .lineLimit(1)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibility(period))
+    }
+
+    private func accessibility(_ period: PeriodEntry.Period) -> String {
+        "\(period.pairLabel), \(period.yearsLabel), \(Int(period.progress * 100)) percent through. \(period.theme ?? "")"
     }
 }
 
 struct PeriodWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "SancharaPeriod", provider: PeriodProvider()) { entry in
+        StaticConfiguration(kind: WidgetRefresh.Kind.period, provider: PeriodProvider()) { entry in
             PeriodWidgetView(entry: entry)
         }
         .configurationDisplayName("Your period")

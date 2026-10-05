@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="color-scheme" content="light dark"/>
 <meta name="author" content="Shiv Vyas"/>
-<title>Sanchara Engineering Handbook</title>
+<title>Astrya Engineering Handbook</title>
 <style>
 @font-face {
     font-family: 'Roboto';
@@ -608,11 +608,11 @@
     <span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span>
     <span class="now"></span><span></span><span></span>
   </div>
-  <p class="cover-sub">Sanchara</p>
+  <p class="cover-sub">Astrya</p>
   <h1>Engineering Handbook</h1>
   <p class="cover-author">Shiv Vyas <span>· Revision A</span></p>
   <p class="standfirst">
-    Sanchara is an astrology app built on one rule: nothing about the chart is guessed. The Swiss
+    Astrya is an astrology app built on one rule: nothing about the chart is guessed. The Swiss
     Ephemeris computes a person's real birth chart (planets, houses, nakshatras, dashas, doshas,
     transits and numerology) from their birth date, time and place, and Claude interprets only
     those computed facts. It ships as a Next.js web app on Vercel and a native SwiftUI app for
@@ -852,7 +852,7 @@
 </ol>
 </li>
 <li class="toc-part">Appendices: Reference</li>
-<li class="toc-chap"><a href="#chA"><span class="toc-num">A</span><span class="toc-title">Why Sanchara exists</span><span class="toc-dots"></span><span class="toc-page" data-page-for="chA">241</span></a>
+<li class="toc-chap"><a href="#chA"><span class="toc-num">A</span><span class="toc-title">Why Astrya exists</span><span class="toc-dots"></span><span class="toc-page" data-page-for="chA">241</span></a>
 <ol>
 <li class="toc-sec"><a href="#sA-1"><span class="toc-num">A.1</span><span class="toc-title">The problem</span><span class="toc-dots"></span><span class="toc-page" data-page-for="sA-1">241</span></a></li>
 <li class="toc-sec"><a href="#sA-2"><span class="toc-num">A.2</span><span class="toc-title">The bet</span><span class="toc-dots"></span><span class="toc-page" data-page-for="sA-2">241</span></a></li>
@@ -896,7 +896,7 @@
 <h2><span class="num">1</span><span>Architecture</span></h2>
 
 <p class="lede">
-  Sanchara is built on one bet: <strong>the chart is computed, and only the reading is
+  Astrya is built on one bet: <strong>the chart is computed, and only the reading is
   interpreted.</strong> The Swiss Ephemeris runs inside a Next.js route handler and produces every
   position, house, nakshatra, dasha and dosha as a number. Claude is handed those numbers and asked
   what they mean. Two clients, a web app and a native iOS app, call the same route handlers, share
@@ -1429,7 +1429,7 @@ when you add the file.
 <h3 id="s1-7"><span class="num">1.7</span><span>What lives on the phone</span></h3>
 
 <p>
-  Sanchara is not a local-first app; the server holds the truth and the phone reads it. But one
+  Astrya is not a local-first app; the server holds the truth and the phone reads it. But one
   piece is deliberately local, and it exists because three
   processes on the phone need the chart and only one of them can sign in.
   <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code> opens with that argument: the app,
@@ -2809,7 +2809,7 @@ docs/MODEL_COSTS.md              the measured numbers, and why each change was m
 
 <p>
   Numerology has no chart, so it has its own stable builder. <code>buildNumerologySystem</code>
-  introduces Sanchara as a Vedic numerologist and lists the real numbers computed from the birth
+  introduces Astrya as a Vedic numerologist and lists the real numbers computed from the birth
   date and the name: the mulank (root, from the birth day), the bhagyank (destiny, from the full
   date), the namank (from the full name, which is quoted in the prompt), the digits that repeat
   in the birth date and the digits that are missing from it (the Lo Shu grid), and whether the
@@ -3687,7 +3687,7 @@ export async function createRouteSupabase(request: Request): Promise&lt;Db&gt; {
   Sign in with Apple is fully native. Apple returns an identity token and Supabase verifies it
   directly through <code>signInWithIdToken</code>; there is no web sheet, no redirect, no password
   and no confirmation email. The header of <code>AppleSignIn.swift</code> calls it the fastest way onto
-  Sanchara, and <code>docs/APPLE_SIGN_IN.md</code> records the two one-time steps it needs: the Apple
+  Astrya, and <code>docs/APPLE_SIGN_IN.md</code> records the two one-time steps it needs: the Apple
   provider enabled in the Supabase project with the bundle id <code>com.shivvyas.astra</code> as a
   client id, and the Sign In with Apple capability on the App ID. The entitlement
   <code>com.apple.developer.applesignin</code> is already in <code>mobile/project.yml</code>. For the
@@ -3973,7 +3973,7 @@ people or the guard starts lying.
 <h2><span class="num">5</span><span>Intake and the birth profile</span></h2>
 
 <p class="lede">
-  Everything Sanchara does starts from one row: a name, a date, a time, a place and the two charts
+  Everything Astrya does starts from one row: a name, a date, a time, a place and the two charts
   computed from them. Intake is the form that fills it, on the web and on the phone, and the birth
   profile is the row that every other feature reads. The one idea that shaped it is that the chart is
   computed once, at save time, and stored beside the details that produced it.
@@ -5673,7 +5673,7 @@ return new Response(Buffer.from(pdf), {
 <p>
   <code>generateKundliPdf</code> creates a document with four standard fonts, Times Roman and
   Helvetica in regular and bold, and sets the title to the name followed by "Vedic kundli", the
-  author to "Sanchara" and the subject to "Vedic birth chart". Pages are 595 by 842 points (A4) with
+  author to "Astrya" and the subject to "Vedic birth chart". Pages are 595 by 842 points (A4) with
   a 56-point margin; those three numbers are the constants <code>W</code>, <code>H</code> and
   <code>M</code>. The palette is written with its contrast ratios: the brand orange
   (<code>ACCENT</code>) is 3.3:1 on white and is used only for rules and fills; text in orange uses
@@ -5686,7 +5686,7 @@ return new Response(Buffer.from(pdf), {
   pdf-lib has no character-spacing control, so the small-capital labels are drawn by
   <code>tracked()</code>, one character at a time, advancing by each glyph's width plus a spacing.
   <code>trackedWidth()</code> computes the same sum so a label can be centred or right-aligned. Every
-  page gets a <code>header</code> (a 4-point accent band along the top, "SANCHARA" tracked at the left,
+  page gets a <code>header</code> (a 4-point accent band along the top, "ASTRYA" tracked at the left,
   a right-hand label, a rule) and a <code>footer</code> (a rule and one line of 7.5-point text).
 </p>
 
@@ -5703,7 +5703,7 @@ return new Response(Buffer.from(pdf), {
   <li>Two captions under the square explaining that houses hold fixed positions with the top diamond
     always first, that the numeral in each house is its rashi from 1 Mesha to 12 Meena, and that an
     asterisk marks a retrograde graha.</li>
-  <li>The footer: "Computed with the Swiss Ephemeris by Sanchara. For guidance and reflection, not a
+  <li>The footer: "Computed with the Swiss Ephemeris by Astrya. For guidance and reflection, not a
     substitute for professional advice."</li>
 </ol>
 
@@ -5777,7 +5777,7 @@ renderer every retrograde, every house occupied and a name with accented letters
 </ul>
 
 <p>
-  The footer repeats the identity line: "Sanchara · name · born date at time, place."
+  The footer repeats the identity line: "Astrya · name · born date at time, place."
 </p>
 
 <h4>Dates</h4>
@@ -7000,7 +7000,7 @@ var isRescan: Bool { scanned }</code></pre>
 
 <p>
   This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. It is
-  the one feature in Sanchara that runs with nobody looking. A chat route that misbehaves is
+  the one feature in Astrya that runs with nobody looking. A chat route that misbehaves is
   seen and retried by the person in front of it; a cron job that misbehaves wakes people at
   night, bills a model call nobody asked for, or says "Mangal Dosha has begun" to someone whose
   chart has not changed since the day they were born. Most of the design below exists to make
@@ -7597,7 +7597,7 @@ static func parse(profileText: String) -&gt; String {
   per row; the Alerts tab is a flat list with a severity dot (<code>severityColor</code>: the
   accent for <code>warning</code>, amber for <code>caution</code>, muted otherwise). A tap opens
   <code>DailyReadingView</code> or <code>AlertDetailView</code>, which render the markdown
-  <code>detail</code> and end with one button, "Ask Sanchara about this", that closes the inbox,
+  <code>detail</code> and end with one button, "Ask Astrya about this", that closes the inbox,
   starts a new reading and sends a question built from the title and body. The sheet's
   <code>.task</code> marks the item read as it opens.
 </p>
@@ -7861,7 +7861,7 @@ exercised by calling <code>/api/cron/daily</code> with the secret and reading th
 <h3 id="s10-1"><span class="num">10.1</span><span>Intent</span></h3>
 
 <p>
-  A large share of what people ask Sanchara is not interpretation. The doc comment at the top of
+  A large share of what people ask Astrya is not interpretation. The doc comment at the top of
   <code>mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift</code> puts it plainly:
   every one of those questions "was a paid Claude call answering from a chart the phone could
   have read itself". The same split runs through Siri. Positions and periods are records, so an
@@ -8090,7 +8090,7 @@ final class ChartCache: @unchecked Sendable {
   through supabase-swift under the owner-only RLS policy (roughly 4 KB, changing only when birth
   details are re-saved); the <code>daily_readings</code> table, read the same way; and
   <code>GET /api/timeline</code>, whose payload carries the period bands with their themes and
-  the <code>now</code> meaning. The on-device model is Apple's, not Sanchara's:
+  the <code>now</code> meaning. The on-device model is Apple's, not Astrya's:
   <code>FoundationModels</code> is a system framework, no weights ship in the bundle, and no
   request leaves the phone. Where the model declines or is absent, the question goes to
   <code>/api/chat</code> exactly as it did before the feature existed.
@@ -8281,7 +8281,7 @@ if !silent, !forceServer, mode == .vedic, let reasoner {
 
 <p>
   Errors are sentences, not codes, because Siri reads them aloud:
-  <code>SancharaIntentError.noReadingYet</code> says "There's no reading yet. Sanchara writes one
+  <code>SancharaIntentError.noReadingYet</code> says "There's no reading yet. Astrya writes one
   each morning and night." <code>IntentData</code> is the data layer for all of them:
   <code>chart()</code> and <code>details()</code> read the cache and nothing else, since a chart
   fixed at birth makes a cache hit always correct; <code>latestReading()</code> returns the cached
@@ -8294,9 +8294,9 @@ if !silent, !forceServer, mode == .vedic, let reasoner {
   <code>SancharaShortcuts</code> is the <code>AppShortcutsProvider</code>: six
   <code>AppShortcut</code>s, the last two behind <code>#available(iOS 26.0, *)</code>. Every
   phrase contains <code>\(.applicationName)</code>, an App Intents rule that also covers a user
-  who renames the app. "What's my reading in Sanchara", "What dasha am I in on Sanchara", "Where
-  is my Saturn in Sanchara" (the parameter is spoken inside the phrase), "Open my Sanchara
-  kundli", "Show my Sanchara reading" and "Ask Sanchara about my chart" all work with nothing set
+  who renames the app. "What's my reading in Astrya", "What dasha am I in on Astrya", "Where
+  is my Saturn in Astrya" (the parameter is spoken inside the phrase), "Open my Astrya
+  kundli", "Show my Astrya reading" and "Ask Astrya about my chart" all work with nothing set
   up. Ten is Apple's ceiling; the file's comment says fewer is better.
 </p>
 
@@ -8363,7 +8363,7 @@ static func nextBoundary() -&gt; Date {
   06:00 or 18:00, the cadence of the content. The Home Screen families draw the shared
   <code>ReadingCard</code> with a body limit of 3 lines on small and 5 on medium; the Lock Screen
   family draws two lines of its own because the Lock Screen tints everything to one colour. The
-  empty state names the next action: "Open Sanchara to get your first reading."
+  empty state names the next action: "Open Astrya to get your first reading."
 </p>
 
 <p>
@@ -8479,17 +8479,17 @@ SancharaWidgets:
 <h4>A Siri phrase</h4>
 
 <ol>
-  <li>"Where is my Saturn in Sanchara" matches the <code>ChartPositionIntent</code> shortcut. iOS
+  <li>"Where is my Saturn in Astrya" matches the <code>ChartPositionIntent</code> shortcut. iOS
     resolves the spoken parameter through <code>PlacementQuery.entities(matching:)</code>, which
     matches the lowercased string against the planet name or Sanskrit sign of each placement in
     <code>ChartCache.shared.load()</code>. <code>perform()</code> returns the entity and its
     sentence; the app is not opened.</li>
-  <li>"Ask Sanchara about my chart" runs <code>AskSancharaIntent</code>, which reads the chart
+  <li>"Ask Astrya about my chart" runs <code>AskSancharaIntent</code>, which reads the chart
     from the cache and runs the same three gates. On <code>.escalate</code> it writes
     <code>"ask:" + question</code> to <code>pendingDestination</code> and says the question is
     saved. The next time <code>ChatView</code> becomes active, <code>drain()</code> turns it into
     <code>.ask(question)</code> and the view sends it with <code>forceServer: true</code>.</li>
-  <li>"What's my reading in Sanchara" runs <code>TodaysReadingIntent</code>. A fresh cached
+  <li>"What's my reading in Astrya" runs <code>TodaysReadingIntent</code>. A fresh cached
     reading answers with no query; a stale one triggers a ten-row fetch that also rewrites the
     cache.</li>
 </ol>
@@ -9044,7 +9044,7 @@ func avatarJPEG(maxDimension: CGFloat = 1024, quality: CGFloat = 0.8) -&gt; Data
   buttons, a Birth profile card (date, time, place, timezone, latitude, longitude) or "No birth
   details entered yet", and the list of chats linking to
   <code>app/admin/conversations/[id]/page.tsx</code>, which renders the transcript as bubbles labelled
-  User and Sanchara. Every page is read from <code>lib/admin/data.ts</code>; there is no form on any
+  User and Astrya. Every page is read from <code>lib/admin/data.ts</code>; there is no form on any
   of them that changes a user's row.
 </p>
 
@@ -9264,7 +9264,7 @@ func avatarJPEG(maxDimension: CGFloat = 1024, quality: CGFloat = 0.8) -&gt; Data
 </p>
 
 <p>
-  This chapter describes the web surface of Sanchara as it is on <code>main</code> on
+  This chapter describes the web surface of Astrya as it is on <code>main</code> on
   30 September 2026, version 0.3.0. It covers the root layout, the marketing page at <code>/</code>,
   the signed-in shell under <code>/app</code>, the auth form, the two build-time configuration files
   that shape the whole site, and, for comparison, the iOS design system that translates the site's
@@ -9302,7 +9302,7 @@ func avatarJPEG(maxDimension: CGFloat = 1024, quality: CGFloat = 0.8) -&gt; Data
 ├── (auth)/
 │   ├── layout.tsx               centred card with the glow behind it
 │   ├── actions.ts               authenticate, sendMagicLink, resendConfirmation, signOut
-│   ├── login/page.tsx           AuthForm, "Welcome to Sanchara"
+│   ├── login/page.tsx           AuthForm, "Welcome to Astrya"
 │   ├── signup/page.tsx          AuthForm, "Create your account" (same action)
 │   └── check-email/page.tsx     confirmation screen with a resend button
 ├── (app)/
@@ -9520,7 +9520,7 @@ enum Theme {
 
 <pre><code>// app/layout.tsx
 export const metadata: Metadata = {
-  title: "Sanchara: Your chart, read by the stars",
+  title: "Astrya: Your chart, read by the stars",
   description: "Sign up, share your birth details, and chat with an astrologer powered by your real birth chart.",
 };
 
@@ -9669,7 +9669,7 @@ export function CosmicLanding() {
 
 <p>
   <code>CosmicHero</code> is data plus one effect. The data is a <code>HERO</code> constant (eyebrow
-  "Computed astrology, never guessed", title "SANCHARA", one line of copy, two links: "Get your
+  "Computed astrology, never guessed", title "ASTRYA", one line of copy, two links: "Get your
   reading" to <code>/signup</code> and "Log in" to <code>/login</code>) and three
   <code>SECTIONS</code> ("THE SCIENCE", "YOUR CHART", "YOUR FUTURE"), the last with a
   "Create your free account" button. The hero section is <code>min-h-[100svh]</code> with the
@@ -10519,7 +10519,7 @@ else's at all.</div>
 <h2><span class="num">14</span><span>The iOS app</span></h2>
 
 <p class="lede">
-  Sanchara for iOS is a SwiftUI app that talks to the same route handlers and the same Supabase
+  Astrya for iOS is a SwiftUI app that talks to the same route handlers and the same Supabase
   project as the web app, holds no secret the web does not also publish, and is built from a
   127-line YAML spec rather than a checked-in Xcode project. Everything about how it is
   assembled, configured, signed and shipped follows from that.
@@ -10549,7 +10549,7 @@ else's at all.</div>
 </p>
 
 <pre><code># mobile/project.yml
-name: Sanchara
+name: Astrya
 options:
   bundleIdPrefix: com.shivvyas
   deploymentTarget:
@@ -10576,13 +10576,13 @@ settings:
 </p>
 
 <figure>
-<svg class="diagram" viewBox="0 0 860 290" role="img" aria-label="Three targets: the Sanchara app links the Supabase package and embeds the SancharaWidgets extension; SancharaTests depends on the app; the extension links no package and instead compiles six app source files listed by path.">
+<svg class="diagram" viewBox="0 0 860 290" role="img" aria-label="Three targets: the Astrya app links the Supabase package and embeds the SancharaWidgets extension; SancharaTests depends on the app; the extension links no package and instead compiles six app source files listed by path.">
   <defs>
     <marker id="ch14a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
     <marker id="ch14b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
   </defs>
   <rect class="box-hot" x="40" y="40" width="220" height="54" rx="10"/>
-  <text class="lbl" x="150" y="62" text-anchor="middle">Sanchara</text>
+  <text class="lbl" x="150" y="62" text-anchor="middle">Astrya</text>
   <text class="lbl-hot" x="150" y="82" text-anchor="middle">application, iOS 17.0</text>
 
   <rect class="box" x="330" y="40" width="200" height="54" rx="10"/>
@@ -10621,9 +10621,9 @@ settings:
 <div class="tablewrap"><table>
 <thead><tr><th>Target</th><th>Type</th><th>Bundle id</th><th>Sources</th><th>Depends on</th></tr></thead>
 <tbody>
-<tr><td><code>Sanchara</code></td><td>application</td><td><code>com.shivvyas.astra</code></td><td><code>Sanchara/Sources</code>, <code>Sanchara/Resources</code> as a resources phase</td><td>the Supabase package product; the <code>SancharaWidgets</code> target</td></tr>
+<tr><td><code>Astrya</code></td><td>application</td><td><code>com.shivvyas.astra</code></td><td><code>Sanchara/Sources</code>, <code>Sanchara/Resources</code> as a resources phase</td><td>the Supabase package product; the <code>SancharaWidgets</code> target</td></tr>
 <tr><td><code>SancharaWidgets</code></td><td>app-extension</td><td><code>com.shivvyas.astra.widgets</code></td><td><code>SancharaWidgets</code> plus six app files by path</td><td>nothing</td></tr>
-<tr><td><code>SancharaTests</code></td><td>bundle.unit-test</td><td><code>com.shivvyas.astra.tests</code></td><td><code>Sanchara/Tests</code></td><td>the <code>Sanchara</code> target</td></tr>
+<tr><td><code>SancharaTests</code></td><td>bundle.unit-test</td><td><code>com.shivvyas.astra.tests</code></td><td><code>Sanchara/Tests</code></td><td>the <code>Astrya</code> target</td></tr>
 </tbody></table></div>
 
 <p>
@@ -10918,7 +10918,7 @@ enum Supa {
     )
 
     /// The current access token, for `Authorization: Bearer` against the
-    /// Sanchara API on Vercel. Returns nil when signed out.
+    /// Astrya API on Vercel. Returns nil when signed out.
     static func accessToken() async -&gt; String? {
         try? await client.auth.session.accessToken
     }
@@ -11078,7 +11078,7 @@ continuation.finish()</code></pre>
 
 <p>
   One test target, <code>SancharaTests</code>, depends on the app and uses
-  <code>@testable import Sanchara</code>. There is no UI test target and no test that needs a
+  <code>@testable import Astrya</code>. There is no UI test target and no test that needs a
   network, a session or Apple Intelligence: everything that decides something is a pure function
   or a value type, and the tests read as lists of the rules in plain English. Fourteen files,
   95 test methods.
@@ -11192,7 +11192,7 @@ continuation.finish()</code></pre>
 
 <p>
   Two <code>xcodebuild</code> invocations follow. <code>archive</code> builds the
-  <code>Sanchara</code> scheme in Release for <code>generic/platform=iOS</code> into
+  <code>Astrya</code> scheme in Release for <code>generic/platform=iOS</code> into
   <code>build/Sanchara.xcarchive</code>, with <code>-allowProvisioningUpdates</code> and the three
   authentication-key flags so Xcode can mint the distribution profile.
   <code>-exportArchive</code> then reads <code>mobile/ExportOptions.plist</code> and, because that
@@ -12375,10 +12375,10 @@ if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
   <strong>Handling.</strong> Neither widget fetches. <code>ReadingProvider</code> in
   <code>mobile/SancharaWidgets/ReadingWidget.swift</code> reads
   <code>ChartCache.shared.loadReading()</code>, and when that is <code>nil</code> the entry's
-  <code>reading</code> is <code>nil</code> and the view shows its empty state, "Open Sanchara to get
+  <code>reading</code> is <code>nil</code> and the view shows its empty state, "Open Astrya to get
   your first reading." <code>PeriodProvider</code> in <code>PeriodWidget.swift</code> tries three
   sources in order: the cached period with its theme, then the cached chart's <code>dasha</code>
-  without a theme ("the dates are true"), then the empty state "Open Sanchara to map your
+  without a theme ("the dates are true"), then the empty state "Open Astrya to map your
   periods." Both empty states name the next action rather than apologising. <code>ChartCache</code>
   itself, in <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>, falls back to the
   app's own caches directory when the App Group container is unavailable, so the app keeps
@@ -12493,7 +12493,7 @@ if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
 <tr><td>Profile read fails</td><td><code>getBirthProfile</code> throws</td><td>An error, not the intake form</td><td><code>birthProfile.test.ts</code></td></tr>
 <tr><td>Duplicate cron run</td><td>Unique index, <code>isSlotDue</code>, <code>23505</code>, signature diff</td><td>Nothing</td><td><code>slots.test.ts</code>; the <code>23505</code> branch untested</td></tr>
 <tr><td>Token under the wrong APNs environment</td><td><code>ApsEnvironment</code>, <code>ApnsClient.send</code></td><td>One missed push, then the row is replaced</td><td><code>ApsEnvironmentTests</code>, <code>devices/route.test.ts</code></td></tr>
-<tr><td>Widget with no cached chart</td><td><code>ReadingWidget.swift</code>, <code>PeriodWidget.swift</code></td><td>"Open Sanchara to ..."</td><td><code>PeriodProgressTests</code> for the cache; views untested</td></tr>
+<tr><td>Widget with no cached chart</td><td><code>ReadingWidget.swift</code>, <code>PeriodWidget.swift</code></td><td>"Open Astrya to ..."</td><td><code>PeriodProgressTests</code> for the cache; views untested</td></tr>
 <tr><td>On-device model unavailable</td><td><code>OnDeviceReasoner.route</code></td><td>The same answer, from the server, labelled</td><td><code>OnDeviceRoutingTests</code> for routing; the gate untested</td></tr>
 <tr><td>Prompt injection via history</td><td>No specific guard</td><td>Bounded history, no tools, user-only extraction with confirmation</td><td>untested as such</td></tr>
 <tr><td>Account deletion</td><td><code>app/api/account/route.ts</code>, cascades, <code>AuthStore.signOut</code></td><td>Everything in Postgres gone; avatar and Apple grant remain</td><td><code>account/route.test.ts</code></td></tr>
@@ -12539,17 +12539,17 @@ one file where a regression would be felt by every user and caught by no test.
 <p class="part-kicker">Appendices</p>
 <h2>Reference</h2>
 <p>Why the product exists, every decision that shaped it, and a glossary with a reading order for studying the code.</p>
-<ul><li><a href="#chA">A. Why Sanchara exists</a></li><li><a href="#chB">B. Decisions</a></li><li><a href="#chC">C. Glossary and reading order</a></li></ul>
+<ul><li><a href="#chA">A. Why Astrya exists</a></li><li><a href="#chB">B. Decisions</a></li><li><a href="#chC">C. Glossary and reading order</a></li></ul>
 </section>
 
-<!-- ============ chA: Why Sanchara exists ============ -->
+<!-- ============ chA: Why Astrya exists ============ -->
 <section class="chapter" id="chA" data-hue="ref">
 <p class="chapter-kicker">Appendix A</p>
-<h2><span class="num">A</span><span>Why Sanchara exists</span></h2>
+<h2><span class="num">A</span><span>Why Astrya exists</span></h2>
 
 <p class="lede">
   Most astrology apps either guess the sky or hand a language model a sun sign and let it write.
-  Sanchara computes the chart with the Swiss Ephemeris and lets Claude interpret only what was
+  Astrya computes the chart with the Swiss Ephemeris and lets Claude interpret only what was
   computed. Everything else in this book follows from that one split.
 </p>
 
@@ -12708,7 +12708,7 @@ one file where a regression would be felt by every user and caught by no test.
 <tr><td>23 to 24 July 2026</td><td>Design note, chart engine, prompt builder, streaming chat, admin, landing page. Merged as the MVP on 24 July.</td><td><code>lib/astrology/</code>, <code>app/api/chat/</code>, <code>app/admin/</code></td></tr>
 <tr><td>25 August 2026</td><td>iOS design note. Bearer auth on the route handlers, <code>POST /api/profile</code>, <code>DELETE /api/account</code>, the Universal Links file.</td><td><code>lib/supabase/route.ts</code>, <code>public/.well-known/</code></td></tr>
 <tr><td>26 August 2026</td><td>Dosha alerts, twice-daily readings, prompt caching and effort settings. iOS chat, intake, Apple sign-in, email codes, readings inbox.</td><td><code>lib/alerts/</code>, <code>mobile/Sanchara/</code></td></tr>
-<tr><td class="num-cell">0.1.0, 16 September 2026</td><td>First tagged release. The rename to Sanchara. Life timeline, kundli on the phone, Siri, widgets, on-device answers.</td><td><code>lib/timeline/</code>, <code>mobile/SancharaWidgets/</code></td></tr>
+<tr><td class="num-cell">0.1.0, 16 September 2026</td><td>First tagged release. The rename to Astrya. Life timeline, kundli on the phone, Siri, widgets, on-device answers.</td><td><code>lib/timeline/</code>, <code>mobile/SancharaWidgets/</code></td></tr>
 <tr><td class="num-cell">0.2.0, 16 September 2026</td><td>A meaning for every period, chat that sees the timeline, better moment extraction, the current-period widget, the push environment fix.</td><td><code>lib/timeline/explain.ts</code>, <code>PeriodWidget.swift</code></td></tr>
 <tr><td class="num-cell">0.3.0, 18 September 2026</td><td>Derived chart facts, whole-sign Vedic houses, gochara, deeper numerology, more answered on the phone, and the fixes those changes forced.</td><td><code>lib/astrology/derived.ts</code>, <code>transits.ts</code>, <code>numerology.ts</code></td></tr>
 </tbody></table></div>
@@ -12774,8 +12774,8 @@ one file where a regression would be felt by every user and caught by no test.
   states the rule: "The bundle identifier and production hostname are unchanged." So the repository
   is still <code>astra</code>, the bundle id is <code>com.shivvyas.astra</code>, the App Group is
   <code>group.com.shivvyas.astra</code>, the production host is <code>astra.shivvyas.com</code>, and
-  the first migration is headed "Astra schema + RLS." The user-facing name is Sanchara everywhere:
-  the system prompt opens "You are Sanchara," the widget bundle is <code>SancharaWidgets</code>, and
+  the first migration is headed "Astra schema + RLS." The user-facing name is Astrya everywhere:
+  the system prompt opens "You are Astrya," the widget bundle is <code>SancharaWidgets</code>, and
   the custom URL scheme a widget tap uses is <code>sanchara://</code>. Why the identifiers stayed is
   a decision in <a href="#chB">Appendix B</a>; in short, Apple's push, sign-in and associated-domain
   configuration is wired to them.
@@ -12786,7 +12786,7 @@ one file where a regression would be felt by every user and caught by no test.
 <div class="prfaq">
 <p class="prfaq-kicker">Press release</p>
 <p class="release">
-  Sanchara computes your real birth chart and reads it to you. Give it the date, time and place you
+  Astrya computes your real birth chart and reads it to you. Give it the date, time and place you
   were born and the Swiss Ephemeris places every planet, house, nakshatra and period exactly. Then
   ask it anything. The reading names the placement it is reading from, in the Vedic or Western
   tradition you choose, and it will not tell you something that is true of everyone born under your
@@ -12974,7 +12974,7 @@ document.
 
   <rect class="box" x="450" y="90" width="180" height="150" rx="8"/>
   <text class="lbl" x="540" y="112" text-anchor="middle">16 September</text>
-  <text class="lbl-sm" x="540" y="134" text-anchor="middle">Astra becomes Sanchara</text>
+  <text class="lbl-sm" x="540" y="134" text-anchor="middle">Astra becomes Astrya</text>
   <text class="lbl-sm" x="540" y="150" text-anchor="middle">Chart in the App Group</text>
   <text class="lbl-sm" x="540" y="166" text-anchor="middle">iOS 17, widget extension</text>
   <text class="lbl-sm" x="540" y="182" text-anchor="middle">Timeline, Siri, widgets</text>
@@ -13021,7 +13021,7 @@ document.
   <li><a href="#chB-d16">Email codes instead of magic links on the phone</a></li>
   <li><a href="#chB-d17">A generated Xcode project</a></li>
   <li><a href="#chB-d18">iOS 17 as the floor, with a widget extension</a></li>
-  <li><a href="#chB-d19">Astra becomes Sanchara; the identifiers stay</a></li>
+  <li><a href="#chB-d19">Astra becomes Astrya; the identifiers stay</a></li>
 </ol>
 
 <h3 id="sB-2"><span class="num">B.2</span><span>The chart</span></h3>
@@ -13194,13 +13194,13 @@ document.
   <li><strong>Where.</strong> <code>deploymentTarget: iOS: "17.0"</code> on both targets in <code>project.yml</code>, with the comment that widgets and controls "arrived on this schedule; the app itself still runs on iOS 17." <code>@available(iOS 18.0, *)</code> on <code>SancharaShortcuts</code> and <code>ReadingControl</code>; <code>#if canImport(FoundationModels)</code> and <code>#available(iOS 26.0, *)</code> around every use of the on-device model in <code>OnDeviceReasoner.swift</code>.</li>
 </ul>
 
-<h4 id="chB-d19">19. Astra becomes Sanchara; the identifiers stay</h4>
+<h4 id="chB-d19">19. Astra becomes Astrya; the identifiers stay</h4>
 <ul>
   <li><strong>Decision.</strong> The product, target, copy and prompts were renamed; the bundle id, App Group, production host and repository were not.</li>
   <li><strong>Date.</strong> 16 September 2026, recorded under Changed in 0.1.0.</li>
   <li><strong>Alternatives.</strong> A new bundle id and host to match the name.</li>
   <li><strong>Why.</strong> The identifiers are what Apple and Supabase are configured against: the APNs bundle id in <code>APNS_BUNDLE_ID</code>, the Sign in with Apple client id, the associated domains entitlement, the App Group on two App IDs, and the app record in App Store Connect. Every one of those would have to be recreated, and any push token minted under the old id would die.</li>
-  <li><strong>Where.</strong> <code>PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra</code>, <code>applinks:astra.shivvyas.com</code> and <code>group.com.shivvyas.astra</code> in <code>project.yml</code>, beside <code>name: Sanchara</code> and the <code>sanchara</code> URL scheme. <code>APNS_BUNDLE_ID=com.shivvyas.astra</code> in <code>.env.example</code>. The README's closing paragraph records the history.</li>
+  <li><strong>Where.</strong> <code>PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra</code>, <code>applinks:astra.shivvyas.com</code> and <code>group.com.shivvyas.astra</code> in <code>project.yml</code>, beside <code>name: Astrya</code> and the <code>sanchara</code> URL scheme. <code>APNS_BUNDLE_ID=com.shivvyas.astra</code> in <code>.env.example</code>. The README's closing paragraph records the history.</li>
 </ul>
 
 <h3 id="sB-6"><span class="num">B.6</span><span>Study notes</span></h3>
@@ -13476,7 +13476,7 @@ web contributor looking for the timeline screen will not find one; the client is
 </div>
 </section>
 <hr/>
-<p class="colophon">Sanchara Engineering Handbook, Revision A, 30 September 2026. Written by Shiv Vyas from the code on <code>main</code> at version 0.3.0. Source of record: the code; <code>docs/design/</code> for the design notes. Built by <code>docs/handbook/build.py</code>; page numbers by <code>render-pdf.sh</code>; the Kindle edition by <code>render-epub.sh</code>.</p>
+<p class="colophon">Astrya Engineering Handbook, Revision A, 30 September 2026. Written by Shiv Vyas from the code on <code>main</code> at version 0.3.0. Source of record: the code; <code>docs/design/</code> for the design notes. Built by <code>docs/handbook/build.py</code>; page numbers by <code>render-pdf.sh</code>; the Kindle edition by <code>render-epub.sh</code>.</p>
 </div>
 </body>
 </html>

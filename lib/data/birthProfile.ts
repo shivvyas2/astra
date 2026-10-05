@@ -17,7 +17,43 @@ export type BirthProfileRow = {
   timezone: string;
   avatar_url: string | null;
   chart: { vedic: unknown; western: unknown } | null;
+  /** Migration 0012. Absent on a database that has not had it applied. */
+  birth_time_known?: boolean | null;
 };
+
+/** Both traditions for one birth, computed together so they always agree. */
+export type ChartPair = { vedic: Chart; western: Chart };
+
+/**
+ * The one code path that turns birth details into the stored `{ vedic,
+ * western }` pair — for the account's own chart and for every saved person.
+ */
+export async function computeChartPair(birth: BirthInput): Promise<ChartPair> {
+  const [vedic, western] = await Promise.all([computeChart(birth, "vedic"), computeChart(birth, "western")]);
+  return { vedic, western };
+}
+
+/**
+ * Whether a stored row's birth time is known: the 0012 column when it exists,
+ * else the flag stamped on the chart itself, else known (every row before
+ * this feature).
+ */
+export function timeKnownOf(row: {
+  birth_time_known?: boolean | null;
+  chart?: { vedic?: unknown } | null;
+}): boolean {
+  if (typeof row.birth_time_known === "boolean") return row.birth_time_known;
+  const vedic = row.chart?.vedic as { timeKnown?: boolean } | undefined;
+  return vedic?.timeKnown !== false;
+}
+
+/** PostgREST's "column not in the schema cache" (or Postgres's undefined column). */
+function isMissingColumn(error: { code?: string; message?: string } | null | undefined): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST204" || error.code === "42703") return true;
+  const m = (error.message ?? "").toLowerCase();
+  return m.includes("birth_time_known") && (m.includes("schema cache") || m.includes("does not exist"));
+}
 
 export async function getBirthProfile(db?: Db): Promise<BirthProfileRow | null> {
   const supabase = db ?? (await createServerSupabase());
@@ -39,21 +75,22 @@ export async function saveBirthProfile(
     lng: number;
     timezone: string;
     avatarUrl?: string | null;
+    /** False when they do not know their birth time. Defaults to known. */
+    birthTimeKnown?: boolean;
   },
   db?: Db,
 ) {
   const supabase = db ?? (await createServerSupabase());
+  const timeKnown = input.birthTimeKnown !== false;
   const birth: BirthInput = {
     birthDate: input.birthDate,
     birthTime: input.birthTime,
     lat: input.lat,
     lng: input.lng,
     timezone: input.timezone,
+    ...(timeKnown ? {} : { timeKnown: false }),
   };
-  const [vedic, western] = await Promise.all([
-    computeChart(birth, "vedic"),
-    computeChart(birth, "western"),
-  ]);
+  const { vedic, western } = await computeChartPair(birth);
   const row: Record<string, unknown> = {
     user_id: input.userId,
     first_name: input.firstName,
@@ -70,7 +107,15 @@ export async function saveBirthProfile(
   // Only overwrite the avatar when a new one was uploaded.
   if (input.avatarUrl) row.avatar_url = input.avatarUrl;
 
-  const { error } = await supabase.from("birth_profiles").upsert(row, { onConflict: "user_id" });
+  // The 0012 column. Production can lag migrations, so a write that finds it
+  // missing is retried without it — the chart carries the same flag, which is
+  // what readings actually use.
+  let { error } = await supabase
+    .from("birth_profiles")
+    .upsert({ ...row, birth_time_known: timeKnown }, { onConflict: "user_id" });
+  if (error && isMissingColumn(error)) {
+    ({ error } = await supabase.from("birth_profiles").upsert(row, { onConflict: "user_id" }));
+  }
   if (error) throw new Error(error.message);
 }
 
@@ -104,11 +149,9 @@ export async function ensureCurrentChart(
       lat: Number(profile.lat),
       lng: Number(profile.lng),
       timezone: String(profile.timezone),
+      ...(timeKnownOf(profile) ? {} : { timeKnown: false }),
     };
-    const [vedic, western] = await Promise.all([
-      computeChart(birth, "vedic"),
-      computeChart(birth, "western"),
-    ]);
+    const { vedic, western } = await computeChartPair(birth);
     stage = "write";
     const supabase = db ?? (await createServerSupabase());
     const { error } = await supabase

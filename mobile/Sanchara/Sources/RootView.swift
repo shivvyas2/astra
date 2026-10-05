@@ -37,6 +37,8 @@ struct SignedInView: View {
     @State private var profile = ProfileStore()
 
     var body: some View {
+        // AI consent comes before intake and the first reading (Features/Consent).
+        ConsentGate {
         Group {
             switch profile.state {
             case .loading:
@@ -61,7 +63,10 @@ struct SignedInView: View {
                 }
             }
         }
+        }
         .task { await profile.load() }
+        // StoreKit: listen for transactions and sync the entitlement (Features/Billing).
+        .task { PlusStore.shared.start() }
     }
 }
 
@@ -70,17 +75,15 @@ struct LoadingScreen: View {
         ZStack {
             Atmosphere(mood: .dusk)
             VStack(spacing: 14) {
-                Sparkle()
-                    .fill(Theme.fg)
-                    .frame(width: 24, height: 24)
-                    .accessibilityHidden(true)
-                Text("Sanchara").brutHeading(28)
+                AstraMark(size: 40)
+                    .padding(.bottom, 6)
+                Text("Astrya").brutHeading(28)
                 ProgressView()
                     .tint(Theme.accent)
                     .padding(.top, 4)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Loading Sanchara")
+            .accessibilityLabel("Loading Astrya")
         }
     }
 }

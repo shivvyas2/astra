@@ -13,7 +13,7 @@ type Section = {
 
 const HERO: Section = {
   eyebrow: "Computed astrology, never guessed",
-  title: "SANCHARA",
+  title: "ASTRYA",
   lines: ["Your real birth chart, read by the stars."],
   cta: {
     primary: { label: "Get your reading", href: "/signup" },

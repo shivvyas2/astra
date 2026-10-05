@@ -2,7 +2,7 @@ import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// Sanchara in Control Center, on the Lock Screen, and on the Action button.
+/// Astrya in Control Center, on the Lock Screen, and on the Action button.
 ///
 /// A control is a single action with no room for anything else, so it has to be
 /// the one thing worth reaching for without unlocking: the reading. Tapping it
@@ -26,6 +26,7 @@ struct ReadingControl: ControlWidget {
 struct SancharaWidgets: WidgetBundle {
     var body: some Widget {
         ReadingWidget()
+        AlertsWidget()
         PeriodWidget()
         if #available(iOS 18.0, *) {
             ReadingControl()

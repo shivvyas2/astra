@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Everything Sanchara has sent: the twice-daily readings, kept by date, and the
+/// Everything Astrya has sent: the twice-daily readings, kept by date, and the
 /// dosha alerts. One screen, two tabs, so the bell means "things for you".
 struct InboxView: View {
     enum Tab: String, CaseIterable, Identifiable {
@@ -26,18 +26,14 @@ struct InboxView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Atmosphere(mood: .lime)
+                // First light for the tab; the sheet keeps the lime field.
+                Atmosphere(mood: embedded ? .dawn : .lime)
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         if embedded {
-                            ScreenHeader(
-                                eyebrow: "Today",
-                                title: Self.todayTitle(),
-                                blurb: "A reading every morning and night, written from today's sky and your chart. Alerts come only when a dosha or hard transit starts or ends.",
-                                titleSize: 36
-                            )
-                            .padding(.top, 8)
-                            .padding(.bottom, 24)
+                            todayHeader
+                                .padding(.top, 8)
+                                .padding(.bottom, 24)
                         }
                         picker
                             .padding(.bottom, 20)
@@ -55,6 +51,7 @@ struct InboxView: View {
                     await alerts.load()
                 }
             }
+            .clearsTabBar(active: embedded)
             .navigationTitle(embedded ? "" : (tab == .daily ? "Your readings" : "Alerts"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -95,8 +92,47 @@ struct InboxView: View {
     /// "Friday, 3 October".
     private static func todayTitle(_ date: Date = Date()) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "EEEE, d MMMM"
+        formatter.setLocalizedDateFormatFromTemplate("EEEEdMMMM")
         return formatter.string(from: date)
+    }
+
+    private static func todayPart(_ template: String, _ date: Date = Date()) -> String {
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        return formatter.string(from: date)
+    }
+
+    /// The date as a figure: "05" large, the month beside it on the
+    /// baseline, the weekday under it — then what the screen is for.
+    private var todayHeader: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Circle().fill(Theme.accent).frame(width: 7, height: 7)
+                Text("Today")
+                    .font(.system(size: 11, weight: .semibold))
+                    .textCase(.uppercase)
+                    .tracking(1.4)
+                    .foregroundStyle(Theme.accent)
+                Spacer(minLength: 0)
+                AstraMark(size: 16)
+            }
+            BigNumber(
+                value: Self.todayPart("dd"),
+                unit: Self.todayPart("MMMM"),
+                caption: Self.todayPart("EEEE"),
+                size: 88,
+                unitColor: Theme.fg
+            )
+            Text("A reading every morning and night, written from today's sky and your chart. Alerts come only when a dosha or hard transit starts or ends.")
+                .font(.brutBody(15))
+                .foregroundStyle(Theme.muted)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Today, \(Self.todayTitle()). A reading every morning and night, written from today's sky and your chart. Alerts come only when a dosha or hard transit starts or ends.")
+        .accessibilityAddTraits(.isHeader)
     }
 
     // MARK: - Picker
@@ -153,6 +189,11 @@ struct InboxView: View {
                 message: "A reading arrives every morning and every night, written from that day's sky and your chart. The next one lands here at the start of your morning or evening, and they collect by date.",
                 systemImage: "sun.max"
             )
+            // No dead end: the chart can be read right now.
+            SancharaPrimaryButton(title: "Ask about today now", kind: .accent) {
+                askNow("What does today's sky mean for me? Read it from my chart.")
+            }
+            .padding(.top, 16)
         }
     }
 
@@ -195,14 +236,8 @@ struct InboxView: View {
             BrutDivider()
                 .padding(.top, 4)
 
-            HStack {
-                Text("Read it")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Theme.fg)
-                Spacer()
-                CircleButton(systemImage: "arrow.up.right", label: "Read", fill: .accent, size: 44) {
-                    daily.selected = reading
-                }
+            StepFooter(step: 1, label: "Read it") {
+                daily.selected = reading
             }
         }
         .padding(20)
@@ -216,6 +251,16 @@ struct InboxView: View {
         .accessibilityHint("Opens the full reading")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { daily.selected = reading }
+        .accessibilityAction(named: "Ask Astrya about this") { onAsk(Self.askPrompt(for: reading)) }
+        .contextMenu {
+            Button("Read it", systemImage: "book") { daily.selected = reading }
+            Button("Ask Astrya about this", systemImage: "text.bubble") { onAsk(Self.askPrompt(for: reading)) }
+        }
+    }
+
+    /// The question a reading carries over to Ask.
+    static func askPrompt(for reading: DailyReading) -> String {
+        "About my \(reading.slotLabel.lowercased()) reading: \(reading.title). \(reading.body) Tell me more."
     }
 
     private func row(for reading: DailyReading) -> some View {
@@ -263,6 +308,10 @@ struct InboxView: View {
                 message: "When a dosha or a hard transit starts or ends in your chart, an alert lands here the same day. Until then, quiet is good news.",
                 systemImage: "bell"
             )
+            ViewMoreRow(title: "Ask what's ahead this month") {
+                askNow("What transits are coming up for me this month, and what should I watch for?")
+            }
+            .padding(.top, 16)
         } else {
             ForEach(Array(alerts.alerts.enumerated()), id: \.element.id) { index, alert in
                 Button { alerts.selected = alert } label: { alertRow(alert) }
@@ -304,6 +353,12 @@ struct InboxView: View {
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .contentShape(Rectangle())
+    }
+
+    /// Carries a question to Ask, closing the inbox first when it is a sheet.
+    private func askNow(_ question: String) {
+        if !embedded { dismiss() }
+        onAsk(question)
     }
 
     // MARK: - Pieces
@@ -366,8 +421,8 @@ struct DailyReadingView: View {
 
                         MarkdownText(markdown: reading.detail)
 
-                        SancharaPrimaryButton(title: "Ask Sanchara about this", kind: .accent) {
-                            onAsk("About my \(reading.slotLabel.lowercased()) reading: \(reading.title). \(reading.body) Tell me more.")
+                        SancharaPrimaryButton(title: "Ask Astrya about this", kind: .accent) {
+                            onAsk(InboxView.askPrompt(for: reading))
                         }
                         .padding(.top, 8)
                     }
@@ -379,8 +434,8 @@ struct DailyReadingView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }
-                        .font(.system(size: 15, weight: .semibold))
+                    Button("Done") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }

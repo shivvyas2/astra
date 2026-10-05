@@ -27,7 +27,7 @@ struct AlertDetailView: View {
 
                         MarkdownText(markdown: alert.detail)
 
-                        SancharaPrimaryButton(title: "Ask Sanchara about this", kind: .accent) {
+                        SancharaPrimaryButton(title: "Ask Astrya about this", kind: .accent) {
                             onAsk(
                                 "Tell me more about this: \(alert.title). \(alert.body) "
                                     + "What should I watch for, and what can I do about it?"
@@ -43,8 +43,8 @@ struct AlertDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Close") { dismiss() }
-                        .font(.system(size: 15, weight: .semibold))
+                    Button("Done") { dismiss() }
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }

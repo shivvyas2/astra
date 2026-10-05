@@ -23,7 +23,7 @@
 <h3 id="s10-1"><span class="num">10.1</span><span>Intent</span></h3>
 
 <p>
-  A large share of what people ask Sanchara is not interpretation. The doc comment at the top of
+  A large share of what people ask Astrya is not interpretation. The doc comment at the top of
   <code>mobile/Sanchara/Sources/Features/Chat/OnDeviceReasoner.swift</code> puts it plainly:
   every one of those questions "was a paid Claude call answering from a chart the phone could
   have read itself". The same split runs through Siri. Positions and periods are records, so an
@@ -252,7 +252,7 @@ final class ChartCache: @unchecked Sendable {
   through supabase-swift under the owner-only RLS policy (roughly 4 KB, changing only when birth
   details are re-saved); the <code>daily_readings</code> table, read the same way; and
   <code>GET /api/timeline</code>, whose payload carries the period bands with their themes and
-  the <code>now</code> meaning. The on-device model is Apple's, not Sanchara's:
+  the <code>now</code> meaning. The on-device model is Apple's, not Astrya's:
   <code>FoundationModels</code> is a system framework, no weights ship in the bundle, and no
   request leaves the phone. Where the model declines or is absent, the question goes to
   <code>/api/chat</code> exactly as it did before the feature existed.
@@ -443,7 +443,7 @@ if !silent, !forceServer, mode == .vedic, let reasoner {
 
 <p>
   Errors are sentences, not codes, because Siri reads them aloud:
-  <code>SancharaIntentError.noReadingYet</code> says "There's no reading yet. Sanchara writes one
+  <code>SancharaIntentError.noReadingYet</code> says "There's no reading yet. Astrya writes one
   each morning and night." <code>IntentData</code> is the data layer for all of them:
   <code>chart()</code> and <code>details()</code> read the cache and nothing else, since a chart
   fixed at birth makes a cache hit always correct; <code>latestReading()</code> returns the cached
@@ -456,9 +456,9 @@ if !silent, !forceServer, mode == .vedic, let reasoner {
   <code>SancharaShortcuts</code> is the <code>AppShortcutsProvider</code>: six
   <code>AppShortcut</code>s, the last two behind <code>#available(iOS 26.0, *)</code>. Every
   phrase contains <code>\(.applicationName)</code>, an App Intents rule that also covers a user
-  who renames the app. "What's my reading in Sanchara", "What dasha am I in on Sanchara", "Where
-  is my Saturn in Sanchara" (the parameter is spoken inside the phrase), "Open my Sanchara
-  kundli", "Show my Sanchara reading" and "Ask Sanchara about my chart" all work with nothing set
+  who renames the app. "What's my reading in Astrya", "What dasha am I in on Astrya", "Where
+  is my Saturn in Astrya" (the parameter is spoken inside the phrase), "Open my Astrya
+  kundli", "Show my Astrya reading" and "Ask Astrya about my chart" all work with nothing set
   up. Ten is Apple's ceiling; the file's comment says fewer is better.
 </p>
 
@@ -525,7 +525,7 @@ static func nextBoundary() -&gt; Date {
   06:00 or 18:00, the cadence of the content. The Home Screen families draw the shared
   <code>ReadingCard</code> with a body limit of 3 lines on small and 5 on medium; the Lock Screen
   family draws two lines of its own because the Lock Screen tints everything to one colour. The
-  empty state names the next action: "Open Sanchara to get your first reading."
+  empty state names the next action: "Open Astrya to get your first reading."
 </p>
 
 <p>
@@ -641,17 +641,17 @@ SancharaWidgets:
 <h4>A Siri phrase</h4>
 
 <ol>
-  <li>"Where is my Saturn in Sanchara" matches the <code>ChartPositionIntent</code> shortcut. iOS
+  <li>"Where is my Saturn in Astrya" matches the <code>ChartPositionIntent</code> shortcut. iOS
     resolves the spoken parameter through <code>PlacementQuery.entities(matching:)</code>, which
     matches the lowercased string against the planet name or Sanskrit sign of each placement in
     <code>ChartCache.shared.load()</code>. <code>perform()</code> returns the entity and its
     sentence; the app is not opened.</li>
-  <li>"Ask Sanchara about my chart" runs <code>AskSancharaIntent</code>, which reads the chart
+  <li>"Ask Astrya about my chart" runs <code>AskSancharaIntent</code>, which reads the chart
     from the cache and runs the same three gates. On <code>.escalate</code> it writes
     <code>"ask:" + question</code> to <code>pendingDestination</code> and says the question is
     saved. The next time <code>ChatView</code> becomes active, <code>drain()</code> turns it into
     <code>.ask(question)</code> and the view sends it with <code>forceServer: true</code>.</li>
-  <li>"What's my reading in Sanchara" runs <code>TodaysReadingIntent</code>. A fresh cached
+  <li>"What's my reading in Astrya" runs <code>TodaysReadingIntent</code>. A fresh cached
     reading answers with no query; a stale one triggers a ten-row fetch that also rewrites the
     cache.</li>
 </ol>

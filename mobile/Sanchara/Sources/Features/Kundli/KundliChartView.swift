@@ -108,6 +108,8 @@ private struct HouseRegion: Shape {
 struct KundliChartView: View {
     let chart: NatalChart
     @Binding var selected: KundliHouse?
+    /// Glyphs for English, two-letter Sanskrit forms otherwise.
+    var script: NameScript = .english
 
     /// Glyphs stay legible when Dynamic Type grows, but the diagram has fixed
     /// geometry, so the scaling is capped. The full table underneath the chart
@@ -145,7 +147,7 @@ struct KundliChartView: View {
                     .accessibilityHidden(true)
 
                 ForEach(chart.houses) { house in
-                    contents(house)
+                    contents(house, side: side)
                         .position(
                             x: KundliGeometry.labelAnchor(house: house.number).x * side,
                             y: KundliGeometry.labelAnchor(house: house.number).y * side
@@ -186,13 +188,18 @@ struct KundliChartView: View {
         return house.number.isMultiple(of: 2) ? Theme.fg.opacity(0.03) : .clear
     }
 
-    private func contents(_ house: KundliHouse) -> some View {
-        VStack(spacing: 2) {
+    private func contents(_ house: KundliHouse, side: CGFloat) -> some View {
+        // Capped by the chart's own size: the houses do not grow with Dynamic
+        // Type, so labels that did would spill over the lines and out of the
+        // frame. The table under the chart carries the full text sizes.
+        let numeral = min(numeralSize, side * 0.034)
+        let label = min(glyphSize, side * (script == .english ? 0.046 : 0.04))
+        return VStack(spacing: 2) {
             // The rashi numeral is how a kundli is read — it identifies the sign
             // sitting in a fixed house. Set in the text face at medium weight,
             // in step with the rest of the screen's numerals.
             Text("\(house.rashi.number)")
-                .font(.system(size: numeralSize, weight: .medium))
+                .font(.system(size: numeral, weight: .medium))
                 .foregroundStyle(house.isLagna ? Theme.accent : Theme.muted)
 
             if !house.planets.isEmpty {
@@ -205,13 +212,13 @@ struct KundliChartView: View {
                     ForEach(rows, id: \.first?.id) { row in
                         HStack(spacing: 5) {
                             ForEach(row) { planet in
-                                Text(planet.glyph)
-                                    .font(.system(size: glyphSize))
+                                Text(planet.chartLabel(in: script))
+                                    .font(.system(size: label, weight: script == .english ? .regular : .semibold))
                                     .foregroundStyle(Theme.fg)
                                     .overlay(alignment: .topTrailing) {
                                         if planet.retrograde {
                                             Text("R")
-                                                .font(.system(size: max(7, numeralSize - 3), weight: .medium))
+                                                .font(.system(size: max(7, numeral - 3), weight: .medium))
                                                 .foregroundStyle(Theme.accent)
                                                 .offset(x: 5, y: -3)
                                         }

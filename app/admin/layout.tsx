@@ -1,7 +1,10 @@
+import "./admin.css";
+
 export const dynamic = "force-dynamic";
 
-// Passthrough: the login page renders bare; authenticated pages wrap themselves
-// in <AdminShell> so the sidebar never appears on the login screen.
+// The admin's light theme is scoped to this wrapper (app/admin/admin.css), so
+// the user app keeps its dark one. The login page renders bare inside it;
+// authenticated pages wrap themselves in <AdminShell>.
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <div className="min-h-dvh">{children}</div>;
+  return <div className="admin-theme">{children}</div>;
 }

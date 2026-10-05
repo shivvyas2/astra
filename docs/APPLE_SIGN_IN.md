@@ -2,7 +2,7 @@
 
 The app signs in natively: Apple returns an identity token, and Supabase
 verifies it directly (`signInWithIdToken`). No web sheet, no redirect, no
-password, and no confirmation email — it is the fastest path onto Sanchara.
+password, and no confirmation email — it is the fastest path onto Astrya.
 
 ## 1. Enable the provider in Supabase (required)
 
@@ -65,7 +65,7 @@ code signing fails:
 
 Because the name comes back only once, testing the pre-fill again means telling
 Apple to forget the app: **Settings → your Apple ID → Sign in with Apple →
-Sanchara → Stop using Apple ID**, then sign in again. A freshly created simulator
+Astrya → Stop using Apple ID**, then sign in again. A freshly created simulator
 also works.
 
 ## Known gap: Apple token revocation on account deletion

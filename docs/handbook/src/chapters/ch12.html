@@ -10,7 +10,7 @@
 </p>
 
 <p>
-  This chapter describes the web surface of Sanchara as it is on <code>main</code> on
+  This chapter describes the web surface of Astrya as it is on <code>main</code> on
   30 September 2026, version 0.3.0. It covers the root layout, the marketing page at <code>/</code>,
   the signed-in shell under <code>/app</code>, the auth form, the two build-time configuration files
   that shape the whole site, and, for comparison, the iOS design system that translates the site's
@@ -48,7 +48,7 @@
 ├── (auth)/
 │   ├── layout.tsx               centred card with the glow behind it
 │   ├── actions.ts               authenticate, sendMagicLink, resendConfirmation, signOut
-│   ├── login/page.tsx           AuthForm, "Welcome to Sanchara"
+│   ├── login/page.tsx           AuthForm, "Welcome to Astrya"
 │   ├── signup/page.tsx          AuthForm, "Create your account" (same action)
 │   └── check-email/page.tsx     confirmation screen with a resend button
 ├── (app)/
@@ -266,7 +266,7 @@ enum Theme {
 
 <pre><code>// app/layout.tsx
 export const metadata: Metadata = {
-  title: "Sanchara: Your chart, read by the stars",
+  title: "Astrya: Your chart, read by the stars",
   description: "Sign up, share your birth details, and chat with an astrologer powered by your real birth chart.",
 };
 
@@ -415,7 +415,7 @@ export function CosmicLanding() {
 
 <p>
   <code>CosmicHero</code> is data plus one effect. The data is a <code>HERO</code> constant (eyebrow
-  "Computed astrology, never guessed", title "SANCHARA", one line of copy, two links: "Get your
+  "Computed astrology, never guessed", title "ASTRYA", one line of copy, two links: "Get your
   reading" to <code>/signup</code> and "Log in" to <code>/login</code>) and three
   <code>SECTIONS</code> ("THE SCIENCE", "YOUR CHART", "YOUR FUTURE"), the last with a
   "Create your free account" button. The hero section is <code>min-h-[100svh]</code> with the

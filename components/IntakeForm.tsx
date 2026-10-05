@@ -14,9 +14,40 @@ export type IntakeInitial = {
   lng?: number;
   timezone?: string;
   avatarUrl?: string | null;
+  /** False when they did not know their birth time. Absent means known. */
+  birthTimeKnown?: boolean;
+  /** The rough part of day chosen with an unknown time, if any. */
+  birthTimeApprox?: Approx | null;
 };
 
-export function IntakeForm({ action, initial }: { action: (fd: FormData) => void; initial?: IntakeInitial }) {
+export type Approx = "morning" | "afternoon" | "evening" | "night";
+
+/**
+ * Birth details: name, date, time (or "I don't know"), and place.
+ *
+ * Shared by the account's own intake and by saved people. `extra` renders
+ * above the name fields (a person's label and relationship); `photo` hides
+ * the avatar picker, which only the account itself has; `submitLabel`
+ * replaces the button text.
+ */
+export function IntakeForm({
+  action,
+  initial,
+  extra,
+  photo = true,
+  submitLabel,
+  lastNameOptional = false,
+  someoneElse = false,
+}: {
+  action: (fd: FormData) => void;
+  initial?: IntakeInitial;
+  extra?: React.ReactNode;
+  photo?: boolean;
+  submitLabel?: string;
+  lastNameOptional?: boolean;
+  /** Words the time toggle about "their" birth time rather than "my". */
+  someoneElse?: boolean;
+}) {
   const editing = !!initial;
   const [geo, setGeo] = useState<GeoResult | null>(
     initial?.lat != null && initial?.lng != null && initial?.timezone
@@ -44,7 +75,8 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
 
   return (
     <form action={action} className="w-full max-w-md space-y-4">
-      <div className="flex items-center gap-4">
+      {extra}
+      {photo && <div className="flex items-center gap-4">
         <label className="cursor-pointer">
           <div className="brut-bordered grid h-16 w-16 place-items-center overflow-hidden text-center text-[10px] font-bold uppercase tracking-wide text-muted transition-colors hover:border-accent">
             {preview ? (
@@ -61,7 +93,7 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
           <p className="eyebrow">Photo</p>
           <p className="mt-1 text-xs text-muted">Optional. PNG, JPEG or WebP.</p>
         </div>
-      </div>
+      </div>}
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
@@ -70,7 +102,7 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
         </label>
         <label className="block">
           <span className="eyebrow mb-1.5 block">Last name</span>
-          <input name="last_name" required placeholder="Last name" defaultValue={initial?.lastName ?? ""} className="brut-field" />
+          <input name="last_name" required={!lastNameOptional} placeholder={lastNameOptional ? "Optional" : "Last name"} defaultValue={initial?.lastName ?? ""} className="brut-field" />
         </label>
       </div>
 
@@ -83,7 +115,12 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
         </span>
       </label>
 
-      <TimePicker initialTime={initial?.birthTime} />
+      <BirthTimeField
+        initialTime={initial?.birthTime}
+        initialKnown={initial?.birthTimeKnown !== false}
+        initialApprox={initial?.birthTimeApprox ?? null}
+        someoneElse={someoneElse}
+      />
 
       {!manual ? (
         <div>
@@ -102,7 +139,7 @@ export function IntakeForm({ action, initial }: { action: (fd: FormData) => void
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
       <input type="hidden" name="timezone" value={geo?.timezone ?? ""} />
       <button disabled={!geo} className="brut-btn brut-btn-primary w-full py-3">
-        {editing ? "Update my details" : "Save & build my chart"}
+        {submitLabel ?? (editing ? "Update my details" : "Save & build my chart")}
       </button>
       {geo && <p className="text-xs text-muted">{geo.name ? `${geo.name} · ` : ""}{geo.timezone}</p>}
     </form>
@@ -119,6 +156,81 @@ function parseTime(t?: string): { hour: number; minute: number; meridiem: "AM" |
   const meridiem: "AM" | "PM" = h24 >= 12 ? "PM" : "AM";
   const hour = h24 % 12 === 0 ? 12 : h24 % 12;
   return { hour, minute, meridiem };
+}
+
+const APPROX_OPTIONS: { value: Approx; label: string }[] = [
+  { value: "morning", label: "Morning" },
+  { value: "afternoon", label: "Afternoon" },
+  { value: "evening", label: "Evening" },
+  { value: "night", label: "Night" },
+];
+
+/**
+ * Time of birth, or "I don't know my birth time". When unknown, the picker is
+ * replaced by what that means and an optional rough part of day; the server
+ * casts the chart for noon (or the middle of that part of day) and flags it.
+ */
+export function BirthTimeField({
+  initialTime,
+  initialKnown = true,
+  initialApprox = null,
+  someoneElse = false,
+}: {
+  initialTime?: string;
+  initialKnown?: boolean;
+  initialApprox?: Approx | null;
+  someoneElse?: boolean;
+}) {
+  const whose = someoneElse ? "their" : "your";
+  const [known, setKnown] = useState(initialKnown);
+  const [approx, setApprox] = useState<Approx | null>(initialApprox);
+
+  return (
+    <div>
+      {known ? (
+        <TimePicker initialTime={initialKnown ? initialTime : undefined} />
+      ) : (
+        <div>
+          <span className="eyebrow">Birth time</span>
+          <div className="brut-bordered mt-1.5 p-3">
+            <p className="text-sm">
+              We&apos;ll use noon and avoid anything that depends on the exact hour — {whose} ascendant, houses and the
+              Moon&apos;s exact degree. You can add the time later.
+            </p>
+            <p className="eyebrow mt-3">Roughly (optional)</p>
+            <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Rough time of day">
+              {APPROX_OPTIONS.map((o) => {
+                const on = approx === o.value;
+                return (
+                  <button
+                    key={o.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={on}
+                    onClick={() => setApprox(on ? null : o.value)}
+                    className={`brut-chip${on ? " is-active" : ""}`}
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <input type="hidden" name="birth_time_approx" value={approx ?? ""} />
+        </div>
+      )}
+      <label className="mt-2 flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={!known}
+          onChange={(e) => setKnown(!e.target.checked)}
+          className="h-4 w-4 accent-[var(--accent)]"
+        />
+        {someoneElse ? "I don't know their birth time" : "I don't know my birth time"}
+      </label>
+      <input type="hidden" name="birth_time_known" value={known ? "true" : "false"} />
+    </div>
+  );
 }
 
 function TimePicker({ initialTime }: { initialTime?: string }) {
@@ -160,7 +272,7 @@ function TimePicker({ initialTime }: { initialTime?: string }) {
           <option value="PM">PM</option>
         </select>
       </div>
-      <span className="mt-1.5 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem} · noon is fine if unknown</span>
+      <span className="mt-1.5 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem}</span>
       <input type="hidden" name="birth_time" value={value} />
     </div>
   );

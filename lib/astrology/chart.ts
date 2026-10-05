@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 import SwissEph from "swisseph-wasm";
-import type { BirthInput, Chart, Planet, Tradition } from "./types";
+import type { BirthInput, Chart, MoonDay, Planet, Tradition } from "./types";
 import { degreeInSign, nakshatraOf, signOf, houseFrom, SIGNS, CHART_SCHEMA_VERSION } from "./constants";
 import { computeVimshottari } from "./dasha";
 import { deriveFacts } from "./derived";
@@ -116,9 +116,44 @@ export async function computeChart(input: BirthInput, tradition: Tradition): Pro
     dasha: tradition === "vedic" ? computeVimshottari(moonAbsLon, ut) : undefined,
     schemaVersion: CHART_SCHEMA_VERSION,
   };
+  if (input.timeKnown === false) {
+    result.timeKnown = false;
+    result.moonDay = moonAcrossTheDay(swe, input, iflag);
+  }
   // Every technique in derived.ts — lordship, graha drishti, moolatrikona,
   // combustion orbs, the natal doshas — is Vedic. Western continues to use
   // Placidus houses (set above) and gets no derived block at all; see
   // docs/design/2026-09-17-specific-readings.md §0.
   return { ...result, derived: tradition === "vedic" ? deriveFacts(result) : undefined };
+}
+
+/**
+ * The Moon at 00:00 and 23:59 local on the birth date. It moves about 13° a
+ * day, so for someone who does not know their birth time this is the honest
+ * range: if both ends share a sign, the Moon sign is certain; if not, the
+ * reading has to say so.
+ */
+function moonAcrossTheDay(
+  swe: InstanceType<typeof SwissEph>,
+  input: BirthInput,
+  iflag: number,
+): MoonDay {
+  const at = (time: string) => {
+    const ut = DateTime.fromISO(`${input.birthDate}T${time}`, { zone: input.timezone }).toUTC();
+    const jd = swe.julday(ut.year, ut.month, ut.day, ut.hour + ut.minute / 60 + ut.second / 3600);
+    return swe.calc_ut(jd, swe.SE_MOON, iflag)[0] as number;
+  };
+  const start = at("00:00");
+  const end = at("23:59");
+  const sidereal = (iflag & swe.SEFLG_SIDEREAL) !== 0;
+  const startNakshatra = sidereal ? nakshatraOf(start) : "";
+  const endNakshatra = sidereal ? nakshatraOf(end) : "";
+  return {
+    startSign: signOf(start),
+    endSign: signOf(end),
+    startNakshatra,
+    endNakshatra,
+    changesSign: signOf(start) !== signOf(end),
+    changesNakshatra: startNakshatra !== endNakshatra,
+  };
 }

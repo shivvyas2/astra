@@ -3,18 +3,25 @@ import Foundation
 import WidgetKit
 #endif
 
-/// Tells the widget its cache has changed.
+/// Tells the widgets their cache has changed.
 ///
-/// WidgetKit's timeline would eventually pick up a new reading on its own — the
-/// provider asks to be rebuilt at the next six o'clock — but "eventually" is
-/// wrong when someone has just read the thing in the app. This nudges it.
+/// Each widget also refreshes itself on a schedule (`WidgetSync`), but a
+/// schedule is wrong when someone has just read the thing in the app. This
+/// nudges it.
 ///
-/// Reloads are rate-limited by the system, so this is called when a reading
-/// actually changes, never on every load.
+/// Reloads are rate-limited by the system when the app is in the background,
+/// so this is called when content actually changes, never on every load.
+/// Compiled into the widget extension too, which uses the kinds.
 enum WidgetRefresh {
+    enum Kind {
+        static let reading = "SancharaReading"
+        static let period = "SancharaPeriod"
+        static let alerts = "SancharaAlerts"
+    }
+
     static func reload() {
         #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadTimelines(ofKind: "SancharaReading")
+        WidgetCenter.shared.reloadTimelines(ofKind: Kind.reading)
         #endif
     }
 
@@ -22,7 +29,22 @@ enum WidgetRefresh {
     /// own; this is for the moment a meaning arrives from the server.
     static func reloadPeriod() {
         #if canImport(WidgetKit)
-        WidgetCenter.shared.reloadTimelines(ofKind: "SancharaPeriod")
+        WidgetCenter.shared.reloadTimelines(ofKind: Kind.period)
+        #endif
+    }
+
+    /// The alert widget, and the reading widget's alert line.
+    static func reloadAlerts() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadTimelines(ofKind: Kind.alerts)
+        WidgetCenter.shared.reloadTimelines(ofKind: Kind.reading)
+        #endif
+    }
+
+    /// After a background refresh, a push, or sign-out.
+    static func reloadAll() {
+        #if canImport(WidgetKit)
+        WidgetCenter.shared.reloadAllTimelines()
         #endif
     }
 }

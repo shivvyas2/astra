@@ -1,6 +1,6 @@
 import Foundation
 
-/// Calls the Sanchara API on Vercel, which holds everything that cannot ship in a
+/// Calls the Astrya API on Vercel, which holds everything that cannot ship in a
 /// client binary: the Anthropic key, the Swiss Ephemeris, and PDF generation.
 enum SancharaAPI {
 
@@ -158,11 +158,16 @@ enum SancharaAPI {
     /// re-decoded the buffer on each. A chunk boundary can still split a
     /// multi-byte character, so the decoder holds back an incomplete tail
     /// until the rest arrives.
+    ///
+    /// `memory: "on-device"` tells the server this phone will work out the
+    /// turn's memory itself (`OnDeviceMemory`) and post it to
+    /// `/api/memory/ingest`, so the server skips its paid Haiku pass.
     static func chatStream(
         conversationId: String?,
         mode: ChatMode,
         message: String,
-        deep: Bool
+        deep: Bool,
+        memory: String? = nil
     ) -> AsyncThrowingStream<ChatEvent, Error> {
         AsyncThrowingStream { continuation in
             let work = Task {
@@ -174,7 +179,8 @@ enum SancharaAPI {
                             conversationId: conversationId,
                             tradition: mode.rawValue,
                             message: message,
-                            deep: deep
+                            deep: deep,
+                            memory: memory
                         )
                     )
                     // Readings can think for a while before the first byte.
@@ -217,6 +223,8 @@ enum SancharaAPI {
         let tradition: String
         let message: String
         let deep: Bool
+        /// Omitted from the JSON when nil.
+        let memory: String?
     }
 
     private static func check(_ response: URLResponse, _ data: Data) throws {
@@ -387,6 +395,11 @@ struct BirthProfileInput {
     var lat: Double = 0
     var lng: Double = 0
     var timezone = ""
+    /// False when they do not know their birth time; the server then casts
+    /// the chart for noon (or `birthTimeApprox`) and flags it.
+    var birthTimeKnown = true
+    /// "morning", "afternoon", "evening" or "night", with an unknown time.
+    var birthTimeApprox: String?
     /// Optional profile photo, already downscaled to JPEG. The route uploads it
     /// to the `avatars` bucket and only overwrites the stored URL when one is
     /// sent, so leaving this nil keeps the existing photo.
@@ -405,6 +418,8 @@ struct BirthProfileInput {
             ("lat", String(lat)),
             ("lng", String(lng)),
             ("timezone", timezone),
+            ("birth_time_known", birthTimeKnown ? "true" : "false"),
+            ("birth_time_approx", birthTimeKnown ? "" : (birthTimeApprox ?? "")),
         ]
         for (name, value) in fields {
             append("--\(boundary)\r\n")

@@ -56,12 +56,12 @@ the framing slips the feature stops answering silently.
 
 | Say | What happens |
 | --- | --- |
-| "What's my Sanchara reading" | Reads back the latest reading. No app launch. |
-| "Show my Sanchara reading" | Same, as a card. iOS 26+. |
-| "What dasha am I in on Sanchara" | Reads the current mahadasha and antardasha. |
-| "Where is my Saturn in Sanchara" | Reads one placement. |
-| "Ask Sanchara about my chart" | Free-form. Lookups answer on-device; anything interpretive is queued and the app picks it up. iOS 26+. |
-| "Open my Sanchara kundli" | Opens the chart. |
+| "What's my Astrya reading" | Reads back the latest reading. No app launch. |
+| "Show my Astrya reading" | Same, as a card. iOS 26+. |
+| "What dasha am I in on Astrya" | Reads the current mahadasha and antardasha. |
+| "Where is my Saturn in Astrya" | Reads one placement. |
+| "Ask Astrya about my chart" | Free-form. Lookups answer on-device; anything interpretive is queued and the app picks it up. iOS 26+. |
+| "Open my Astrya kundli" | Opens the chart. |
 
 Every phrase must contain the app name — that is an App Intents rule, not a
 stylistic choice, and the token also covers users who rename the app.
@@ -85,12 +85,12 @@ xcodebuild -project Sanchara.xcodeproj -scheme Sanchara \
 
 For Siri and the widget you need a device:
 
-- **Shortcuts app** → the Sanchara shortcuts appear under the app, with no
+- **Shortcuts app** → the Astrya shortcuts appear under the app, with no
   setup. If they do not, the App Shortcuts provider did not register — check
   that the build actually installed rather than just compiled.
-- **Widget**: long-press the Home Screen → **+** → Sanchara. It draws from the
+- **Widget**: long-press the Home Screen → **+** → Astrya. It draws from the
   cache, so open the app once first.
-- **Control Center**: edit controls → **Sanchara** → Open kundli.
+- **Control Center**: edit controls → **Astrya** → Open kundli.
 
 ## 5. What is cached, and when it is cleared
 

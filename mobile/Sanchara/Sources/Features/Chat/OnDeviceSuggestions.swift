@@ -105,7 +105,7 @@ final class SuggestionEngine {
         // Two things had to be got right here, both found by testing against
         // the real model:
         //
-        // 1. Permissive guardrails — the input is Sanchara's own reading, not
+        // 1. Permissive guardrails — the input is Astrya's own reading, not
         //    arbitrary user content.
         // 2. Framing. Asked to act as an astrologer's assistant, the on-device
         //    model refuses outright ("May contain sensitive content"): fortune

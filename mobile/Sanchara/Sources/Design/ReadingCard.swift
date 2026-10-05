@@ -4,13 +4,14 @@ import SwiftUI
 ///
 /// Shared by the Siri snippet and the widget, so it carries no assumptions
 /// about which. It sets its own colours rather than reading the environment:
-/// Sanchara is dark-only by design (`UIUserInterfaceStyle: Dark` in
+/// Astrya is dark-only by design (`UIUserInterfaceStyle: Dark` in
 /// `Info.plist`), and a card that went light inside Siri while the app stayed
 /// dark would read as a different product.
 ///
 /// Same language as the app: a thin accent rule down the leading edge, a
-/// small eyebrow, a title, plain body. No gradients, nothing blurred — a
-/// widget is redrawn by the system and should cost it nothing.
+/// small eyebrow, a title in medium weight set tight, plain body. Nothing
+/// blurred. The widgets now draw their own layouts (`SancharaWidgets/`); this
+/// card remains for the Siri snippet.
 ///
 /// This file is compiled into the widget extension, which does not include
 /// `Components.swift`, so the card outline is drawn here rather than with
@@ -53,13 +54,15 @@ struct ReadingCard: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(eyebrow)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .font(.system(size: 10, weight: .semibold))
                 .textCase(.uppercase)
-                .tracking(1.6)
+                .tracking(1.4)
                 .foregroundStyle(Theme.muted)
 
+            // The revamp's display type: medium weight, set tight.
             Text(title)
-                .font(.system(.headline, weight: .heavy))
+                .font(.system(size: 20, weight: .medium))
+                .tracking(-0.7)
                 .foregroundStyle(Theme.fg)
                 .fixedSize(horizontal: false, vertical: true)
 

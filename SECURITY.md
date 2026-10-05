@@ -1,6 +1,6 @@
 # Security
 
-Sanchara handles birth details, private conversations, and push tokens. If you find a vulnerability, please report it privately.
+Astrya handles birth details, private conversations, and push tokens. If you find a vulnerability, please report it privately.
 
 ## Reporting
 

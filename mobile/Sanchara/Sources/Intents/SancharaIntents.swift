@@ -1,7 +1,7 @@
 import AppIntents
 import Foundation
 
-/// What Siri, Shortcuts, Spotlight, and the Action button can do with Sanchara.
+/// What Siri, Shortcuts, Spotlight, and the Action button can do with Astrya.
 ///
 /// App Intents is the only route into an app that Siri takes now — SiriKit's
 /// domains never covered astrology and are on their way out regardless — so
@@ -127,7 +127,7 @@ struct CurrentPeriodIntent: AppIntent {
 /// A free-form question, answered on the device when it is a lookup.
 ///
 /// This is the intent that makes a Siri phrase worth having: it runs the same
-/// router the chat does, so "ask Sanchara what's in my seventh house" is
+/// router the chat does, so "ask Astrya what's in my seventh house" is
 /// answered out loud in about a second, without a network call and without
 /// spending anything. A question that turns out to need a real reading is
 /// handed to the app rather than answered badly — Siri says so and opens it.
@@ -145,7 +145,7 @@ struct AskSancharaIntent: AppIntent {
     var question: String
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Ask Sanchara \(\.$question)")
+        Summary("Ask Astrya \(\.$question)")
     }
 
     @MainActor
@@ -164,7 +164,7 @@ struct AskSancharaIntent: AppIntent {
             // it up on next launch. Saying so plainly beats doing either.
             DeepLink.shared.queue(question: question)
             return .result(dialog: IntentDialog(
-                "That one needs a full reading. I've saved the question — open Sanchara and it's ready to ask."
+                "That one needs a full reading. I've saved the question — open Astrya and it's ready to ask."
             ))
         }
     }
@@ -181,9 +181,9 @@ enum SancharaIntentError: Error, CustomLocalizedStringResourceConvertible {
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .noChartYet:
-            "Open Sanchara and add your birth details first — there's no chart to read yet."
+            "Open Astrya and add your birth details first — there's no chart to read yet."
         case .noReadingYet:
-            "There's no reading yet. Sanchara writes one each morning and night."
+            "There's no reading yet. Astrya writes one each morning and night."
         }
     }
 }

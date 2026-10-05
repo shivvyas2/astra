@@ -1,11 +1,23 @@
 import { redirect } from "next/navigation";
-import { getBirthProfile } from "@/lib/data/birthProfile";
+import { getBirthProfile, timeKnownOf } from "@/lib/data/birthProfile";
+import { approxFromTime } from "@/lib/profiles/birth";
 import { IntakeForm } from "@/components/IntakeForm";
+import { KnowledgeList } from "@/components/KnowledgeList";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { loadFacts } from "@/lib/facts/store";
+import { loadMemories, loadPredictions } from "@/lib/memory/store";
 import { saveIntake } from "../intake/actions";
 
 export default async function ProfilePage() {
   const p = await getBirthProfile();
   if (!p) redirect("/app/intake");
+  // None of these throw: no table yet, or a failed read, is an empty list.
+  const db = await createServerSupabase();
+  const [{ facts }, { memories }, { predictions }] = await Promise.all([
+    loadFacts(db, 100),
+    loadMemories(db, 50),
+    loadPredictions(db, 100),
+  ]);
 
   return (
     <div className="h-full overflow-y-auto">
@@ -31,10 +43,13 @@ export default async function ProfilePage() {
               lat: p.lat,
               lng: p.lng,
               timezone: p.timezone,
+              birthTimeKnown: timeKnownOf(p),
+              birthTimeApprox: timeKnownOf(p) ? null : approxFromTime(p.birth_time),
               avatarUrl: p.avatar_url,
             }}
           />
         </div>
+        <KnowledgeList initial={facts} summaries={memories} predictions={predictions} />
       </div>
     </div>
   );

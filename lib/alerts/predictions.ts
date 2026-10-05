@@ -13,6 +13,7 @@ import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
 import { ApnsClient, isPushConfigured, type PushEnvironment } from "@/lib/push/apns";
 import { parseAlertCopy, type AlertCopy } from "./compose";
+import { trackUsage } from "@/lib/usage/record";
 
 type ProfileRow = {
   user_id: string;
@@ -114,6 +115,7 @@ async function writeDueReading(
     age: ageOn(profile.birth_date, nowLocal),
     slot,
     conditions,
+    userId: profile.user_id,
   });
 
   const { data: row, error } = await admin
@@ -157,6 +159,8 @@ export async function composePrediction(args: {
   age?: number;
   slot: Slot;
   conditions: Condition[];
+  /** For the usage ledger (model_usage). */
+  userId?: string;
 }): Promise<AlertCopy> {
   const flagged = args.conditions
     .filter((c) => c.severity !== "info" && c.scope !== "natal")
@@ -199,6 +203,7 @@ the reading itself in markdown, following the format rules above, ending with **
       ],
       messages: [{ role: "user", content: task }],
     });
+    trackUsage({ userId: args.userId, kind: "daily", model: READING_MODEL, usage: response.usage });
 
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -219,13 +224,13 @@ export function fallbackPrediction(slot: Slot, firstName: string): AlertCopy {
   return slot === "morning"
     ? {
         title: "Your reading for today",
-        body: `Good morning, ${firstName}. Today's chart reading is ready in Sanchara.`,
-        detail: "**Today**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Sanchara to see what today holds.",
+        body: `Good morning, ${firstName}. Today's chart reading is ready in Astrya.`,
+        detail: "**Today**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astrya to see what today holds.",
       }
     : {
         title: "Tonight's reading",
-        body: `Good evening, ${firstName}. Tonight's reading is ready in Sanchara.`,
-        detail: "**Tonight**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Sanchara to see how today closed and what tomorrow opens with.",
+        body: `Good evening, ${firstName}. Tonight's reading is ready in Astrya.`,
+        detail: "**Tonight**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astrya to see how today closed and what tomorrow opens with.",
       };
 }
 

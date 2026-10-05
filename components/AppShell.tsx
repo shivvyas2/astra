@@ -50,7 +50,7 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
   const pathname = usePathname();
   const activeId = params.get("c");
   const close = () => setOpen(false);
-  const section = SECTION_NAMES[pathname] ?? "Sanchara";
+  const section = SECTION_NAMES[pathname] ?? "Astrya";
 
   // "New reading" is only current on a fresh chat; a past reading is marked in its own list.
   const isCurrent = (href: string) => (href === "/app/chat" ? pathname === href && !activeId : pathname === href);
@@ -58,7 +58,7 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
   const nav = (
     <div className="flex h-full flex-col p-3">
       <div className="flex items-center justify-between px-3 pb-4 pt-2">
-        <Link href="/app" onClick={close} className="eyebrow">Sanchara</Link>
+        <Link href="/app" onClick={close} className="eyebrow">Astrya</Link>
         <button type="button" aria-label="Close menu" onClick={close} className="brut-btn brut-btn-quiet h-8 w-8 p-0 md:hidden">
           <CloseIcon />
         </button>
@@ -133,7 +133,7 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
             <MenuIcon />
           </button>
           <span className="text-sm font-black tracking-tight">{section}</span>
-          <Link href="/app" className="eyebrow ml-auto">Sanchara</Link>
+          <Link href="/app" className="eyebrow ml-auto">Astrya</Link>
         </header>
         <main className="min-h-0 flex-1">{children}</main>
       </div>

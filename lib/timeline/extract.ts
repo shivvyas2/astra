@@ -1,6 +1,7 @@
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
+import { trackUsage } from "@/lib/usage/record";
 
 /** A moment proposed from the user's own words, awaiting their confirmation. */
 export type CandidateEvent = {
@@ -183,6 +184,8 @@ export async function extractLifeEvents(args: {
   birthDate: string;
   today: string;
   utterances: Utterance[];
+  /** For the usage ledger (model_usage). */
+  userId?: string;
 }): Promise<CandidateEvent[]> {
   const transcript = selectTranscript(args.utterances);
   if (!transcript) return [];
@@ -203,6 +206,7 @@ export async function extractLifeEvents(args: {
         },
       ],
     });
+    trackUsage({ userId: args.userId, kind: "extraction", model: READING_MODEL, usage: response.usage });
 
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")

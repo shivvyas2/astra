@@ -261,6 +261,7 @@ export async function runAlertsForUser(
     started: startedWorth,
     ended: endedWorth,
     severity,
+    userId: profile.user_id,
   });
 
   const { data: alertRow, error: alertError } = await admin

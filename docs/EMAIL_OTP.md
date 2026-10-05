@@ -17,18 +17,18 @@ Add `{{ .Token }}` to two templates at
 ### Magic Link — used for passwordless sign-in and sign-up
 
 ```html
-<h2>Your Sanchara code</h2>
+<h2>Your Astrya code</h2>
 <p>Enter this code in the app:</p>
 <p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
 <p>It expires in an hour and can be used once.</p>
-<p>Prefer a link? <a href="{{ .ConfirmationURL }}">Open Sanchara</a>.</p>
+<p>Prefer a link? <a href="{{ .ConfirmationURL }}">Open Astrya</a>.</p>
 ```
 
 ### Confirm signup — used after a sign-up with a password
 
 ```html
 <h2>Confirm your email</h2>
-<p>Enter this code in Sanchara to finish setting up your account:</p>
+<p>Enter this code in Astrya to finish setting up your account:</p>
 <p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
 <p>Prefer a link? <a href="{{ .ConfirmationURL }}">Confirm your email</a>.</p>
 ```

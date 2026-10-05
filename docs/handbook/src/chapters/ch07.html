@@ -275,7 +275,7 @@ return new Response(Buffer.from(pdf), {
 <p>
   <code>generateKundliPdf</code> creates a document with four standard fonts, Times Roman and
   Helvetica in regular and bold, and sets the title to the name followed by "Vedic kundli", the
-  author to "Sanchara" and the subject to "Vedic birth chart". Pages are 595 by 842 points (A4) with
+  author to "Astrya" and the subject to "Vedic birth chart". Pages are 595 by 842 points (A4) with
   a 56-point margin; those three numbers are the constants <code>W</code>, <code>H</code> and
   <code>M</code>. The palette is written with its contrast ratios: the brand orange
   (<code>ACCENT</code>) is 3.3:1 on white and is used only for rules and fills; text in orange uses
@@ -288,7 +288,7 @@ return new Response(Buffer.from(pdf), {
   pdf-lib has no character-spacing control, so the small-capital labels are drawn by
   <code>tracked()</code>, one character at a time, advancing by each glyph's width plus a spacing.
   <code>trackedWidth()</code> computes the same sum so a label can be centred or right-aligned. Every
-  page gets a <code>header</code> (a 4-point accent band along the top, "SANCHARA" tracked at the left,
+  page gets a <code>header</code> (a 4-point accent band along the top, "ASTRYA" tracked at the left,
   a right-hand label, a rule) and a <code>footer</code> (a rule and one line of 7.5-point text).
 </p>
 
@@ -305,7 +305,7 @@ return new Response(Buffer.from(pdf), {
   <li>Two captions under the square explaining that houses hold fixed positions with the top diamond
     always first, that the numeral in each house is its rashi from 1 Mesha to 12 Meena, and that an
     asterisk marks a retrograde graha.</li>
-  <li>The footer: "Computed with the Swiss Ephemeris by Sanchara. For guidance and reflection, not a
+  <li>The footer: "Computed with the Swiss Ephemeris by Astrya. For guidance and reflection, not a
     substitute for professional advice."</li>
 </ol>
 
@@ -379,7 +379,7 @@ renderer every retrograde, every house occupied and a name with accented letters
 </ul>
 
 <p>
-  The footer repeats the identity line: "Sanchara · name · born date at time, place."
+  The footer repeats the identity line: "Astrya · name · born date at time, place."
 </p>
 
 <h4>Dates</h4>

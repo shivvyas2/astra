@@ -1,0 +1,104 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : "https://astra.shivvyas.com/privacy"
+      }
+    ]
+  },
+  "identifier" : "6E1D3C0A",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6740000000",
+    "_developerTeamID" : "Z42YU5W6WY",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "21540001",
+      "localizations" : [
+        {
+          "description" : "Support Astrya",
+          "displayName" : "Astrya Plus",
+          "locale" : "en_US"
+        }
+      ],
+      "name" : "Astrya Plus",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "49.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6740000002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Support Astrya for a year.",
+              "displayName" : "Astrya Plus Yearly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.shivvyas.astra.plus.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Astrya Plus Yearly",
+          "subscriptionGroupID" : "21540001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "6.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6740000001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Support Astrya month to month.",
+              "displayName" : "Astrya Plus Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.shivvyas.astra.plus.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Astrya Plus Monthly",
+          "subscriptionGroupID" : "21540001",
+          "type" : "RecurringSubscription",
+          "winbackOffers" : [
+
+          ]
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

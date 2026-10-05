@@ -44,7 +44,7 @@ struct DailyReadingEntity: AppEntity, IndexedEntity, Identifiable {
         set.title = title
         set.contentDescription = body
         set.displayName = title
-        set.keywords = ["kundli", "reading", "sanchara", slotLabel.lowercased()]
+        set.keywords = ["kundli", "reading", "astrya", slotLabel.lowercased()]
         return set
     }
 

@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       birthDate: timeline.birthDate,
       today: timeline.today,
       timeline,
+      userId: user.id,
     });
 
     if (explanations.length > 0) {

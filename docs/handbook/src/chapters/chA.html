@@ -1,10 +1,10 @@
 <section class="chapter" id="chA" data-hue="ref">
 <p class="chapter-kicker">Appendix A</p>
-<h2><span class="num">A</span><span>Why Sanchara exists</span></h2>
+<h2><span class="num">A</span><span>Why Astrya exists</span></h2>
 
 <p class="lede">
   Most astrology apps either guess the sky or hand a language model a sun sign and let it write.
-  Sanchara computes the chart with the Swiss Ephemeris and lets Claude interpret only what was
+  Astrya computes the chart with the Swiss Ephemeris and lets Claude interpret only what was
   computed. Everything else in this book follows from that one split.
 </p>
 
@@ -163,7 +163,7 @@
 <tr><td>23 to 24 July 2026</td><td>Design note, chart engine, prompt builder, streaming chat, admin, landing page. Merged as the MVP on 24 July.</td><td><code>lib/astrology/</code>, <code>app/api/chat/</code>, <code>app/admin/</code></td></tr>
 <tr><td>25 August 2026</td><td>iOS design note. Bearer auth on the route handlers, <code>POST /api/profile</code>, <code>DELETE /api/account</code>, the Universal Links file.</td><td><code>lib/supabase/route.ts</code>, <code>public/.well-known/</code></td></tr>
 <tr><td>26 August 2026</td><td>Dosha alerts, twice-daily readings, prompt caching and effort settings. iOS chat, intake, Apple sign-in, email codes, readings inbox.</td><td><code>lib/alerts/</code>, <code>mobile/Sanchara/</code></td></tr>
-<tr><td class="num-cell">0.1.0, 16 September 2026</td><td>First tagged release. The rename to Sanchara. Life timeline, kundli on the phone, Siri, widgets, on-device answers.</td><td><code>lib/timeline/</code>, <code>mobile/SancharaWidgets/</code></td></tr>
+<tr><td class="num-cell">0.1.0, 16 September 2026</td><td>First tagged release. The rename to Astrya. Life timeline, kundli on the phone, Siri, widgets, on-device answers.</td><td><code>lib/timeline/</code>, <code>mobile/SancharaWidgets/</code></td></tr>
 <tr><td class="num-cell">0.2.0, 16 September 2026</td><td>A meaning for every period, chat that sees the timeline, better moment extraction, the current-period widget, the push environment fix.</td><td><code>lib/timeline/explain.ts</code>, <code>PeriodWidget.swift</code></td></tr>
 <tr><td class="num-cell">0.3.0, 18 September 2026</td><td>Derived chart facts, whole-sign Vedic houses, gochara, deeper numerology, more answered on the phone, and the fixes those changes forced.</td><td><code>lib/astrology/derived.ts</code>, <code>transits.ts</code>, <code>numerology.ts</code></td></tr>
 </tbody></table></div>
@@ -229,8 +229,8 @@
   states the rule: "The bundle identifier and production hostname are unchanged." So the repository
   is still <code>astra</code>, the bundle id is <code>com.shivvyas.astra</code>, the App Group is
   <code>group.com.shivvyas.astra</code>, the production host is <code>astra.shivvyas.com</code>, and
-  the first migration is headed "Astra schema + RLS." The user-facing name is Sanchara everywhere:
-  the system prompt opens "You are Sanchara," the widget bundle is <code>SancharaWidgets</code>, and
+  the first migration is headed "Astra schema + RLS." The user-facing name is Astrya everywhere:
+  the system prompt opens "You are Astrya," the widget bundle is <code>SancharaWidgets</code>, and
   the custom URL scheme a widget tap uses is <code>sanchara://</code>. Why the identifiers stayed is
   a decision in <a href="#chB">Appendix B</a>; in short, Apple's push, sign-in and associated-domain
   configuration is wired to them.
@@ -241,7 +241,7 @@
 <div class="prfaq">
 <p class="prfaq-kicker">Press release</p>
 <p class="release">
-  Sanchara computes your real birth chart and reads it to you. Give it the date, time and place you
+  Astrya computes your real birth chart and reads it to you. Give it the date, time and place you
   were born and the Swiss Ephemeris places every planet, house, nakshatra and period exactly. Then
   ask it anything. The reading names the placement it is reading from, in the Vedic or Western
   tradition you choose, and it will not tell you something that is true of everyone born under your

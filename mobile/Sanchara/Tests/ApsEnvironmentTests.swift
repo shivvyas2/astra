@@ -15,7 +15,7 @@ final class ApsEnvironmentTests: XCTestCase {
         <plist version="1.0">
         <dict>
             <key>AppIDName</key>
-            <string>Sanchara</string>
+            <string>Astrya</string>
             <key>Entitlements</key>
             <dict>
         \(entitlements)

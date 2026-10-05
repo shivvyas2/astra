@@ -69,7 +69,8 @@ struct ProfileView: View {
                             BrutNotice(text: errorMessage)
                         }
 
-                        helpBlock
+                        memoryBlock
+                    helpBlock
                         suggestionsBlock
                         accountBlock
                     }
@@ -79,6 +80,7 @@ struct ProfileView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
+            .clearsTabBar(active: embedded)
             .navigationTitle(embedded ? "" : "Your profile")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -189,6 +191,42 @@ struct ProfileView: View {
             DataRow(label: "Born", value: formattedBirth(details), valueSize: 20)
             DataRow(label: "Place", value: details.placeName, valueSize: 20)
             DataRow(label: "Timezone", value: details.timezone, valueSize: 20)
+        }
+    }
+
+    /// What readings remember about the person's life, and the way to
+    /// read or delete it.
+    private var memoryBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Memory").eyebrow()
+                .padding(.bottom, 4)
+            BrutDivider()
+            NavigationLink {
+                KnowledgeView()
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("What Astrya knows")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.fg)
+                        Text("Facts from your readings that make them personal. Delete any.")
+                            .font(.brutBody(13))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Shows what Astrya has learned from your readings")
+            BrutDivider()
         }
     }
 
@@ -335,7 +373,7 @@ struct ProfileView: View {
         defer { isPreparingKundli = false }
         do {
             let data = try await SancharaAPI.kundliPDF()
-            let name = (profile.details?.firstName ?? "sanchara").lowercased()
+            let name = (profile.details?.firstName ?? "astrya").lowercased()
             let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(name)-kundli.pdf")
             try data.write(to: url, options: .atomic)
             kundli = SharePayload(url: url)

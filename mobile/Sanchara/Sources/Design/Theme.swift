@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The Sanchara design tokens, kept in step with `app/globals.css`.
+/// The Astrya design tokens, kept in step with `app/globals.css`.
 ///
 /// The look comes from three references: an astrology app set in huge light
 /// type over soft colour fields with a lime accent, a Swiss-style data app of
@@ -105,6 +105,13 @@ extension Font {
         .system(size: size, weight: weight).monospacedDigit()
     }
 
+    /// An oversized figure: a percentage, a day of the month, a count. Light
+    /// weight with tabular digits — at this size weight would shout, and the
+    /// digits have to sit still when the number changes.
+    static func brutNumeral(_ size: CGFloat = 64) -> Font {
+        .system(size: size, weight: .light).monospacedDigit()
+    }
+
     /// Body copy.
     static func brutBody(_ size: CGFloat = 15) -> Font {
         .system(size: size, weight: .regular)
@@ -119,6 +126,12 @@ extension Text {
             .textCase(.uppercase)
             .tracking(1.4)
             .foregroundStyle(Theme.muted)
+    }
+
+    /// Ends a headline with a diagonal arrow in the accent: "Your life ↘".
+    /// Returns `Text`, so it chains into `brutHeading` like any title.
+    func headlineArrow(_ color: Color = Theme.accent) -> Text {
+        self + Text("\u{00A0}\u{2198}").foregroundStyle(color)
     }
 
     /// A screen's large word. Tracking tightens with size, the way display

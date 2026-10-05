@@ -23,10 +23,61 @@ struct NatalChart: Codable, Equatable, Sendable {
     let ayanamsa: Double?
     let dasha: DashaInfo?
     let derived: DerivedFacts?
+    /// False when the birth time is unknown (the server cast the chart for
+    /// noon). Absent on every chart saved before that existed, which means
+    /// known. Defaulted so cached charts and existing initialisers still work.
+    var timeKnown: Bool? = nil
+    /// Where the Moon was at the start and end of the birth date. Only
+    /// present when `timeKnown` is false.
+    var moonDay: MoonDay? = nil
 
     struct Ascendant: Codable, Equatable, Sendable {
         let sign: String
         let degree: Double
+    }
+
+    struct MoonDay: Codable, Equatable, Sendable {
+        let startSign: String
+        let endSign: String
+        let startNakshatra: String
+        let endNakshatra: String
+        let changesSign: Bool
+        let changesNakshatra: Bool
+    }
+
+    /// True unless the server said the birth time is unknown.
+    var isTimeKnown: Bool { timeKnown != false }
+
+    /// The same chart turned to put the Moon's sign in the first house — the
+    /// Chandra lagna. It is what a kundli is read from when the birth time,
+    /// and so the real lagna, is unknown. House numbers are recounted from
+    /// the Moon; positions are unchanged.
+    func chandraLagna() -> NatalChart {
+        let moonRashi = Rashi(english: moonSign) ?? ascendantRashi
+        let turned = planets.map { p in
+            let r = Rashi(english: p.sign)?.rawValue ?? 0
+            return ChartPlanet(
+                name: p.name,
+                sign: p.sign,
+                degree: p.degree,
+                house: (r - moonRashi.rawValue + 12) % 12 + 1,
+                retrograde: p.retrograde,
+                nakshatra: p.nakshatra
+            )
+        }
+        let moonDegree = planet(named: "Moon")?.degree ?? 0
+        return NatalChart(
+            tradition: tradition,
+            ascendant: Ascendant(sign: moonRashi.english, degree: moonDegree),
+            planets: turned,
+            moonSign: moonSign,
+            sunSign: sunSign,
+            ayanamsa: ayanamsa,
+            dasha: dasha,
+            derived: nil,
+            timeKnown: timeKnown,
+            moonDay: moonDay
+        )
     }
 }
 
@@ -285,4 +336,96 @@ extension NatalChart {
         let minutes = Int((ascendant.degree - Double(whole)) * 60)
         return "\(whole)°\(String(format: "%02d", minutes))'"
     }
+}
+
+// MARK: - Names
+
+/// Which names a kundli is read in. Printed kundlis in India use the Sanskrit
+/// names — in Devanagari in the north, in Gujarati script in Gujarat — and
+/// most people who read one know Shani before they know Saturn. Chosen once,
+/// on the kundli screen, and remembered.
+enum NameScript: String, CaseIterable, Identifiable, Sendable {
+    /// Sanskrit names in Latin letters: Surya, Chandra, Mesha.
+    case sanskrit
+    /// Devanagari: सूर्य, चंद्र, मेष.
+    case hindi
+    /// Gujarati script: સૂર્ય, ચંદ્ર, મેષ.
+    case gujarati
+    /// Western names: Sun, Moon, Aries.
+    case english
+
+    var id: String { rawValue }
+
+    /// The option as it appears in the picker, each in its own script.
+    var label: String {
+        switch self {
+        case .sanskrit: "Sanskrit"
+        case .hindi: "हिन्दी"
+        case .gujarati: "ગુજરાતી"
+        case .english: "English"
+        }
+    }
+
+    /// The `@AppStorage` key the choice is kept under.
+    static let storageKey = "kundli.nameScript"
+
+    /// Indexed like `ChartPlanet.order`.
+    fileprivate var planetNames: [String] {
+        switch self {
+        case .sanskrit: ["Surya", "Chandra", "Mangala", "Budha", "Guru", "Shukra", "Shani", "Rahu", "Ketu"]
+        case .hindi: ["सूर्य", "चंद्र", "मंगल", "बुध", "गुरु", "शुक्र", "शनि", "राहु", "केतु"]
+        case .gujarati: ["સૂર્ય", "ચંદ્ર", "મંગળ", "બુધ", "ગુરુ", "શુક્ર", "શનિ", "રાહુ", "કેતુ"]
+        case .english: ChartPlanet.order
+        }
+    }
+
+    /// The short forms printed inside a kundli's houses. English keeps the
+    /// astronomical glyphs (see `ChartPlanet.glyph`).
+    fileprivate var planetAbbreviations: [String]? {
+        switch self {
+        case .sanskrit: ["Su", "Ch", "Ma", "Bu", "Gu", "Sk", "Sa", "Ra", "Ke"]
+        case .hindi: ["सू", "चं", "मं", "बु", "गु", "शु", "श", "रा", "के"]
+        case .gujarati: ["સૂ", "ચં", "મં", "બુ", "ગુ", "શુ", "શ", "રા", "કે"]
+        case .english: nil
+        }
+    }
+
+    /// Indexed like `Rashi`.
+    fileprivate var rashiNames: [String] {
+        switch self {
+        case .sanskrit: Rashi.sanskritNames
+        case .hindi: ["मेष", "वृषभ", "मिथुन", "कर्क", "सिंह", "कन्या", "तुला", "वृश्चिक", "धनु", "मकर", "कुंभ", "मीन"]
+        case .gujarati: ["મેષ", "વૃષભ", "મિથુન", "કર્ક", "સિંહ", "કન્યા", "તુલા", "વૃશ્ચિક", "ધન", "મકર", "કુંભ", "મીન"]
+        case .english: Rashi.englishNames
+        }
+    }
+}
+
+extension ChartPlanet {
+    /// The nine grahas in their traditional order: the API's English names.
+    static let order = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
+
+    /// This graha's name in `script`, or its API name if it is not one of
+    /// the nine.
+    func name(in script: NameScript) -> String {
+        Self.name(english: name, in: script)
+    }
+
+    /// Any graha named in English by the API — a dasha lord, say — in
+    /// `script`; unchanged if it is not one of the nine.
+    static func name(english: String, in script: NameScript) -> String {
+        guard let index = order.firstIndex(of: english) else { return english }
+        return script.planetNames[index]
+    }
+
+    /// What is printed inside the chart: a two-letter form, or the glyph.
+    func chartLabel(in script: NameScript) -> String {
+        guard let index = Self.order.firstIndex(of: name),
+              let short = script.planetAbbreviations else { return glyph }
+        return short[index]
+    }
+}
+
+extension Rashi {
+    func name(in script: NameScript) -> String { script.rashiNames[rawValue] }
 }

@@ -3,7 +3,7 @@
 <h2><span class="num">14</span><span>The iOS app</span></h2>
 
 <p class="lede">
-  Sanchara for iOS is a SwiftUI app that talks to the same route handlers and the same Supabase
+  Astrya for iOS is a SwiftUI app that talks to the same route handlers and the same Supabase
   project as the web app, holds no secret the web does not also publish, and is built from a
   127-line YAML spec rather than a checked-in Xcode project. Everything about how it is
   assembled, configured, signed and shipped follows from that.
@@ -33,7 +33,7 @@
 </p>
 
 <pre><code># mobile/project.yml
-name: Sanchara
+name: Astrya
 options:
   bundleIdPrefix: com.shivvyas
   deploymentTarget:
@@ -60,13 +60,13 @@ settings:
 </p>
 
 <figure>
-<svg class="diagram" viewBox="0 0 860 290" role="img" aria-label="Three targets: the Sanchara app links the Supabase package and embeds the SancharaWidgets extension; SancharaTests depends on the app; the extension links no package and instead compiles six app source files listed by path.">
+<svg class="diagram" viewBox="0 0 860 290" role="img" aria-label="Three targets: the Astrya app links the Supabase package and embeds the SancharaWidgets extension; SancharaTests depends on the app; the extension links no package and instead compiles six app source files listed by path.">
   <defs>
     <marker id="ch14a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head" points="0,0 10,5 0,10"/></marker>
     <marker id="ch14b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><polygon class="head-hot" points="0,0 10,5 0,10"/></marker>
   </defs>
   <rect class="box-hot" x="40" y="40" width="220" height="54" rx="10"/>
-  <text class="lbl" x="150" y="62" text-anchor="middle">Sanchara</text>
+  <text class="lbl" x="150" y="62" text-anchor="middle">Astrya</text>
   <text class="lbl-hot" x="150" y="82" text-anchor="middle">application, iOS 17.0</text>
 
   <rect class="box" x="330" y="40" width="200" height="54" rx="10"/>
@@ -105,9 +105,9 @@ settings:
 <div class="tablewrap"><table>
 <thead><tr><th>Target</th><th>Type</th><th>Bundle id</th><th>Sources</th><th>Depends on</th></tr></thead>
 <tbody>
-<tr><td><code>Sanchara</code></td><td>application</td><td><code>com.shivvyas.astra</code></td><td><code>Sanchara/Sources</code>, <code>Sanchara/Resources</code> as a resources phase</td><td>the Supabase package product; the <code>SancharaWidgets</code> target</td></tr>
+<tr><td><code>Astrya</code></td><td>application</td><td><code>com.shivvyas.astra</code></td><td><code>Sanchara/Sources</code>, <code>Sanchara/Resources</code> as a resources phase</td><td>the Supabase package product; the <code>SancharaWidgets</code> target</td></tr>
 <tr><td><code>SancharaWidgets</code></td><td>app-extension</td><td><code>com.shivvyas.astra.widgets</code></td><td><code>SancharaWidgets</code> plus six app files by path</td><td>nothing</td></tr>
-<tr><td><code>SancharaTests</code></td><td>bundle.unit-test</td><td><code>com.shivvyas.astra.tests</code></td><td><code>Sanchara/Tests</code></td><td>the <code>Sanchara</code> target</td></tr>
+<tr><td><code>SancharaTests</code></td><td>bundle.unit-test</td><td><code>com.shivvyas.astra.tests</code></td><td><code>Sanchara/Tests</code></td><td>the <code>Astrya</code> target</td></tr>
 </tbody></table></div>
 
 <p>
@@ -402,7 +402,7 @@ enum Supa {
     )
 
     /// The current access token, for `Authorization: Bearer` against the
-    /// Sanchara API on Vercel. Returns nil when signed out.
+    /// Astrya API on Vercel. Returns nil when signed out.
     static func accessToken() async -&gt; String? {
         try? await client.auth.session.accessToken
     }
@@ -562,7 +562,7 @@ continuation.finish()</code></pre>
 
 <p>
   One test target, <code>SancharaTests</code>, depends on the app and uses
-  <code>@testable import Sanchara</code>. There is no UI test target and no test that needs a
+  <code>@testable import Astrya</code>. There is no UI test target and no test that needs a
   network, a session or Apple Intelligence: everything that decides something is a pure function
   or a value type, and the tests read as lists of the rules in plain English. Fourteen files,
   95 test methods.
@@ -676,7 +676,7 @@ continuation.finish()</code></pre>
 
 <p>
   Two <code>xcodebuild</code> invocations follow. <code>archive</code> builds the
-  <code>Sanchara</code> scheme in Release for <code>generic/platform=iOS</code> into
+  <code>Astrya</code> scheme in Release for <code>generic/platform=iOS</code> into
   <code>build/Sanchara.xcarchive</code>, with <code>-allowProvisioningUpdates</code> and the three
   authentication-key flags so Xcode can mint the distribution profile.
   <code>-exportArchive</code> then reads <code>mobile/ExportOptions.plist</code> and, because that

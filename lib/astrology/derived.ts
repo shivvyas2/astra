@@ -194,6 +194,7 @@ export function aspectedHouses(name: string, house: number): number[] {
 }
 
 export function deriveFacts(chart: Chart): Derived {
+  if (chart.timeKnown === false) return deriveWithoutLagna(chart);
   const asc = chart.ascendant.sign;
   const sun = chart.planets.find((p) => p.name === "Sun");
 
@@ -268,6 +269,60 @@ export function deriveFacts(chart: Chart): Derived {
     : [];
 
   return { planets, houses, dasha, conditions: detectNatalDoshas(chart) };
+}
+
+/**
+ * The facts that survive an unknown birth time: dignity, combustion,
+ * conjunction and sign-to-sign drishti, and the dasha lords. Everything
+ * counted from the ascendant — house numbers, lordships, the HOUSES table,
+ * Mangal and Pitru dosha — is dropped rather than read from a noon guess.
+ *
+ * Conjunction and drishti are counted from the Moon's sign instead of the
+ * lagna. Whole-sign aspects are sign-to-sign, so which planets a planet
+ * aspects comes out the same from any starting sign; only the house numbers
+ * would differ, and those are withheld (`house: 0`, `aspects: []`).
+ */
+function deriveWithoutLagna(chart: Chart): Derived {
+  const moon = chart.planets.find((p) => p.name === "Moon");
+  const from = moon?.sign ?? chart.moonSign;
+  const sun = chart.planets.find((p) => p.name === "Sun");
+  const relative = new Map(chart.planets.map((p) => [p.name, houseFrom(from, p.sign)]));
+  const inPlace = (n: number) => chart.planets.filter((p) => relative.get(p.name) === n);
+
+  const planets: PlanetFact[] = chart.planets.map((p) => {
+    const place = relative.get(p.name) ?? 0;
+    const { dignity, fromDeepPoint } = dignityOf(p.name, p.sign, p.degree);
+    return {
+      name: p.name,
+      sign: p.sign,
+      degree: p.degree,
+      house: 0,
+      nakshatra: p.nakshatra,
+      retrograde: p.retrograde,
+      rules: [],
+      dignity,
+      fromDeepPoint,
+      combust: sun ? isCombust(p, sun) : false,
+      fromSun: sun && p.name !== "Sun" ? Number(arcFromSun(p, sun).toFixed(2)) : undefined,
+      aspects: [],
+      aspectsPlanets: aspectedHouses(p.name, place).flatMap((h) => inPlace(h).map((x) => x.name)),
+      conjunct: inPlace(place).filter((x) => x.name !== p.name).map((x) => x.name),
+    };
+  });
+  const byName = new Map(planets.map((f) => [f.name, f]));
+  const dasha: DashaFact[] = chart.dasha
+    ? [
+        { level: "mahadasha" as const, lord: chart.dasha.mahadasha, start: chart.dasha.mahadashaStart, end: chart.dasha.mahadashaEnd, placement: byName.get(chart.dasha.mahadasha) },
+        { level: "antardasha" as const, lord: chart.dasha.antardasha, start: chart.dasha.antardashaStart, end: chart.dasha.antardashaEnd, placement: byName.get(chart.dasha.antardasha) },
+      ]
+    : [];
+  return {
+    planets,
+    houses: [],
+    dasha,
+    // detectNatalDoshas already skips the lagna-based ones for this chart.
+    conditions: detectNatalDoshas(chart),
+  };
 }
 
 /**

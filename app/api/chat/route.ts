@@ -1,8 +1,18 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { DateTime } from "luxon";
+import { after } from "next/server";
 import { createRouteSupabase } from "@/lib/supabase/route";
+import { requireConsent } from "@/lib/billing/consent";
 import { anthropic, READING_MODEL, DEEP_READING_MODEL, supportsAdaptiveThinking, READING_EFFORT, DEEP_EFFORT } from "@/lib/anthropic";
-import { buildChartSystem, buildTodaySystem, buildNumerologySystem, ageOn } from "@/lib/astrology/prompt";
+import {
+  buildChartSystem,
+  buildTodaySystem,
+  buildNumerologySystem,
+  buildMemorySystem,
+  buildMemoryNote,
+  systemBlocks,
+  ageOn,
+} from "@/lib/astrology/prompt";
 import {
   computeNumerology,
   computeNameNumber,
@@ -20,11 +30,17 @@ import {
 import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
-import { selectHistory } from "@/lib/data/history";
+import { selectHistory, HISTORY_BUDGET_CHARS } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
 import type { Timeline } from "@/lib/timeline/build";
 import { describeTimelineForPrompt, describeUpcomingPeriods } from "@/lib/timeline/describe";
 import { ensureCurrentChart, type BirthProfileRow } from "@/lib/data/birthProfile";
+import { loadFacts } from "@/lib/facts/store";
+import { loadMemories, loadPredictions } from "@/lib/memory/store";
+import { selectMemory } from "@/lib/memory/select";
+import { rememberTurn } from "@/lib/memory/extract";
+import { recordUsage, type UsageLike } from "@/lib/usage/record";
+import { answerKey, claimAnswer, reuseAnswer } from "@/lib/usage/dedupe";
 
 export const runtime = "nodejs";
 
@@ -47,17 +63,48 @@ export async function POST(request: Request) {
   const supabase = await createRouteSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  // AI consent (App Store 5.1.2): 403 consent_required until the user has
+  // agreed to the current notice. Fails open while ai_consents is missing.
+  const consentBlock = await requireConsent(supabase, user.id);
+  if (consentBlock) return consentBlock;
 
   const body = (await request.json()) as {
     conversationId?: string;
     tradition: ChatMode;
     message: string;
     deep?: boolean;
+    /**
+     * "on-device": the iPhone will work out this turn's memory (facts,
+     * summary, predictions) with Apple's on-device model and post it to
+     * /api/memory/ingest, so the server's Haiku pass is skipped.
+     */
+    memory?: string;
   };
   if (!body.message?.trim()) return new Response("Empty message", { status: 400 });
   if (!["vedic", "western", "numerology"].includes(body.tradition)) {
     return new Response("Invalid mode", { status: 400 });
   }
+
+  // The same question twice (a retry after a dropped connection, a double
+  // tap) is answered once and paid for once. See lib/usage/dedupe.ts.
+  const dedupeKey = answerKey({
+    userId: user.id,
+    conversationId: body.conversationId,
+    tradition: body.tradition,
+    deep: body.deep,
+    message: body.message,
+  });
+  const reused = await reuseAnswer(dedupeKey);
+  if (reused) {
+    return new Response(reused.text, {
+      headers: {
+        "content-type": "text/plain; charset=utf-8",
+        "x-conversation-id": reused.conversationId,
+        "cache-control": "no-store",
+      },
+    });
+  }
+  const claim = claimAnswer(dedupeKey);
 
   let conversationId: string;
   let messages: Anthropic.MessageParam[];
@@ -69,6 +116,16 @@ export async function POST(request: Request) {
   // A first turn is short enough that missing the cache costs little.
   let stableSystem: string;
   let todaySystem: string;
+  // What Astrya remembers from earlier conversations (lib/memory): the
+  // standing notes as a system block, and what this question makes relevant
+  // as a note on the newest message. Both empty when there is nothing — or no
+  // memory tables yet — which leaves the request exactly as it was before.
+  let memorySystem = "";
+  let memoryNote = "";
+  // For the learn-from-chats pass after the reading: their local date, and
+  // the reply their new message is answering.
+  let localDate = "";
+  let previousReply: string | null = null;
 
   try {
     const { data: loaded, error: profileError } = await supabase
@@ -77,10 +134,16 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (profileError) {
       console.error("chat profile read error", profileError);
+      claim.settle(null);
       return new Response("Something went wrong loading your profile. Please try again.", { status: 500 });
     }
-    if (!loaded?.chart) return new Response("No chart. Complete intake first.", { status: 400 });
+    if (!loaded?.chart) {
+      claim.settle(null);
+      return new Response("No chart. Complete intake first.", { status: 400 });
+    }
     const profile = await ensureCurrentChart(loaded as BirthProfileRow, supabase);
+    // Started now, awaited once the chart work is done. None of them reject.
+    const memoryLoad = Promise.all([loadFacts(supabase), loadMemories(supabase), loadPredictions(supabase)]);
 
     // "Today"/"now" framed in the USER's timezone (e.g. IST), not the server's,
     // and only to the part of day — a clock time would change the prompt every
@@ -97,6 +160,7 @@ export async function POST(request: Request) {
     // Their age in whole years, on their own calendar date. Volatile only on
     // a birthday, but it belongs with "today" rather than with the chart.
     const age = ageOn(String(profile.birth_date), nowLocal);
+    localDate = nowLocal.toISODate() ?? utcDayKey();
 
     if (body.tradition === "numerology") {
       const fullName = `${profile.first_name} ${profile.last_name}`.trim();
@@ -185,6 +249,18 @@ export async function POST(request: Request) {
       todaySystem = buildTodaySystem({ today, age, transits, upcoming, maxWords });
     }
 
+    const [{ facts }, { memories }, { predictions }] = await memoryLoad;
+    const memory = selectMemory({
+      facts,
+      memories,
+      predictions,
+      question: body.message,
+      conversationId: body.conversationId,
+      today: localDate,
+    });
+    memorySystem = buildMemorySystem({ memory, mode: body.tradition });
+    memoryNote = buildMemoryNote({ memory });
+
     conversationId = await getOrCreateConversation(
       {
         userId: user.id,
@@ -202,6 +278,10 @@ export async function POST(request: Request) {
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
+      HISTORY_BUDGET_CHARS,
+      // Holds the window's first turn still across exchanges so long chats
+      // keep reading their history from cache; keeps more, never less.
+      { cacheStable: true },
     );
 
     messages = history.map((turn, index) =>
@@ -216,19 +296,43 @@ export async function POST(request: Request) {
           }
         : { role: turn.role, content: turn.content },
     );
-    messages.push({ role: "user", content: body.message });
+    previousReply = [...history].reverse().find((turn) => turn.role === "assistant")?.content ?? null;
+    // The question-specific notes ride on this turn only: they sit after the
+    // conversation's cache breakpoint and are never stored, so next turn's
+    // history (and its cache) is unaffected.
+    messages.push({
+      role: "user",
+      content: memoryNote
+        ? [
+            { type: "text" as const, text: memoryNote },
+            { type: "text" as const, text: body.message },
+          ]
+        : body.message,
+    });
     await appendMessage(conversationId, "user", body.message, supabase);
   } catch (err) {
     console.error("chat pre-stream error", err);
+    claim.settle(null);
     return new Response("Something went wrong preparing your reading. Please try again.", { status: 500 });
   }
 
   const model = body.deep ? DEEP_READING_MODEL : READING_MODEL;
 
+  // Resolves with the reading's text when it has finished streaming (empty
+  // if it produced none). The memory pass waits on it.
+  let readingDone: (text: string) => void = () => {};
+  const readingFinished = new Promise<string>((resolve) => {
+    readingDone = resolve;
+  });
+
+  // The reading's billed usage, recorded to model_usage once it is out.
+  let readingUsage: UsageLike | null = null;
+
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let full = "";
+      let finished = false;
       try {
         const s = anthropic().messages.stream({
           model,
@@ -244,18 +348,9 @@ export async function POST(request: Request) {
             : {}),
           // Routine readings think at medium; Deep at high.
           ...(body.deep ? DEEP_EFFORT : READING_EFFORT),
-          system: [
-            {
-              type: "text",
-              text: stableSystem,
-              // An hour, so a reply half an hour later still reads from cache
-              // rather than paying full price for the chart again. Below the
-              // API's minimum cacheable prefix this is simply ignored, which is
-              // why the second breakpoint carries the conversation.
-              cache_control: { type: "ephemeral", ttl: "1h" },
-            },
-            { type: "text", text: todaySystem },
-          ],
+          // Chart (cached for an hour), then what Astrya remembers, then the
+          // day. See systemBlocks in lib/astrology/prompt.ts.
+          system: systemBlocks({ stable: stableSystem, memory: memorySystem, today: todaySystem }),
           messages,
         });
         for await (const event of s) {
@@ -265,6 +360,8 @@ export async function POST(request: Request) {
           }
         }
         const usage = (await s.finalMessage()).usage;
+        readingUsage = usage;
+        finished = true;
         console.log(
           `chat usage conv=${conversationId} model=${model} in=${usage.input_tokens} ` +
             `cache_write=${usage.cache_creation_input_tokens ?? 0} cache_read=${usage.cache_read_input_tokens ?? 0} ` +
@@ -274,11 +371,54 @@ export async function POST(request: Request) {
         console.error("chat stream error", err);
         controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded. Please try again.]"));
       } finally {
-        if (full.trim()) await appendMessage(conversationId, "assistant", full, supabase);
-        controller.close();
+        try {
+          if (full.trim()) await appendMessage(conversationId, "assistant", full, supabase);
+        } finally {
+          // Signalled first: close() throws if the client has already gone,
+          // and the memory pass must not be left waiting on it.
+          readingDone(full.trim() ? full : "");
+          claim.settle(finished && full.trim() ? { text: full, conversationId } : null);
+          controller.close();
+        }
       }
     },
   });
+
+  // Memory: once the reading is out, one cheap Haiku call keeps the facts,
+  // this conversation's summary and the predictions ledger current
+  // (lib/memory/extract.ts). `after` runs it once the response is sent, so it
+  // never delays a reading, and the pass itself never throws. A turn that
+  // produced no reading teaches nothing, and a turn the iPhone is
+  // remembering on-device is not paid for twice.
+  const onDevice = body.memory === "on-device";
+  const remember = async () => {
+    const reply = await readingFinished;
+    if (readingUsage) {
+      await recordUsage({
+        userId: user.id,
+        kind: body.deep ? "deep_reading" : "reading",
+        model,
+        usage: readingUsage,
+        conversationId,
+      });
+    }
+    if (!reply || onDevice) return;
+    await rememberTurn({
+      db: supabase,
+      userId: user.id,
+      conversationId,
+      message: body.message,
+      reply,
+      previousReply,
+      today: localDate,
+    });
+  };
+  try {
+    after(remember);
+  } catch (err) {
+    // Outside a request scope (never in production). Losing one pass is fine.
+    console.error("memory pass not scheduled", err);
+  }
 
   return new Response(stream, {
     headers: {

@@ -48,6 +48,38 @@ function providerToken(): string {
   return value;
 }
 
+export type PushPayloadArgs = {
+  title: string;
+  body: string;
+  alertId: string;
+  /** Which screen the app should open on a tap. */
+  kind?: "alert" | "daily";
+  /** Groups a user's notifications into one thread. */
+  threadId?: string;
+};
+
+/**
+ * The JSON body APNs delivers to the app.
+ *
+ * `content-available: 1` makes a visible push also wake the app in the
+ * background (unless the user force-quit it), so it can fetch the new row and
+ * reload its Home Screen widgets before the notification is tapped. The
+ * banner is unaffected, and the push type stays `alert`.
+ */
+export function buildApnsPayload(args: PushPayloadArgs): string {
+  return JSON.stringify({
+    aps: {
+      alert: { title: args.title, body: args.body },
+      sound: "default",
+      "thread-id": args.threadId ?? "sanchara-alerts",
+      "interruption-level": "active",
+      "content-available": 1,
+    },
+    alert_id: args.alertId,
+    kind: args.kind ?? "alert",
+  });
+}
+
 /**
  * Sends alert pushes over APNs' HTTP/2 API.
  *
@@ -69,31 +101,14 @@ export class ApnsClient {
     return session;
   }
 
-  async send(args: {
-    deviceToken: string;
-    environment: PushEnvironment;
-    title: string;
-    body: string;
-    alertId: string;
-    /** Which screen the app should open on a tap. */
-    kind?: "alert" | "daily";
-    /** Groups a user's notifications into one thread. */
-    threadId?: string;
-  }): Promise<PushResult> {
+  async send(
+    args: PushPayloadArgs & { deviceToken: string; environment: PushEnvironment },
+  ): Promise<PushResult> {
     if (!isPushConfigured()) {
       return { ok: false, status: 0, reason: "APNsNotConfigured", unregistered: false };
     }
 
-    const payload = JSON.stringify({
-      aps: {
-        alert: { title: args.title, body: args.body },
-        sound: "default",
-        "thread-id": args.threadId ?? "sanchara-alerts",
-        "interruption-level": "active",
-      },
-      alert_id: args.alertId,
-      kind: args.kind ?? "alert",
-    });
+    const payload = buildApnsPayload(args);
 
     return new Promise<PushResult>((resolve) => {
       let settled = false;

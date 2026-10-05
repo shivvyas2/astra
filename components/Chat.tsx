@@ -194,7 +194,7 @@ export function Chat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Ask Sanchara…"
+          placeholder="Ask Astrya…"
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-fg outline-none placeholder:text-muted"
         />
         <button onClick={() => send()} disabled={busy || !input.trim()} aria-label="Send"

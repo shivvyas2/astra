@@ -52,6 +52,7 @@ export async function POST(request: Request) {
     birthDate: String(row.birth_date),
     today: new Date().toISOString().slice(0, 10),
     utterances,
+    userId: user.id,
   });
 
   // Existing events suppress duplicates, so a re-scan after more chatting

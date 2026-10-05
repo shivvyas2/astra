@@ -54,7 +54,7 @@
 
   <rect class="box" x="450" y="90" width="180" height="150" rx="8"/>
   <text class="lbl" x="540" y="112" text-anchor="middle">16 September</text>
-  <text class="lbl-sm" x="540" y="134" text-anchor="middle">Astra becomes Sanchara</text>
+  <text class="lbl-sm" x="540" y="134" text-anchor="middle">Astra becomes Astrya</text>
   <text class="lbl-sm" x="540" y="150" text-anchor="middle">Chart in the App Group</text>
   <text class="lbl-sm" x="540" y="166" text-anchor="middle">iOS 17, widget extension</text>
   <text class="lbl-sm" x="540" y="182" text-anchor="middle">Timeline, Siri, widgets</text>
@@ -101,7 +101,7 @@
   <li><a href="#chB-d16">Email codes instead of magic links on the phone</a></li>
   <li><a href="#chB-d17">A generated Xcode project</a></li>
   <li><a href="#chB-d18">iOS 17 as the floor, with a widget extension</a></li>
-  <li><a href="#chB-d19">Astra becomes Sanchara; the identifiers stay</a></li>
+  <li><a href="#chB-d19">Astra becomes Astrya; the identifiers stay</a></li>
 </ol>
 
 <h3 id="sB-2"><span class="num">B.2</span><span>The chart</span></h3>
@@ -274,13 +274,13 @@
   <li><strong>Where.</strong> <code>deploymentTarget: iOS: "17.0"</code> on both targets in <code>project.yml</code>, with the comment that widgets and controls "arrived on this schedule; the app itself still runs on iOS 17." <code>@available(iOS 18.0, *)</code> on <code>SancharaShortcuts</code> and <code>ReadingControl</code>; <code>#if canImport(FoundationModels)</code> and <code>#available(iOS 26.0, *)</code> around every use of the on-device model in <code>OnDeviceReasoner.swift</code>.</li>
 </ul>
 
-<h4 id="chB-d19">19. Astra becomes Sanchara; the identifiers stay</h4>
+<h4 id="chB-d19">19. Astra becomes Astrya; the identifiers stay</h4>
 <ul>
   <li><strong>Decision.</strong> The product, target, copy and prompts were renamed; the bundle id, App Group, production host and repository were not.</li>
   <li><strong>Date.</strong> 16 September 2026, recorded under Changed in 0.1.0.</li>
   <li><strong>Alternatives.</strong> A new bundle id and host to match the name.</li>
   <li><strong>Why.</strong> The identifiers are what Apple and Supabase are configured against: the APNs bundle id in <code>APNS_BUNDLE_ID</code>, the Sign in with Apple client id, the associated domains entitlement, the App Group on two App IDs, and the app record in App Store Connect. Every one of those would have to be recreated, and any push token minted under the old id would die.</li>
-  <li><strong>Where.</strong> <code>PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra</code>, <code>applinks:astra.shivvyas.com</code> and <code>group.com.shivvyas.astra</code> in <code>project.yml</code>, beside <code>name: Sanchara</code> and the <code>sanchara</code> URL scheme. <code>APNS_BUNDLE_ID=com.shivvyas.astra</code> in <code>.env.example</code>. The README's closing paragraph records the history.</li>
+  <li><strong>Where.</strong> <code>PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra</code>, <code>applinks:astra.shivvyas.com</code> and <code>group.com.shivvyas.astra</code> in <code>project.yml</code>, beside <code>name: Astrya</code> and the <code>sanchara</code> URL scheme. <code>APNS_BUNDLE_ID=com.shivvyas.astra</code> in <code>.env.example</code>. The README's closing paragraph records the history.</li>
 </ul>
 
 <h3 id="sB-6"><span class="num">B.6</span><span>Study notes</span></h3>

@@ -26,6 +26,11 @@ struct KundliView: View {
     @State private var share: SharePayload?
     @State private var isPreparingPDF = false
     @State private var errorMessage: String?
+    @State private var showPeriods = false
+    @State private var showAddTime = false
+    @Environment(\.navigator) private var navigator
+    /// Sanskrit, Hindi, Gujarati or English names for grahas and rashis.
+    @AppStorage(NameScript.storageKey) private var script: NameScript = .sanskrit
 
     var body: some View {
         NavigationStack {
@@ -34,6 +39,7 @@ struct KundliView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
                         hero
+                        if !chart.isTimeKnown { timeUnknownNotice }
                         signRows
                         chartBlock
                         dashaBlock
@@ -46,6 +52,7 @@ struct KundliView: View {
                     .frame(maxWidth: .infinity)
                 }
             }
+            .clearsTabBar(active: embedded)
             .navigationTitle(embedded ? "" : "Your kundli")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -61,11 +68,29 @@ struct KundliView: View {
         }
         .presentationBackground(Theme.bg)
         .sheet(item: $selectedHouse) { house in
-            HouseDetailSheet(house: house)
+            HouseDetailSheet(house: house, onAsk: askFromHouse, fromMoon: !chart.isTimeKnown)
+        }
+        .sheet(isPresented: $showPeriods) {
+            PeriodExplainerView()
+        }
+        .sheet(isPresented: $showAddTime) {
+            // Saving posts `.birthDetailsSaved`; the ProfileStore behind this
+            // screen reloads and hands down the recomputed chart.
+            IntakeView(initial: details, addingBirthTime: true, onCancel: { showAddTime = false }) {
+                showAddTime = false
+            }
         }
         .sheet(item: $share) { payload in
             ShareSheet(items: [payload.url])
         }
+    }
+
+    /// Into Ask with the question waiting, to edit or send. Only as a tab:
+    /// as a sheet there is no Ask tab behind it to switch to.
+    private var askFromHouse: ((String) -> Void)? {
+        guard embedded else { return nil }
+        let navigator = navigator
+        return { question in navigator.ask(question, false) }
     }
 
     // MARK: - Hero
@@ -77,15 +102,19 @@ struct KundliView: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
-                    Circle().fill(Theme.accent).frame(width: 7, height: 7)
-                    Text("Birth chart")
-                        .font(.system(size: 11, weight: .semibold))
-                        .textCase(.uppercase)
-                        .tracking(1.4)
-                        .foregroundStyle(Theme.accent)
+                    HStack(spacing: 8) {
+                        Circle().fill(Theme.accent).frame(width: 7, height: 7)
+                        Text("Birth chart")
+                            .font(.system(size: 11, weight: .semibold))
+                            .textCase(.uppercase)
+                            .tracking(1.4)
+                            .foregroundStyle(Theme.accent)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 8)
+                    namesMenu
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityAddTraits(.isHeader)
                 if embedded {
                     Text("Where every planet sat the moment you were born. Tap a house to see what it holds.")
                         .font(.brutBody(15))
@@ -96,22 +125,27 @@ struct KundliView: View {
             }
 
             VStack(alignment: .leading, spacing: 0) {
-                Text("Lagna (ascendant)")
+                Text(chart.isTimeKnown ? "Lagna (ascendant)" : "Chandra lagna (Moon sign)")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
                     .padding(.bottom, 64)
 
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(chart.ascendantRashi.sanskrit)
+                    // Without a birth time the real lagna is a noon guess, so
+                    // the hero shows the Moon's sign — what the chart below is
+                    // then read from — in a quieter colour.
+                    Text(chart.isTimeKnown ? chart.ascendantRashi.name(in: script) : rashiName(chart.moonSign))
                         .font(.brutDisplay(56))
                         .tracking(-56 * 0.035)
-                        .foregroundStyle(Theme.accent)
+                        .foregroundStyle(chart.isTimeKnown ? Theme.accent : Theme.fg)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
-                    Text(chart.ascendantDegreeText)
-                        .font(.brutMono(13))
-                        .foregroundStyle(Theme.accent.opacity(0.8))
-                        .fixedSize()
+                    if chart.isTimeKnown {
+                        Text(chart.ascendantDegreeText)
+                            .font(.brutMono(13))
+                            .foregroundStyle(Theme.accent.opacity(0.8))
+                            .fixedSize()
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -131,12 +165,16 @@ struct KundliView: View {
                 // Kept in the card's top corner, clear of the lagna's name.
                 OrbitDecoration(color: Theme.fg.opacity(0.3))
                     .frame(width: 150, height: 96)
-                    .offset(x: 24, y: -8)
+                    .offset(x: 6, y: -4)
             }
             .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .brutCard()
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Lagna \(chart.ascendantRashi.sanskrit), \(chart.ascendantDegreeText). \(details.fullName), born \(birthLine), \(details.placeName)")
+            .accessibilityLabel(
+                chart.isTimeKnown
+                    ? "Lagna \(chart.ascendantRashi.sanskrit), \(chart.ascendantDegreeText). \(details.fullName), born \(birthLine), \(details.placeName)"
+                    : "Chandra lagna \(Rashi(english: chart.moonSign)?.sanskrit ?? chart.moonSign). Ascendant unknown. \(details.fullName), born \(birthLine), \(details.placeName)"
+            )
         }
     }
 
@@ -148,18 +186,60 @@ struct KundliView: View {
             DataRow(
                 label: "Chandra (Moon sign)",
                 value: rashiName(chart.moonSign),
-                detail: chart.moonSign
+                detail: script == .english ? nil : chart.moonSign
             )
             DataRow(
                 label: "Surya (Sun sign)",
                 value: rashiName(chart.sunSign),
-                detail: chart.sunSign
+                detail: script == .english ? nil : chart.sunSign
             )
         }
     }
 
     private var birthLine: String {
-        "\(formattedBirthDate) at \(details.birthTimeShort)"
+        chart.isTimeKnown ? "\(formattedBirthDate) at \(details.birthTimeShort)" : "\(formattedBirthDate), time unknown"
+    }
+
+    /// The chart the diagram and the table are drawn from: the birth chart,
+    /// or — with no birth time — the same positions turned to the Moon.
+    private var drawnChart: NatalChart {
+        chart.isTimeKnown ? chart : chart.chandraLagna()
+    }
+
+    // MARK: - Unknown time
+
+    /// Says plainly what is missing and offers the fix.
+    private var timeUnknownNotice: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Image(systemName: "clock.badge.questionmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.accent)
+                    .accessibilityHidden(true)
+                Text("Ascendant uncertain — birth time unknown")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Text(moonCaveat)
+                .font(.brutBody(13))
+                .foregroundStyle(Theme.muted)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+            SancharaPrimaryButton(title: "Add birth time", kind: .accent) { showAddTime = true }
+                .accessibilityHint("Opens your birth details with the time picker")
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .brutCard(fill: Theme.accent.opacity(0.06), line: Theme.accent.opacity(0.5))
+    }
+
+    private var moonCaveat: String {
+        let base = "The chart below is counted from the Moon, so houses are “from the Moon” rather than from the ascendant."
+        if let day = chart.moonDay, day.changesSign {
+            return "\(base) The Moon moved from \(rashiName(day.startSign)) into \(rashiName(day.endSign)) that day, so even the Moon sign depends on the hour."
+        }
+        return "\(base) The Moon stayed in \(rashiName(chart.moonSign)) all day, so the Moon sign is certain."
     }
 
     private var formattedBirthDate: String {
@@ -173,17 +253,61 @@ struct KundliView: View {
         return pretty.string(from: day)
     }
 
+    /// A dasha lord, which the API names in English, in the chosen script.
+    private func grahaName(_ english: String) -> String {
+        ChartPlanet.name(english: english, in: script)
+    }
+
+    /// "until Apr 2032", with the English name first when the value is not
+    /// in English: "Venus · until Apr 2032".
+    private func dashaDetail(_ lord: String, until end: String) -> String {
+        let until = "until \(shortDate(end))"
+        return script == .english ? until : "\(lord) · \(until)"
+    }
+
     private func rashiName(_ english: String) -> String {
-        Rashi(english: english)?.sanskrit ?? english
+        Rashi(english: english)?.name(in: script) ?? english
+    }
+
+    /// The names toggle: a capsule showing the current choice, opening a
+    /// menu of the four, each written in its own script.
+    private var namesMenu: some View {
+        Menu {
+            Picker("Names", selection: $script) {
+                ForEach(NameScript.allCases) { option in
+                    Text(option.label).tag(option)
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Names")
+                    .foregroundStyle(Theme.muted)
+                Text(script.label)
+                    .foregroundStyle(Theme.fg)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Theme.muted)
+            }
+            .font(.system(size: 13, weight: .semibold))
+            .padding(.horizontal, 14)
+            .frame(minHeight: 36)
+            .background {
+                Capsule().fill(Theme.fg.opacity(0.06))
+                Capsule().strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+            }
+            .contentShape(Capsule())
+        }
+        .accessibilityLabel("Planet and sign names: \(script.label)")
+        .accessibilityHint("Choose Sanskrit, Hindi, Gujarati or English")
     }
 
     // MARK: - The chart
 
     private var chartBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Rashi chart").eyebrow()
+            Text(chart.isTimeKnown ? "Rashi chart" : "Chandra chart · houses from the Moon").eyebrow()
 
-            KundliChartView(chart: chart, selected: $selectedHouse)
+            KundliChartView(chart: drawnChart, selected: $selectedHouse, script: script)
                 .padding(14)
                 .brutCard()
 
@@ -191,7 +315,9 @@ struct KundliView: View {
             // create a chart that presents data in a novel way, help people
             // learn how to interpret the chart." Most people meeting a North
             // Indian kundli for the first time assume the numbers are houses.
-            Text("Houses sit in fixed places — the top diamond is always the first. The numeral in each is its rashi, counted from Mesha. Tap a house to see what it holds.")
+            Text(chart.isTimeKnown
+                 ? "Houses sit in fixed places — the top diamond is always the first. The numeral in each is its rashi, counted from Mesha. Tap a house to see what it holds."
+                 : "The Moon's sign sits in the top diamond, and each house after it is counted from the Moon. The numeral in each is its rashi, counted from Mesha.")
                 .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
@@ -208,14 +334,21 @@ struct KundliView: View {
                     .padding(.bottom, 2)
                 DataRow(
                     label: "Mahadasha",
-                    value: dasha.mahadasha,
-                    detail: "until \(shortDate(dasha.mahadashaEnd))"
+                    value: grahaName(dasha.mahadasha),
+                    detail: dashaDetail(dasha.mahadasha, until: dasha.mahadashaEnd)
                 )
                 DataRow(
                     label: "Antardasha",
-                    value: dasha.antardasha,
-                    detail: "until \(shortDate(dasha.antardashaEnd))"
+                    value: grahaName(dasha.antardasha),
+                    detail: dashaDetail(dasha.antardasha, until: dasha.antardashaEnd),
+                    showsRule: false
                 )
+                ViewMoreRow(title: "What the periods are") { showPeriods = true }
+                if embedded {
+                    ViewMoreRow(title: "See them on your life map", showsTopRule: false) {
+                        navigator.open(.life)
+                    }
+                }
             }
         }
     }
@@ -230,22 +363,31 @@ struct KundliView: View {
     /// through the chart and the one that survives the largest text sizes.
     private var planetTable: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Grahas").eyebrow()
+            TableBand(leading: "Graha", trailing: "Sign · House")
 
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(chart.planets.enumerated()), id: \.element.id) { index, planet in
+                ForEach(Array(drawnChart.planets.enumerated()), id: \.element.id) { index, planet in
                     if index > 0 {
                         BrutDivider()
                     }
                     Button {
-                        selectedHouse = chart.house(planet.house)
+                        selectedHouse = drawnChart.house(planet.house)
                     } label: {
                         HStack(spacing: 12) {
                             GlyphCircle(glyph: planet.glyph)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(planet.name + (planet.retrograde ? " ℞" : ""))
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(Theme.fg)
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Text(planet.name(in: script) + (planet.retrograde ? " ℞" : ""))
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(Theme.fg)
+                                    if script != .english {
+                                        Text(planet.name)
+                                            .font(.system(size: 12, weight: .medium))
+                                            .foregroundStyle(Theme.muted)
+                                    }
+                                }
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
                                 if let nakshatra = planet.nakshatra {
                                     Text(nakshatra)
                                         .font(.brutMono(11, weight: .medium))
@@ -254,10 +396,10 @@ struct KundliView: View {
                             }
                             Spacer(minLength: 8)
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(rashiName(planet.sign)) \(planet.degreeText)")
+                                Text(planet.name == "Moon" && !chart.isTimeKnown ? rashiName(planet.sign) : "\(rashiName(planet.sign)) \(planet.degreeText)")
                                     .font(.brutMono(12))
                                     .foregroundStyle(Theme.fg)
-                                Text("House \(planet.house)")
+                                Text(chart.isTimeKnown ? "House \(planet.house)" : "\(planet.house) from Moon")
                                     .font(.brutMono(11, weight: .medium))
                                     .foregroundStyle(Theme.muted)
                             }
@@ -275,7 +417,7 @@ struct KundliView: View {
                     .accessibilityHint("Opens house \(planet.house)")
                 }
             }
-            .overlay(alignment: .top) { BrutDivider() }
+            .padding(.horizontal, 4)
             .overlay(alignment: .bottom) { BrutDivider() }
         }
     }
@@ -284,10 +426,10 @@ struct KundliView: View {
 
     private var footer: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SancharaPrimaryButton(
+            ViewMoreRow(
                 title: "Export as PDF",
-                isLoading: isPreparingPDF,
-                kind: .secondary
+                systemImage: "square.and.arrow.up",
+                isLoading: isPreparingPDF
             ) {
                 Task { await exportPDF() }
             }
@@ -331,8 +473,21 @@ struct KundliView: View {
 /// (`sheets.md › Best practices`).
 struct HouseDetailSheet: View {
     let house: KundliHouse
+    /// Carries a question about this house to Ask. Nil hides the button —
+    /// when the kundli is itself a sheet there is no Ask tab to go to.
+    var onAsk: ((String) -> Void)? = nil
+    /// True when the birth time is unknown and houses are counted from the Moon.
+    var fromMoon = false
 
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(NameScript.storageKey) private var script: NameScript = .sanskrit
+
+    /// "1st", "2nd", "7th", "11th".
+    private var ordinal: String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter.string(from: NSNumber(value: house.number)) ?? "\(house.number)"
+    }
 
     var body: some View {
         NavigationStack {
@@ -341,9 +496,11 @@ struct HouseDetailSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 22) {
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(house.isLagna ? "House 1 · Lagna" : "House \(house.number)")
+                            Text(fromMoon
+                                 ? (house.isLagna ? "House 1 · the Moon's sign" : "House \(house.number) from the Moon")
+                                 : (house.isLagna ? "House 1 · Lagna" : "House \(house.number)"))
                                 .eyebrow()
-                            Text(house.rashi.sanskrit)
+                            Text(house.rashi.name(in: script))
                                 .font(.brutDisplay(44))
                                 .tracking(-44 * 0.035)
                                 .foregroundStyle(Theme.accent)
@@ -376,7 +533,7 @@ struct HouseDetailSheet: View {
                                     HStack(spacing: 14) {
                                         GlyphCircle(glyph: planet.glyph)
                                         VStack(alignment: .leading, spacing: 3) {
-                                            Text(planet.name + (planet.retrograde ? " ℞ retrograde" : ""))
+                                            Text(planet.name(in: script) + (script == .english ? "" : " · \(planet.name)") + (planet.retrograde ? " ℞ retrograde" : ""))
                                                 .font(.system(size: 15, weight: .semibold))
                                                 .foregroundStyle(Theme.fg)
                                             Text(planet.nakshatra.map { "\(planet.degreeText) · \($0)" } ?? planet.degreeText)
@@ -392,6 +549,16 @@ struct HouseDetailSheet: View {
                             }
                             .overlay(alignment: .top) { BrutDivider() }
                             .overlay(alignment: .bottom) { BrutDivider() }
+                        }
+
+                        if let onAsk {
+                            SancharaPrimaryButton(title: fromMoon ? "Ask about the \(ordinal) from my Moon" : "Ask Astrya about my \(ordinal) house", kind: .accent) {
+                                dismiss()
+                                onAsk(fromMoon
+                                      ? "Counting from my Moon, what does the \(ordinal) house (\(house.rashi.sanskrit)) say about \(house.domain.lowercased())?"
+                                      : "What does my \(ordinal) house (\(house.rashi.sanskrit)) say about \(house.domain.lowercased())?")
+                            }
+                            .accessibilityHint("Opens Ask with this question ready to send")
                         }
                     }
                     .padding(24)

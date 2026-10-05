@@ -2,6 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { eventsHashFor, NOW_LORD, type Timeline } from "./build";
+import { trackUsage } from "@/lib/usage/record";
 
 export { eventsHashFor, NOW_LORD };
 
@@ -108,6 +109,8 @@ export async function explainTimeline(args: {
   birthDate: string;
   today: string;
   timeline: Timeline;
+  /** For the usage ledger (model_usage). */
+  userId?: string;
 }): Promise<Explanation[]> {
   try {
     const response = await anthropic().messages.create({
@@ -126,6 +129,7 @@ export async function explainTimeline(args: {
       ],
       messages: [{ role: "user", content: buildExplainTask(args.timeline) }],
     });
+    trackUsage({ userId: args.userId, kind: "extraction", model: READING_MODEL, usage: response.usage });
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)

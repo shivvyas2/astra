@@ -1,6 +1,6 @@
-# Contributing to Sanchara
+# Contributing to Astrya
 
-Thanks for looking. Sanchara is a small codebase with a real architecture: a chart engine that must be right, a model that must only be handed computed facts, and two clients on one API. It is easier to contribute to than it looks, as long as you follow the few rules below. Each one was learned the hard way.
+Thanks for looking. Astrya is a small codebase with a real architecture: a chart engine that must be right, a model that must only be handed computed facts, and two clients on one API. It is easier to contribute to than it looks, as long as you follow the few rules below. Each one was learned the hard way.
 
 ## Before you start
 

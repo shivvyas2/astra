@@ -5,7 +5,7 @@ import FoundationModels
 
 /// Answers the questions that are lookups, on the device, for nothing.
 ///
-/// A large share of what people ask Sanchara is not interpretation at all —
+/// A large share of what people ask Astrya is not interpretation at all —
 /// "where's my Saturn", "what's in my 7th", "which dasha am I in" — and every
 /// one of those was a paid Claude call answering from a chart the phone could
 /// have read itself. This routes them to Apple's on-device model instead, hands

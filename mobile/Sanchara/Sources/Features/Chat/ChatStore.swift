@@ -47,6 +47,15 @@ final class ChatStore {
     }
     private var reasoner: OnDeviceReasoner?
 
+    /// What Astrya remembers, as last fetched from `/api/memory`: the facts
+    /// (for the on-device memory pass and for answering "what do you know
+    /// about me?" without a call), each conversation's summary (so the
+    /// on-device pass can roll it forward), and how many predictions are open.
+    /// Nil until the first fetch succeeds.
+    private var knownFacts: [UserFact]?
+    private var conversationSummaries: [String: String] = [:]
+    private var openPredictions = 0
+
     /// Whether the last assistant turn was answered locally, so the transcript
     /// can offer to get the full reading anyway.
     var canExpandLastAnswer: Bool {
@@ -56,7 +65,9 @@ final class ChatStore {
     /// Loads past readings and, for a brand-new account, opens with a reading
     /// for today rather than an empty room.
     func start() async {
+        async let memory: Void = refreshMemory()
         await loadConversations()
+        await memory
         if conversations.isEmpty, messages.isEmpty, !isStreaming {
             send(Self.introPrompt, silent: true)
         }
@@ -74,6 +85,18 @@ final class ChatStore {
             // A failed refresh keeps the last known list; the transcript is
             // unaffected, so this is not worth an error banner.
         }
+    }
+
+    /// Fetches what Astrya remembers. A failure keeps what was there: memory
+    /// is a nicety here, never a reason to show an error.
+    func refreshMemory() async {
+        guard let payload = try? await KnowledgeAPI.list() else { return }
+        knownFacts = payload.facts
+        conversationSummaries = Dictionary(
+            payload.summaries.map { ($0.conversationId, $0.summary) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        openPredictions = payload.predictions.filter { $0.status == .open }.count
     }
 
     /// Starts a fresh conversation. The previous one stays saved server-side.
@@ -142,6 +165,21 @@ final class ChatStore {
         messages.append(ChatMessage(role: .assistant, content: ""))
 
         streamTask = Task {
+            // "What do you know about me?" is answered from what the phone
+            // already holds: no server call, no model call.
+            if !silent, !forceServer, let facts = knownFacts, MemoryQuestion.isAskingWhatIsKnown(text) {
+                if let last = messages.indices.last, messages[last].role == .assistant {
+                    messages[last].content = MemoryQuestion.answer(
+                        facts: facts,
+                        conversations: conversationSummaries.count,
+                        predictions: openPredictions
+                    )
+                    messages[last].source = .onDevice
+                }
+                isStreaming = false
+                return
+            }
+
             // A lookup the phone can answer from the chart it already holds
             // never reaches the network. The opening reading and an explicit
             // "read this properly" always do.
@@ -157,13 +195,17 @@ final class ChatStore {
                 }
             }
 
+            // With Apple Intelligence on, this phone works out what to
+            // remember from the turn and the server skips its Haiku pass.
+            let rememberOnDevice = OnDeviceMemory.isAvailable
             var failure: String?
             do {
                 let stream = SancharaAPI.chatStream(
                     conversationId: conversationId,
                     mode: mode,
                     message: text,
-                    deep: deep
+                    deep: deep,
+                    memory: rememberOnDevice ? "on-device" : nil
                 )
                 for try await event in stream {
                     guard thisGeneration == generation else { return }
@@ -177,7 +219,8 @@ final class ChatStore {
             } catch is CancellationError {
                 // Superseded by a new reading; leave the transcript as-is.
             } catch {
-                failure = error.localizedDescription
+                // 403 consent_required brings the AI consent screen back (Features/Consent).
+                failure = ConsentStore.handleChatError(error) ?? error.localizedDescription
             }
 
             guard !Task.isCancelled, thisGeneration == generation else { return }
@@ -190,8 +233,50 @@ final class ChatStore {
                 }
             }
             isStreaming = false
+            if rememberOnDevice, failure == nil, let id = conversationId,
+               let reply = messages.last(where: { $0.role == .assistant })?.content,
+               !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                remember(conversationId: id, message: text, reply: reply)
+            }
             if wasNewConversation, conversationId != nil { await loadConversations() }
         }
+    }
+
+    // MARK: - Memory
+
+    /// The on-device memory pass for one finished reading. Runs on its own,
+    /// outside the transcript's generation, so starting a new reading does not
+    /// lose it. If the on-device model cannot produce notes, the server is
+    /// asked to run its own pass on this turn instead.
+    private func remember(conversationId: String, message: String, reply: String) {
+        let context = MemoryContext(facts: knownFacts ?? [])
+        let previous = conversationSummaries[conversationId]
+        let today = Self.localDate()
+        Task {
+            if let notes = await OnDeviceMemory.notes(
+                message: message,
+                reply: reply,
+                previousSummary: previous,
+                context: context,
+                today: today
+            ) {
+                let payload = MemoryPayloadBuilder.build(conversationId: conversationId, notes: notes, context: context)
+                if let summary = payload.summary { conversationSummaries[conversationId] = summary }
+                if !payload.isEmpty { try? await KnowledgeAPI.ingest(payload) }
+            } else {
+                try? await KnowledgeAPI.ingestFallback(conversationId: conversationId)
+            }
+            await refreshMemory()
+        }
+    }
+
+    /// The user's own calendar date, `yyyy-MM-dd`.
+    private static func localDate() -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: .now)
     }
 
     // MARK: - Streaming

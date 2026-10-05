@@ -3,7 +3,7 @@ import CryptoKit
 import Foundation
 import SwiftUI
 
-/// Sign in with Apple — the fastest way onto Sanchara: no password to choose, no
+/// Sign in with Apple — the fastest way onto Astrya: no password to choose, no
 /// confirmation email to wait for.
 ///
 /// Supabase verifies Apple's identity token directly (`signInWithIdToken`), so

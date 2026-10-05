@@ -11,7 +11,7 @@
 
 <p>
   This chapter describes the code on <code>main</code> on 30 September 2026, version 0.3.0. It is
-  the one feature in Sanchara that runs with nobody looking. A chat route that misbehaves is
+  the one feature in Astrya that runs with nobody looking. A chat route that misbehaves is
   seen and retried by the person in front of it; a cron job that misbehaves wakes people at
   night, bills a model call nobody asked for, or says "Mangal Dosha has begun" to someone whose
   chart has not changed since the day they were born. Most of the design below exists to make
@@ -608,7 +608,7 @@ static func parse(profileText: String) -&gt; String {
   per row; the Alerts tab is a flat list with a severity dot (<code>severityColor</code>: the
   accent for <code>warning</code>, amber for <code>caution</code>, muted otherwise). A tap opens
   <code>DailyReadingView</code> or <code>AlertDetailView</code>, which render the markdown
-  <code>detail</code> and end with one button, "Ask Sanchara about this", that closes the inbox,
+  <code>detail</code> and end with one button, "Ask Astrya about this", that closes the inbox,
   starts a new reading and sends a question built from the title and body. The sheet's
   <code>.task</code> marks the item read as it opens.
 </p>

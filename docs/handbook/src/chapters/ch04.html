@@ -435,7 +435,7 @@ export async function createRouteSupabase(request: Request): Promise&lt;Db&gt; {
   Sign in with Apple is fully native. Apple returns an identity token and Supabase verifies it
   directly through <code>signInWithIdToken</code>; there is no web sheet, no redirect, no password
   and no confirmation email. The header of <code>AppleSignIn.swift</code> calls it the fastest way onto
-  Sanchara, and <code>docs/APPLE_SIGN_IN.md</code> records the two one-time steps it needs: the Apple
+  Astrya, and <code>docs/APPLE_SIGN_IN.md</code> records the two one-time steps it needs: the Apple
   provider enabled in the Supabase project with the bundle id <code>com.shivvyas.astra</code> as a
   client id, and the Sign In with Apple capability on the App ID. The entitlement
   <code>com.apple.developer.applesignin</code> is already in <code>mobile/project.yml</code>. For the

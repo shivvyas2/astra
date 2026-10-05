@@ -3,7 +3,7 @@
 <h2><span class="num">1</span><span>Architecture</span></h2>
 
 <p class="lede">
-  Sanchara is built on one bet: <strong>the chart is computed, and only the reading is
+  Astrya is built on one bet: <strong>the chart is computed, and only the reading is
   interpreted.</strong> The Swiss Ephemeris runs inside a Next.js route handler and produces every
   position, house, nakshatra, dasha and dosha as a number. Claude is handed those numbers and asked
   what they mean. Two clients, a web app and a native iOS app, call the same route handlers, share
@@ -536,7 +536,7 @@ when you add the file.
 <h3 id="s1-7"><span class="num">1.7</span><span>What lives on the phone</span></h3>
 
 <p>
-  Sanchara is not a local-first app; the server holds the truth and the phone reads it. But one
+  Astrya is not a local-first app; the server holds the truth and the phone reads it. But one
   piece is deliberately local, and it exists because three
   processes on the phone need the chart and only one of them can sign in.
   <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code> opens with that argument: the app,

@@ -75,4 +75,42 @@ describe("POST /api/profile", () => {
     expect(res.status).toBe(400);
     expect(saveBirthProfile).not.toHaveBeenCalled();
   });
+
+  it("accepts an unknown birth time without a time, casting it for noon", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    const { birth_time: _t, ...noTime } = valid;
+    void _t;
+    const res = await POST(form({ ...noTime, birth_time_known: "false" }));
+    expect(res.status).toBe(200);
+    expect(saveBirthProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ birthTimeKnown: false, birthTime: "12:00" }),
+      expect.anything(),
+    );
+  });
+
+  it("stores a rough part of day as its approximate time, still unknown", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    const res = await POST(form({ ...valid, birth_time_known: "false", birth_time_approx: "evening" }));
+    expect(res.status).toBe(200);
+    expect(saveBirthProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ birthTimeKnown: false, birthTime: "19:00" }),
+      expect.anything(),
+    );
+  });
+
+  it("treats an old client that never sends the flag as knowing its time", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    await POST(form(valid));
+    expect(saveBirthProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ birthTimeKnown: true, birthTime: "06:30" }),
+      expect.anything(),
+    );
+  });
+
+  it("returns 400 for a known time that is not a time", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
+    const res = await POST(form({ ...valid, birth_time: "half six" }));
+    expect(res.status).toBe(400);
+    expect(saveBirthProfile).not.toHaveBeenCalled();
+  });
 });

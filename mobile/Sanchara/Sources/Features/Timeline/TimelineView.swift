@@ -18,7 +18,14 @@ struct TimelineView: View {
     @State private var showAdd = false
     @State private var pendingDelete: LifeEvent?
     @State private var showExplainer = false
+    /// The period last chosen in the scrubber; nil means "the one running now".
+    @State private var scrubbed: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.navigator) private var navigator
+
+    /// How much of the top the pinned scrubber covers, so a period scrolled
+    /// to from it lands just below it rather than underneath.
+    private static let scrubberHeight: CGFloat = 64
 
     var body: some View {
         NavigationStack {
@@ -26,6 +33,7 @@ struct TimelineView: View {
                 Atmosphere(mood: .violet)
                 content
             }
+            .clearsTabBar(active: embedded)
             .navigationTitle(embedded ? "" : "Your life")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -68,7 +76,14 @@ struct TimelineView: View {
         case .loading:
             ProgressView().tint(Theme.muted)
         case .needsProfile:
-            message("Add your birth details first — the timeline is computed from them.")
+            VStack(spacing: 16) {
+                message("Add your birth details first — the timeline is computed from them.")
+                SancharaSecondaryButton(title: "Add birth details in You") {
+                    if !embedded { dismiss() }
+                    navigator.open(.you)
+                }
+                .frame(maxWidth: 280)
+            }
         case .failed(let text):
             VStack(spacing: 16) {
                 message(text)
@@ -83,40 +98,70 @@ struct TimelineView: View {
     private var timeline: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if embedded {
                         ScreenHeader(
                             eyebrow: "Life map",
                             title: "Your life in periods",
                             blurb: "Vimshottari dasha periods from birth onward. Pin what really happened and the readings get sharper.",
                             accent: Theme.violet,
-                            titleSize: 36
+                            titleSize: 36,
+                            trailingArrow: true
                         )
                         .padding(.bottom, 20)
                     }
                     if store.canOfferScan { scanOffer }
                     if let now = store.now, let band = store.currentBand {
-                        NowCard(now: now, band: band, today: store.today, isWriting: store.isExplaining)
-                            .padding(.bottom, 24)
-                    }
-                    if hasNoMoments { firstMomentHint }
-                    ForEach(store.periods) { band in
-                        BandRow(
+                        NowCard(
+                            now: now,
                             band: band,
                             today: store.today,
-                            events: store.eventsIn(band),
-                            isExpanded: expanded.contains(band.id),
-                            onToggle: { toggle(band) },
-                            onDelete: { pendingDelete = $0 }
+                            isWriting: store.isExplaining,
+                            onExplain: { showExplainer = true },
+                            onAsk: { askAbout(now) }
                         )
-                        .id(band.id)
+                        .padding(.bottom, 24)
                     }
-                    footer
+                    if hasNoMoments { firstMomentHint }
+                    Section {
+                        // One plain stack, not lazy rows: there are only nine
+                        // or ten periods, and every one must exist for the
+                        // scrubber to be able to scroll to it.
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(store.periods) { band in
+                                BandRow(
+                                    band: band,
+                                    today: store.today,
+                                    events: store.eventsIn(band),
+                                    isExpanded: expanded.contains(band.id),
+                                    onToggle: { toggle(band) },
+                                    onDelete: { pendingDelete = $0 }
+                                )
+                                .id(band.id)
+                                .overlay(alignment: .top) {
+                                    // The scrubber's landing mark: starts a
+                                    // scrubber's height above the band.
+                                    Color.clear
+                                        .frame(height: Self.scrubberHeight + 1)
+                                        .id(Self.landing(band.id))
+                                        .padding(.top, -Self.scrubberHeight)
+                                        .allowsHitTesting(false)
+                                        .accessibilityHidden(true)
+                                }
+                            }
+                        }
+                        footer
+                    } header: {
+                        if store.periods.count > 1 {
+                            periodScrubber(proxy)
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, embedded ? 8 : 0)
                 .padding(.bottom, 32)
             }
+            .refreshable { await store.load() }
             .onAppear {
                 // Open on the present, not on birth — "where am I now" is the
                 // question people arrive with. The past is one scroll up.
@@ -162,6 +207,49 @@ struct TimelineView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .brutCard()
         .padding(.bottom, 28)
+    }
+
+    private static func landing(_ id: String) -> String { "landing-\(id)" }
+
+    /// The periods as a strip of names and years, pinned above the list as
+    /// it scrolls. Choosing one scrolls the list to it and opens it.
+    private func periodScrubber(_ proxy: ScrollViewProxy) -> some View {
+        MonthScrubber(
+            items: store.periods.map { (id: $0.id, label: "\($0.lord) \($0.startYear)") },
+            selection: Binding(
+                get: { scrubbed ?? store.currentBand?.id ?? store.periods.first?.id ?? "" },
+                set: { id in
+                    scrubbed = id
+                    withAnimation(Theme.ease) {
+                        expanded.insert(id)
+                        proxy.scrollTo(Self.landing(id), anchor: .top)
+                    }
+                }
+            ),
+            tint: Theme.violet,
+            accessibilityName: "Jump to a period"
+        )
+        .padding(.top, 6)
+        .frame(height: Self.scrubberHeight, alignment: .bottom)
+        .background {
+            // Full-bleed, past the list's side padding, so rows scroll
+            // cleanly under it.
+            Theme.bg.opacity(0.96)
+                .padding(.horizontal, -16)
+                .overlay(alignment: .bottom) {
+                    BrutDivider().padding(.horizontal, -16)
+                }
+        }
+        .padding(.bottom, 16)
+    }
+
+    /// Carries the running period to Ask as a question, sent at once.
+    private func askAbout(_ now: NowPeriod) {
+        if !embedded { dismiss() }
+        navigator.ask(
+            "I'm in my \(now.lord) mahadasha, \(now.antardasha) sub-period. What does it mean for me right now, and what should I do with it?",
+            true
+        )
     }
 
     private func toggle(_ band: DashaBand) {
@@ -239,6 +327,8 @@ private struct NowCard: View {
     /// True while the server is writing meanings, so an empty card can say
     /// "writing" rather than looking broken.
     let isWriting: Bool
+    var onExplain: () -> Void = {}
+    var onAsk: () -> Void = {}
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -260,11 +350,26 @@ private struct NowCard: View {
             .accessibilityLabel(now.pairLabel)
 
             DataRow(label: "Main period", value: "\(band.startYear) – \(band.endYear)", valueSize: 22)
-            DataRow(label: "Progress", value: "\(percent)%", valueSize: 22, showsRule: false)
+            StatRow(
+                label: "Progress",
+                systemImage: "chart.line.uptrend.xyaxis",
+                value: "\(percent)",
+                unit: "%",
+                showsRule: false
+            )
 
             BrutProgressBar(progress: band.progress(today: today))
-                .accessibilityLabel("\(percent) percent through this period")
-                .padding(.bottom, 16)
+                .accessibilityHidden(true)
+                .padding(.bottom, 4)
+
+            StatRow(
+                label: "Years left",
+                systemImage: "hourglass",
+                value: yearsLeft,
+                unit: "years",
+                caption: "until \(band.endYear)"
+            )
+            .padding(.bottom, 16)
 
             if let meaning = now.meaning, !meaning.isEmpty {
                 Text(meaning)
@@ -277,11 +382,32 @@ private struct NowCard: View {
                     .font(.brutBody(13))
                     .foregroundStyle(Theme.muted)
             }
+
+            VStack(spacing: 0) {
+                ViewMoreRow(title: "Why this period matters", action: onExplain)
+                ViewMoreRow(
+                    title: "Ask about \(now.lord)–\(now.antardasha)",
+                    systemImage: "arrow.up.right",
+                    showsTopRule: false,
+                    tint: Theme.accent,
+                    action: onAsk
+                )
+            }
+            .padding(.top, 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var percent: Int { Int(band.progress(today: today) * 100) }
+
+    /// Years until the main period ends, to one decimal: "6.4".
+    private var yearsLeft: String {
+        guard let end = TimelineDate.parse(band.end), let now = TimelineDate.parse(today) else {
+            return "–"
+        }
+        let years = max(0, end.timeIntervalSince(now) / (365.25 * 86_400))
+        return String(format: "%.1f", years)
+    }
 
     private var lordText: some View {
         Text(now.lord)

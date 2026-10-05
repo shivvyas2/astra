@@ -1,4 +1,4 @@
-/* Kindle stylesheet for the Sanchara Engineering Handbook.
+/* Kindle stylesheet for the Astrya Engineering Handbook.
    Plain CSS 2.1 only: no custom properties, no columns, no color-mix(), no
    media queries. Kindle applies its own body font, size and night mode, so
    this file only shapes structure: headings, code, tables, callouts. */

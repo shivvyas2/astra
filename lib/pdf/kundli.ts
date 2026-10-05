@@ -196,7 +196,7 @@ export function shortDate(iso: string) {
 /** The running head and the rule under it, on every page. */
 function header(page: PDFPage, fonts: Fonts, right: string) {
   page.drawRectangle({ x: 0, y: H - 4, width: W, height: 4, color: ACCENT });
-  tracked(page, "SANCHARA", M, H - 30, 9, fonts.sansBold, INK, 2.4);
+  tracked(page, "ASTRYA", M, H - 30, 9, fonts.sansBold, INK, 2.4);
   const width = trackedWidth(right, 8, fonts.sans, 1.8);
   tracked(page, right, W - M - width, H - 29, 8, fonts.sans, MUTED, 1.8);
   page.drawLine({
@@ -329,7 +329,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
   };
 
   doc.setTitle(`${input.name} — Vedic kundli`);
-  doc.setAuthor("Sanchara");
+  doc.setAuthor("Astrya");
   doc.setSubject("Vedic birth chart");
 
   // ---- Page 1: who, and the chart ------------------------------------------
@@ -368,7 +368,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
     });
   }
 
-  footer(p1, fonts, "Computed with the Swiss Ephemeris by Sanchara. For guidance and reflection, not a substitute for professional advice.");
+  footer(p1, fonts, "Computed with the Swiss Ephemeris by Astrya. For guidance and reflection, not a substitute for professional advice.");
 
   // ---- Page 2: the table ---------------------------------------------------
   const p2 = doc.addPage([W, H]);
@@ -496,7 +496,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
     p2.drawText(note, { x: x + 22, y: y - 26, size: 8, font: fonts.sans, color: MUTED });
   });
 
-  footer(p2, fonts, `Sanchara · ${input.name} · born ${prettyDate(input.birthDate)} at ${input.birthTime}, ${input.place}`);
+  footer(p2, fonts, `Astrya · ${input.name} · born ${prettyDate(input.birthDate)} at ${input.birthTime}, ${input.place}`);
 
   return doc.save();
 }

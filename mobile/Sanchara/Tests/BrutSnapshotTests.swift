@@ -101,7 +101,7 @@ final class BrutSnapshotTests: XCTestCase {
                 BrutNotice(text: "Could not load that reading.")
                 BrutEmptyState(
                     title: "No readings yet",
-                    message: "Sanchara writes you a reading each morning and each night. They collect here by date.",
+                    message: "Astrya writes you a reading each morning and each night. They collect here by date.",
                     systemImage: "sun.max"
                 )
                 HStack(spacing: 10) {
@@ -113,5 +113,75 @@ final class BrutSnapshotTests: XCTestCase {
             .padding(16),
             name: "brut-components"
         )
+    }
+
+    @MainActor
+    func testRendersTheDataComponents() throws {
+        try render(
+            ZStack(alignment: .top) {
+                Atmosphere(mood: .dawn)
+                VStack(alignment: .leading, spacing: 18) {
+                    ScreenHeader(
+                        eyebrow: "Life map",
+                        title: "Your life in periods",
+                        blurb: "Vimshottari dasha periods from birth onward.",
+                        accent: Theme.violet,
+                        titleSize: 36,
+                        trailingArrow: true
+                    )
+                    BigNumber(value: "05", unit: "October", caption: "Sunday", size: 88, unitColor: Theme.fg)
+                    MonthScrubber(
+                        items: [(id: 1, label: "Saturn 1998"), (id: 2, label: "Mercury 2017"), (id: 3, label: "Ketu 2034")],
+                        selection: .constant(2),
+                        tint: Theme.violet
+                    )
+                    VStack(spacing: 0) {
+                        StatRow(label: "Progress", systemImage: "chart.line.uptrend.xyaxis", value: "38", unit: "%")
+                        StatRow(label: "Years left", systemImage: "hourglass", value: "6.4", unit: "years", caption: "until 2031")
+                    }
+                    VStack(spacing: 0) {
+                        TableBand(leading: "Graha", trailing: "Sign · House")
+                        TableRow(label: "Sun", value: "Simha 14°32'", detail: "House 10")
+                        TableRow(label: "Moon", value: "Vrishchika 2°05'", detail: "House 1", showsRule: false)
+                    }
+                    VStack(spacing: 0) {
+                        ViewMoreRow(title: "Why this period matters") {}
+                        ViewMoreRow(title: "Export as PDF", systemImage: "square.and.arrow.up", showsTopRule: false) {}
+                    }
+                    StepFooter(step: 1, label: "Read it") {}
+                }
+                .padding(16)
+            }
+            .frame(height: 1_100),
+            name: "brut-data"
+        )
+    }
+
+    @MainActor
+    func testSpokenFiguresSayTheirUnits() {
+        XCTAssertEqual(BigNumber.spoken(value: "38", unit: "%"), "38 percent")
+        XCTAssertEqual(BigNumber.spoken(value: "6.4", unit: "years", caption: "until 2031"), "6.4 years, until 2031")
+    }
+
+    /// The dawn field's brightest point — ember and peach at full strength
+    /// over the ground — must still carry bone text at 4.5:1 or better.
+    @MainActor
+    func testDawnKeepsBoneTextReadable() {
+        func channel(_ c: Double) -> Double {
+            let v = c / 255
+            return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+        }
+        func luminance(_ rgb: (Double, Double, Double)) -> Double {
+            0.2126 * channel(rgb.0) + 0.7152 * channel(rgb.1) + 0.0722 * channel(rgb.2)
+        }
+        func over(_ top: (Double, Double, Double), _ alpha: Double, _ base: (Double, Double, Double)) -> (Double, Double, Double) {
+            (top.0 * alpha + base.0 * (1 - alpha), top.1 * alpha + base.1 * (1 - alpha), top.2 * alpha + base.2 * (1 - alpha))
+        }
+        let ground: (Double, Double, Double) = (0x0A, 0x0A, 0x0B)
+        let ember: (Double, Double, Double) = (0xFF, 0x6B, 0x3D)
+        let bone: (Double, Double, Double) = (0xF4, 0xF1, 0xEA)
+        let lit = over(Atmosphere.Dawn.peachRGB, Atmosphere.Dawn.peachPeak, over(ember, Atmosphere.Dawn.emberPeak, ground))
+        let contrast = (luminance(bone) + 0.05) / (luminance(lit) + 0.05)
+        XCTAssertGreaterThanOrEqual(contrast, 4.5, "Bone on the brightest dawn is \(contrast):1")
     }
 }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { saveBirthProfile } from "@/lib/data/birthProfile";
+import { parseBirthFields } from "@/lib/profiles/birth";
 
 async function uploadAvatar(userId: string, file: File): Promise<string | null> {
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
@@ -23,6 +24,11 @@ export async function saveIntake(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // The same checks `POST /api/profile` runs, including the unknown-time path.
+  const parsed = parseBirthFields(formData);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const birth = parsed.value;
+
   let avatarUrl: string | null = null;
   const photo = formData.get("photo");
   if (photo instanceof File && photo.size > 0 && photo.type.startsWith("image/")) {
@@ -31,14 +37,15 @@ export async function saveIntake(formData: FormData) {
 
   await saveBirthProfile({
     userId: user.id,
-    firstName: String(formData.get("first_name")),
-    lastName: String(formData.get("last_name")),
-    birthDate: String(formData.get("birth_date")),
-    birthTime: String(formData.get("birth_time")),
-    placeName: String(formData.get("place_name")),
-    lat: Number(formData.get("lat")),
-    lng: Number(formData.get("lng")),
-    timezone: String(formData.get("timezone")),
+    firstName: birth.firstName,
+    lastName: birth.lastName,
+    birthDate: birth.birthDate,
+    birthTime: birth.birthTime,
+    birthTimeKnown: birth.birthTimeKnown,
+    placeName: birth.placeName,
+    lat: birth.lat,
+    lng: birth.lng,
+    timezone: birth.timezone,
     avatarUrl,
   });
   redirect("/app");

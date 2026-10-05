@@ -36,6 +36,9 @@ final class PushStore {
 
     /// Asks once; iOS remembers the answer, so a later call is a no-op prompt.
     func requestAuthorization() async {
+        // Never prompt inside a unit-test run: the system alert would sit on
+        // top of every screen the tests host.
+        if NSClassFromString("XCTestCase") != nil { return }
         let center = UNUserNotificationCenter.current()
         let settings = await center.notificationSettings()
         switch settings.authorizationStatus {
@@ -101,13 +104,25 @@ final class SancharaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         // works without alerts, so this is not surfaced.
     }
 
+    /// A push with `content-available` — every alert and reading push the
+    /// server sends — wakes the app here in the background, if the user has
+    /// not force-quit it. That is the moment to fetch the new row and reload
+    /// the widgets, so the Home Screen shows the alert before anyone taps it.
+    nonisolated func application(
+        _ application: UIApplication,
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
+    ) async -> UIBackgroundFetchResult {
+        await BackgroundRefresh.run(force: true) ? .newData : .noData
+    }
+
     /// An alert that arrives while the app is open still shows as a banner —
     /// these are infrequent and time-relevant.
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
     ) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+        Task { await BackgroundRefresh.run(force: true) }
+        return [.banner, .sound, .list]
     }
 
     func userNotificationCenter(
@@ -117,7 +132,7 @@ final class SancharaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
         let info = response.notification.request.content.userInfo
         guard let id = info["alert_id"] as? String else { return }
         let kind = TappedNotification.Kind(rawValue: info["kind"] as? String ?? "alert") ?? .alert
-        await MainActor.run { PushStore.shared.pending = TappedNotification(id: id, kind: kind) }
+        await MainActor.run { DeepLink.shared.deliver(TappedNotification(id: id, kind: kind)) }
     }
 }
 

@@ -77,6 +77,9 @@ struct Atmosphere: View {
         case dusk
         /// Just the ground.
         case plain
+        /// First light: a low peach-ember glow along the top edge, falling
+        /// into teal-black at the foot. Today, and nowhere else.
+        case dawn
     }
 
     var mood: Mood = .dusk
@@ -84,7 +87,9 @@ struct Atmosphere: View {
     var body: some View {
         ZStack {
             Theme.bg
-            if mood != .plain {
+            if mood == .dawn {
+                DawnField()
+            } else if mood != .plain {
                 GeometryReader { geo in
                     let side = max(geo.size.width, geo.size.height)
                     ZStack {
@@ -115,7 +120,7 @@ struct Atmosphere: View {
         case .violet: Theme.violet
         case .lime: Theme.accent.opacity(0.7)
         case .dusk: Theme.violet
-        case .plain: .clear
+        case .plain, .dawn: .clear
         }
     }
 
@@ -125,29 +130,112 @@ struct Atmosphere: View {
         case .violet: Theme.ember
         case .lime: Theme.violet
         case .dusk: Theme.ember
-        case .plain: .clear
+        case .plain, .dawn: .clear
         }
     }
 }
 
-/// A four-point star: the small sparkle beside a headline.
-struct Sparkle: Shape {
-    func path(in rect: CGRect) -> Path {
-        let c = CGPoint(x: rect.midX, y: rect.midY)
-        let r = min(rect.width, rect.height) / 2
-        let pinch = r * 0.16
-        var path = Path()
-        path.move(to: CGPoint(x: c.x, y: c.y - r))
-        path.addQuadCurve(to: CGPoint(x: c.x + r, y: c.y), control: CGPoint(x: c.x + pinch, y: c.y - pinch))
-        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y + r), control: CGPoint(x: c.x + pinch, y: c.y + pinch))
-        path.addQuadCurve(to: CGPoint(x: c.x - r, y: c.y), control: CGPoint(x: c.x - pinch, y: c.y + pinch))
-        path.addQuadCurve(to: CGPoint(x: c.x, y: c.y - r), control: CGPoint(x: c.x - pinch, y: c.y - pinch))
-        path.closeSubpath()
-        return path
+extension Atmosphere {
+    /// The dawn field's colours and strengths, public so the contrast test
+    /// can composite the brightest point and check bone text against it.
+    enum Dawn {
+        /// Pale peach: the sky right at the horizon.
+        static let peach = Color(hex: 0xF6C9A8)
+        static let peachRGB: (Double, Double, Double) = (0xF6, 0xC9, 0xA8)
+        /// Deep teal: the ground the light has not reached.
+        static let teal = Color(hex: 0x0E3A38)
+        /// Peak opacities. Kept low on purpose: at full strength the top of the
+        /// screen would sit under bone text at well under 4.5:1.
+        static let emberPeak: Double = 0.26
+        static let peachPeak: Double = 0.10
+        static let tealPeak: Double = 0.55
     }
 }
 
-/// A tilted ellipse with a sparkle on it — an orbit. Decoration only.
+/// The dawn field itself: two linear washes and one radial glow, all static.
+private struct DawnField: View {
+    var body: some View {
+        GeometryReader { geo in
+            let side = max(geo.size.width, geo.size.height)
+            ZStack {
+                // Teal-black rising from the foot of the screen.
+                LinearGradient(
+                    stops: [
+                        .init(color: Atmosphere.Dawn.teal.opacity(0), location: 0.45),
+                        .init(color: Atmosphere.Dawn.teal.opacity(Atmosphere.Dawn.tealPeak), location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                // Ember glow centred just above the top edge.
+                RadialGradient(
+                    colors: [Theme.ember.opacity(Atmosphere.Dawn.emberPeak), Theme.ember.opacity(0)],
+                    center: UnitPoint(x: 0.5, y: -0.04),
+                    startRadius: 0,
+                    endRadius: side * 0.5
+                )
+                // A thin band of peach right along the top, gone by a fifth
+                // of the way down — before the first line of a header.
+                LinearGradient(
+                    stops: [
+                        .init(color: Atmosphere.Dawn.peach.opacity(Atmosphere.Dawn.peachPeak), location: 0),
+                        .init(color: Atmosphere.Dawn.peach.opacity(0), location: 0.2),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+        }
+    }
+}
+
+/// The Astra mark: the app icon's lit orange disc and its corona, drawn
+/// small. It stands in wherever a screen wants a glint beside a headline.
+/// The corona is a static radial gradient that spills past `size` without
+/// taking layout space, so it costs nothing to scroll over.
+struct AstraMark: View {
+    var size: CGFloat = 16
+    var glow = true
+
+    var body: some View {
+        ZStack {
+            if glow {
+                Circle()
+                    .fill(RadialGradient(
+                        colors: [Theme.ember.opacity(0.45), Theme.ember.opacity(0)],
+                        center: .center,
+                        startRadius: size * 0.3,
+                        endRadius: size
+                    ))
+                    .frame(width: size * 2, height: size * 2)
+            }
+            // The icon's disc: warm at the top, deeper toward the bottom.
+            Circle()
+                .fill(LinearGradient(
+                    colors: [Color(hex: 0xFF7E4E), Color(hex: 0xB9502F)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                ))
+                .frame(width: size, height: size)
+            // The bright limb along the upper edge, fading by the equator.
+            Circle()
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Theme.fg.opacity(0.85), Theme.fg.opacity(0)],
+                        startPoint: .top,
+                        endPoint: .center
+                    ),
+                    lineWidth: max(0.75, size * 0.03)
+                )
+                .frame(width: size, height: size)
+        }
+        .frame(width: size, height: size)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A tilted ellipse with the Astra mark on it — an orbit. Decoration only.
 struct OrbitDecoration: View {
     var color: Color = Theme.fg.opacity(0.35)
 
@@ -158,9 +246,7 @@ struct OrbitDecoration: View {
                     .stroke(color, lineWidth: 1)
                     .frame(width: geo.size.width, height: geo.size.height * 0.62)
                     .rotationEffect(.degrees(-28))
-                Sparkle()
-                    .fill(Theme.fg)
-                    .frame(width: 14, height: 14)
+                AstraMark(size: 14)
                     .position(x: geo.size.width * 0.86, y: geo.size.height * 0.3)
             }
             .frame(width: geo.size.width, height: geo.size.height)
@@ -615,6 +701,8 @@ struct ScreenHeader: View {
     let blurb: String
     var accent: Color = Theme.accent
     var titleSize: CGFloat = 40
+    /// Ends the title with a diagonal arrow in the accent — "this way in".
+    var trailingArrow: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -626,12 +714,9 @@ struct ScreenHeader: View {
                     .tracking(1.4)
                     .foregroundStyle(accent)
                 Spacer(minLength: 0)
-                Sparkle()
-                    .fill(Theme.fg.opacity(0.9))
-                    .frame(width: 16, height: 16)
-                    .accessibilityHidden(true)
+                AstraMark(size: 16)
             }
-            Text(title)
+            (trailingArrow ? Text(title).headlineArrow(accent) : Text(title))
                 .brutHeading(titleSize)
                 .fixedSize(horizontal: false, vertical: true)
             Text(blurb)
@@ -641,7 +726,10 @@ struct ScreenHeader: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        // Spelled out so VoiceOver never reads the arrow glyph aloud.
+        .accessibilityLabel("\(eyebrow). \(title). \(blurb)")
+        .accessibilityAddTraits(.isHeader)
     }
 }
 
@@ -649,13 +737,18 @@ struct ScreenHeader: View {
 struct BrutEmptyState: View {
     let title: String
     let message: String
-    var systemImage: String = "sparkles"
+    /// `nil` shows the Astra mark.
+    var systemImage: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 20, weight: .medium))
-                .foregroundStyle(Theme.accent)
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundStyle(Theme.accent)
+            } else {
+                AstraMark(size: 20, glow: false)
+            }
             Text(title)
                 .font(.brutTitle(20))
                 .foregroundStyle(Theme.fg)
@@ -670,7 +763,7 @@ struct BrutEmptyState: View {
         .background(alignment: .topTrailing) {
             OrbitDecoration(color: Theme.fg.opacity(0.22))
                 .frame(width: 96, height: 96)
-                .offset(x: 14, y: -18)
+                .offset(x: 4, y: -12)
         }
         .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .brutCard()
@@ -700,5 +793,344 @@ struct BrutNotice: View {
             fill: (tone == .error ? Theme.ember : Theme.accent).opacity(0.10),
             line: (tone == .error ? Theme.ember : Theme.accent).opacity(0.55)
         )
+    }
+}
+
+// MARK: - Figures and tables
+
+/// An oversized figure with its unit set small beside it on the same
+/// baseline — "38 %", "05 October", "6.4 years" — and an optional caption
+/// beneath. Light weight and tabular digits: the size does the shouting.
+///
+/// The figure grows with Dynamic Type, but only so far: past half again its
+/// design size a numeral stops being a figure and starts being a wall.
+struct BigNumber: View {
+    let value: String
+    var unit: String? = nil
+    var caption: String? = nil
+    var size: CGFloat = 64
+    var color: Color = Theme.fg
+    var unitColor: Color = Theme.muted
+
+    @ScaledMetric(relativeTo: .largeTitle) private var scale: CGFloat = 1
+
+    init(
+        value: String,
+        unit: String? = nil,
+        caption: String? = nil,
+        size: CGFloat = 64,
+        color: Color = Theme.fg,
+        unitColor: Color = Theme.muted
+    ) {
+        self.value = value
+        self.unit = unit
+        self.caption = caption
+        self.size = size
+        self.color = color
+        self.unitColor = unitColor
+    }
+
+    private var figureSize: CGFloat { size * min(scale, 1.5) }
+    private var unitSize: CGFloat { max(13, figureSize * 0.24) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .lastTextBaseline, spacing: figureSize * 0.08) {
+                Text(value)
+                    .font(.brutNumeral(figureSize))
+                    .tracking(-figureSize * 0.04)
+                    .foregroundStyle(color)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                if let unit, !unit.isEmpty {
+                    Text(unit)
+                        .font(.system(size: unitSize, weight: .medium))
+                        .foregroundStyle(unitColor)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.system(size: 11, weight: .semibold))
+                    .textCase(.uppercase)
+                    .tracking(1.2)
+                    .foregroundStyle(Theme.muted)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.spoken(value: value, unit: unit, caption: caption))
+    }
+
+    /// "38 percent", "6.4 years, until 2031".
+    static func spoken(value: String, unit: String?, caption: String? = nil) -> String {
+        var text = value
+        if let unit, !unit.isEmpty { text += " " + spokenUnit(unit) }
+        if let caption, !caption.isEmpty { text += ", " + caption }
+        return text
+    }
+
+    static func spokenUnit(_ unit: String) -> String {
+        switch unit.trimmingCharacters(in: .whitespaces) {
+        case "%": "percent"
+        case "yrs", "y": "years"
+        case "°": "degrees"
+        default: unit
+        }
+    }
+}
+
+/// A small label with a tiny circled icon on the left, a big figure on the
+/// right, and a hairline under both: "Progress ··· 38 %".
+struct StatRow: View {
+    let label: String
+    var systemImage: String? = nil
+    let value: String
+    var unit: String? = nil
+    /// A note under the figure: "until March 2031".
+    var caption: String? = nil
+    var valueSize: CGFloat = 52
+    var valueColor: Color = Theme.fg
+    var showsRule = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 16) {
+                HStack(spacing: 8) {
+                    if let systemImage {
+                        Image(systemName: systemImage)
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(Theme.fg)
+                            .frame(width: 20, height: 20)
+                            .overlay(Circle().strokeBorder(Theme.line, lineWidth: Theme.lineWidth))
+                    }
+                    Text(label)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                BigNumber(value: value, unit: unit, size: valueSize, color: valueColor)
+            }
+            .padding(.top, 12)
+            .padding(.bottom, caption == nil ? 12 : 4)
+            if let caption, !caption.isEmpty {
+                Text(caption)
+                    .font(.brutMono(11))
+                    .foregroundStyle(Theme.muted)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.bottom, 12)
+            }
+            if showsRule { BrutDivider() }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(BigNumber.spoken(value: value, unit: unit, caption: caption))")
+    }
+}
+
+/// The foot of a card or a screen: a numbered bone pill on the left, what
+/// tapping does and a round arrow on the right. The whole row is the button.
+struct StepFooter: View {
+    let step: Int
+    let label: String
+    var fill: CircleButton.Fill = .accent
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Text(String(format: "%02d.", step))
+                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Theme.ink)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Capsule().fill(Theme.fg))
+                Spacer(minLength: 8)
+                Text(label)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.fg)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.trailing)
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(fill == .outline ? Theme.fg : Theme.ink)
+                    .frame(width: 44, height: 44)
+                    .background {
+                        switch fill {
+                        case .accent: Circle().fill(Theme.accent)
+                        case .bone: Circle().fill(Theme.fg)
+                        case .outline: Circle().strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+                        }
+                    }
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(DipButtonStyle())
+        .accessibilityLabel(label)
+        .accessibilityHint("Step \(step)")
+    }
+}
+
+/// A full-width link between two hairlines: "WHY THIS PERIOD MATTERS →".
+/// For the secondary way on from a section — never the main action.
+struct ViewMoreRow: View {
+    let title: String
+    var systemImage: String = "arrow.right"
+    var isLoading = false
+    /// Off when the row sits directly under another one, so the hairlines
+    /// do not double up.
+    var showsTopRule = true
+    var tint: Color = Theme.fg
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 0) {
+                if showsTopRule { BrutDivider() }
+                HStack(spacing: 12) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .textCase(.uppercase)
+                        .tracking(1.3)
+                        .foregroundStyle(tint)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
+                    Group {
+                        if isLoading {
+                            ProgressView().tint(tint)
+                        } else {
+                            Image(systemName: systemImage)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(tint)
+                        }
+                    }
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+                }
+                .padding(.vertical, 14)
+                .frame(minHeight: 52)
+                BrutDivider()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(DipButtonStyle())
+        .disabled(isLoading)
+        .accessibilityLabel(title)
+    }
+}
+
+/// The inverted band over a table: bone bar, ink text, the columns named.
+struct TableBand: View {
+    let leading: String
+    var trailing: String? = nil
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(leading)
+            Spacer(minLength: 8)
+            if let trailing { Text(trailing) }
+        }
+        .font(.system(size: 11, weight: .bold))
+        .textCase(.uppercase)
+        .tracking(1.2)
+        .foregroundStyle(Theme.ink)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, minHeight: 32)
+        .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Theme.fg))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(trailing.map { "\(leading), \($0)" } ?? leading)
+        .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// One row of a two-column hairline table: label left, value right.
+struct TableRow: View {
+    let label: String
+    let value: String
+    var detail: String? = nil
+    var showsRule = true
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(label)
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(Theme.fg)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(value)
+                        .font(.brutMono(13))
+                        .foregroundStyle(Theme.fg)
+                        .multilineTextAlignment(.trailing)
+                    if let detail {
+                        Text(detail)
+                            .font(.brutMono(11, weight: .regular))
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .frame(minHeight: 44)
+            if showsRule { BrutDivider() }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(detail.map { "\(label), \(value), \($0)" } ?? "\(label), \(value)")
+    }
+}
+
+/// A horizontal run of uppercase labels — months, years, periods — the
+/// chosen one bold with a short bar above it. Scrolls itself so the choice
+/// is always in view.
+struct MonthScrubber<ID: Hashable>: View {
+    let items: [(id: ID, label: String)]
+    @Binding var selection: ID
+    var tint: Color = Theme.accent
+    /// What VoiceOver calls the whole strip.
+    var accessibilityName: String = "Periods"
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 22) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                        let active = item.id == selection
+                        Button {
+                            withAnimation(Theme.snap) { selection = item.id }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Rectangle()
+                                    .fill(active ? tint : .clear)
+                                    .frame(width: 18, height: 2)
+                                Text(item.label)
+                                    .font(.system(size: 12, weight: active ? .bold : .regular))
+                                    .textCase(.uppercase)
+                                    .tracking(1.1)
+                                    .foregroundStyle(active ? Theme.fg : Theme.muted)
+                                    .lineLimit(1)
+                                    .fixedSize()
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .id(item.id)
+                        .accessibilityLabel(item.label)
+                        .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+            .onAppear { proxy.scrollTo(selection, anchor: .center) }
+            .onChange(of: selection) { _, chosen in
+                withAnimation(Theme.ease) { proxy.scrollTo(chosen, anchor: .center) }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityName)
     }
 }

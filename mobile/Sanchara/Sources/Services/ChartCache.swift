@@ -3,16 +3,21 @@ import Foundation
 /// The chart, the birth details, and the last reading, on disk in the app
 /// group.
 ///
-/// Three processes need this data and only one of them can sign in: the app,
-/// the App Intents extension Siri runs, and the widget timeline provider.
-/// Neither of the latter two can hold a Supabase session or block on a network
-/// round trip — a widget that fetches is a widget that shows a placeholder, and
-/// a Siri answer that waits is a Siri answer nobody hears. So the app writes
-/// here after every successful load, and the others only ever read.
+/// Three processes need this data: the app, the App Intents extension Siri
+/// runs, and the widget timeline provider. A widget draws from here first and
+/// always — one that waits on the network to draw is one that shows a
+/// placeholder at exactly the moment someone glanced at it. The app writes here
+/// after every successful load, and the widget's own background refresh
+/// (`WidgetSync`) writes the reading and alerts it fetches.
 ///
-/// Nothing secret goes in: no tokens, no session. A birth chart is personal,
-/// which is why it lives in the app group container rather than anywhere it
-/// could be backed up to a shared location, and why `clear()` runs on sign-out.
+/// Nothing secret goes in: no tokens, no session (those are in the Keychain —
+/// see `SharedSession`). A birth chart is personal, which is why it lives in
+/// the app group container rather than anywhere it could be backed up to a
+/// shared location, and why `clear()` runs on sign-out.
+///
+/// Files are protected until first unlock rather than completely: a widget is
+/// rebuilt while the phone is locked, and a cache it cannot open then is a
+/// widget that goes blank in a pocket.
 final class ChartCache: @unchecked Sendable {
     static let shared = ChartCache()
 
@@ -40,7 +45,10 @@ final class ChartCache: @unchecked Sendable {
     private func write<T: Encodable>(_ value: T, to name: String) {
         queue.async {
             guard let data = try? JSONEncoder().encode(value) else { return }
-            try? data.write(to: self.url(name), options: [.atomic, .completeFileProtection])
+            try? data.write(
+                to: self.url(name),
+                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+            )
         }
     }
 
@@ -81,6 +89,40 @@ final class ChartCache: @unchecked Sendable {
 
     func save(reading: CachedReading) { write(reading, to: "reading") }
     func loadReading() -> CachedReading? { read(CachedReading.self, from: "reading") }
+
+    // MARK: - Alerts
+
+    /// A dosha or hard-transit alert, flattened for the widget. The newest
+    /// few are kept, read or not, so the widget can tell "all clear" from
+    /// "never loaded".
+    struct CachedAlert: Codable, Sendable, Equatable, Identifiable {
+        let id: String
+        /// `info`, `caution` or `warning`.
+        let severity: String
+        let kinds: [String]
+        let title: String
+        let body: String
+        let createdAt: Date
+        let readAt: Date?
+
+        var isUnread: Bool { readAt == nil }
+    }
+
+    func save(alerts: [CachedAlert]) { write(alerts, to: "alerts") }
+    func loadAlerts() -> [CachedAlert]? { read([CachedAlert].self, from: "alerts") }
+
+    /// Marks one alert read in the cache, so the widget drops it the moment
+    /// the app opens it rather than at the next fetch.
+    func markAlertRead(id: String, at date: Date = Date()) {
+        guard let alerts = loadAlerts() else { return }
+        save(alerts: alerts.map {
+            $0.id == id && $0.isUnread
+                ? CachedAlert(id: $0.id, severity: $0.severity, kinds: $0.kinds, title: $0.title,
+                              body: $0.body, createdAt: $0.createdAt, readAt: date)
+                : $0
+        })
+        flush()
+    }
 
     // MARK: - The current dasha period
 
@@ -124,14 +166,40 @@ final class ChartCache: @unchecked Sendable {
         return value
     }
 
+    // MARK: - Background sync bookkeeping
+
+    /// When the reading and alerts were last fetched, by anyone. Lets the
+    /// reading and alert widgets, which rebuild together, share one fetch.
+    var lastSync: Date? {
+        get { defaults?.object(forKey: "lastSync") as? Date }
+        set { defaults?.set(newValue, forKey: "lastSync") }
+    }
+
+    /// Set when the widget's refresh token was rejected, so it can say "sign
+    /// in again" instead of quietly showing old content for ever. Cleared by
+    /// the next successful fetch.
+    var sessionRevoked: Bool {
+        get { defaults?.bool(forKey: "sessionRevoked") ?? false }
+        set { defaults?.set(newValue, forKey: "sessionRevoked") }
+    }
+
+    /// Waits for queued writes to land. A widget extension can be suspended
+    /// the moment its timeline is handed over.
+    func flush() { queue.sync {} }
+
     // MARK: - Sign-out
 
     func clear() {
         queue.async {
-            for name in ["chart", "details", "reading", "period"] {
+            for name in ["chart", "details", "reading", "period", "alerts"] {
                 try? FileManager.default.removeItem(at: self.url(name))
             }
-            self.defaults?.removeObject(forKey: "pendingDestination")
+            for key in ["pendingDestination", "lastSync", "sessionRevoked"] {
+                self.defaults?.removeObject(forKey: key)
+            }
+            // Whoever signs in next must not see this account on the Home
+            // Screen, even for the minutes before a widget would rebuild.
+            WidgetRefresh.reloadAll()
         }
     }
 }

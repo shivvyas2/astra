@@ -532,10 +532,10 @@ if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
   <strong>Handling.</strong> Neither widget fetches. <code>ReadingProvider</code> in
   <code>mobile/SancharaWidgets/ReadingWidget.swift</code> reads
   <code>ChartCache.shared.loadReading()</code>, and when that is <code>nil</code> the entry's
-  <code>reading</code> is <code>nil</code> and the view shows its empty state, "Open Sanchara to get
+  <code>reading</code> is <code>nil</code> and the view shows its empty state, "Open Astrya to get
   your first reading." <code>PeriodProvider</code> in <code>PeriodWidget.swift</code> tries three
   sources in order: the cached period with its theme, then the cached chart's <code>dasha</code>
-  without a theme ("the dates are true"), then the empty state "Open Sanchara to map your
+  without a theme ("the dates are true"), then the empty state "Open Astrya to map your
   periods." Both empty states name the next action rather than apologising. <code>ChartCache</code>
   itself, in <code>mobile/Sanchara/Sources/Services/ChartCache.swift</code>, falls back to the
   app's own caches directory when the App Group container is unavailable, so the app keeps
@@ -650,7 +650,7 @@ if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
 <tr><td>Profile read fails</td><td><code>getBirthProfile</code> throws</td><td>An error, not the intake form</td><td><code>birthProfile.test.ts</code></td></tr>
 <tr><td>Duplicate cron run</td><td>Unique index, <code>isSlotDue</code>, <code>23505</code>, signature diff</td><td>Nothing</td><td><code>slots.test.ts</code>; the <code>23505</code> branch untested</td></tr>
 <tr><td>Token under the wrong APNs environment</td><td><code>ApsEnvironment</code>, <code>ApnsClient.send</code></td><td>One missed push, then the row is replaced</td><td><code>ApsEnvironmentTests</code>, <code>devices/route.test.ts</code></td></tr>
-<tr><td>Widget with no cached chart</td><td><code>ReadingWidget.swift</code>, <code>PeriodWidget.swift</code></td><td>"Open Sanchara to ..."</td><td><code>PeriodProgressTests</code> for the cache; views untested</td></tr>
+<tr><td>Widget with no cached chart</td><td><code>ReadingWidget.swift</code>, <code>PeriodWidget.swift</code></td><td>"Open Astrya to ..."</td><td><code>PeriodProgressTests</code> for the cache; views untested</td></tr>
 <tr><td>On-device model unavailable</td><td><code>OnDeviceReasoner.route</code></td><td>The same answer, from the server, labelled</td><td><code>OnDeviceRoutingTests</code> for routing; the gate untested</td></tr>
 <tr><td>Prompt injection via history</td><td>No specific guard</td><td>Bounded history, no tools, user-only extraction with confirmation</td><td>untested as such</td></tr>
 <tr><td>Account deletion</td><td><code>app/api/account/route.ts</code>, cascades, <code>AuthStore.signOut</code></td><td>Everything in Postgres gone; avatar and Apple grant remain</td><td><code>account/route.test.ts</code></td></tr>

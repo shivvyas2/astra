@@ -1,6 +1,6 @@
-# Deploying Sanchara to Vercel
+# Deploying Astrya to Vercel
 
-Sanchara is a Next.js 15 app backed by Supabase (Auth, Postgres, Storage) and
+Astrya is a Next.js 15 app backed by Supabase (Auth, Postgres, Storage) and
 the Anthropic API. The web app and the API deploy to Vercel from the `main`
 branch through Vercel's Git integration; there is no deploy step in GitHub
 Actions. The iOS app is built separately, see the README.

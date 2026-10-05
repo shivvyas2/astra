@@ -28,10 +28,24 @@ final class ProfileStore {
     /// on a device that has never been online since signing in.
     var chart: NatalChart?
 
+    @ObservationIgnored private var savedObserver: NSObjectProtocol?
+
+    init() {
+        // Birth details can be saved from more than one place — the profile,
+        // and the kundli's "Add birth time" — so the store listens rather
+        // than relying on every caller to reload it.
+        savedObserver = NotificationCenter.default.addObserver(
+            forName: .birthDetailsSaved, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in await self?.load() }
+        }
+    }
+
     func load() async {
         // A cached chart draws immediately; the fetch below refreshes it.
         if chart == nil { chart = ChartCache.shared.load() }
         if details == nil { details = ChartCache.shared.loadDetails() }
+        mergeTimeKnown()
 
         do {
             let rows: [BirthProfileDetails] = try await Supa.client
@@ -71,8 +85,26 @@ final class ProfileStore {
             guard let fetched = rows.first?.chart.vedic else { return }
             chart = fetched
             ChartCache.shared.save(chart: fetched)
+            mergeTimeKnown()
         } catch {
             // Keep whatever the cache gave us.
         }
     }
+
+    /// The birth details do not select `birth_time_known` (the column may
+    /// not exist in production yet); the chart carries the same flag, so it
+    /// is copied across whenever both are present.
+    private func mergeTimeKnown() {
+        guard let chart, var merged = details else { return }
+        let known = chart.isTimeKnown
+        guard merged.isTimeKnown != known else { return }
+        merged.birthTimeKnown = known
+        details = merged
+    }
+}
+
+extension Notification.Name {
+    /// Posted after `POST /api/profile` succeeds, so every `ProfileStore`
+    /// reloads the details and the chart.
+    static let birthDetailsSaved = Notification.Name("com.shivvyas.astra.birthDetailsSaved")
 }

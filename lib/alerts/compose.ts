@@ -3,6 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Chart } from "@/lib/astrology/types";
 import type { Condition, Severity } from "@/lib/astrology/doshas";
 import { anthropic, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
+import { trackUsage } from "@/lib/usage/record";
 
 export type AlertCopy = {
   title: string;
@@ -45,8 +46,10 @@ export async function composeAlert(args: {
   started: Condition[];
   ended: Condition[];
   severity: Severity;
+  /** For the usage ledger (model_usage). */
+  userId?: string;
 }): Promise<AlertCopy> {
-  const system = `You are Sanchara, a warm, precise Vedic astrologer writing a short alert for ${args.firstName}.
+  const system = `You are Astrya, a warm, precise Vedic astrologer writing a short alert for ${args.firstName}.
 
 Something in their chart reading has CHANGED as of ${args.today}. The changes below were computed from their real birth chart and today's real sky using the Swiss Ephemeris. Treat every line as fact.
 
@@ -85,6 +88,7 @@ markdown, 120-200 words: short bold headings, what changed, what to watch over t
         },
       ],
     });
+    trackUsage({ userId: args.userId, kind: "alert", model: DEEP_READING_MODEL, usage: response.usage });
 
     const text = response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -150,12 +154,12 @@ export function fallbackCopy(started: Condition[], ended: Condition[]): AlertCop
   const title = started.length > 0 ? `${primary.label} is active` : `${primary.label} has eased`;
   const body =
     started.length > 0
-      ? `${startedNames} now shows in your chart. Open Sanchara for the reading.`
-      : `${endedNames} has passed. Open Sanchara for the reading.`;
+      ? `${startedNames} now shows in your chart. Open Astrya for the reading.`
+      : `${endedNames} has passed. Open Astrya for the reading.`;
   const detail = [
     started.length > 0 ? `**Now active**\n${started.map((c) => `- ${c.label}: ${c.detail}`).join("\n")}` : "",
     ended.length > 0 ? `**Eased**\n${ended.map((c) => `- ${c.label}: ${c.detail}`).join("\n")}` : "",
-    "**In simple words**\nSomething in your chart shifted today. Ask Sanchara about it for the full reading.",
+    "**In simple words**\nSomething in your chart shifted today. Ask Astrya about it for the full reading.",
   ]
     .filter(Boolean)
     .join("\n\n");

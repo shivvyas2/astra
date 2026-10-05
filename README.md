@@ -1,4 +1,4 @@
-<h1 align="center">Sanchara</h1>
+<h1 align="center">Astrya</h1>
 
 <p align="center">An astrology app that computes a real birth chart and has Claude interpret only the computed facts. Web on Vercel, native on iOS, one API, one Supabase project.</p>
 
@@ -12,13 +12,14 @@
   <img src="https://img.shields.io/badge/Swift-5-orange.svg" alt="Swift 5">
 </p>
 
-Sanchara is an astrology app that computes a person's real birth chart from their birth date, time, and place, then has Claude interpret it. It ships as a Next.js web app on Vercel and a native SwiftUI app for iOS, both backed by one API and one Supabase project.
+Astrya is an astrology app that computes a person's real birth chart from their birth date, time, and place, then has Claude interpret it. It ships as a Next.js web app on Vercel and a native SwiftUI app for iOS, both backed by one API and one Supabase project.
 
 Nothing about the chart is guessed. The Swiss Ephemeris computes planetary positions, houses, nakshatras, dashas, doshas, and transits server-side. Claude only interprets those computed values.
 
 ## Features
 
 - **Chart-grounded readings.** Streaming chat with an astrologer that reads the user's computed chart. Vedic (sidereal, Lahiri), Western (tropical), and numerology modes, chosen per conversation.
+- **It remembers you.** After each reading, one cheap pass keeps three kinds of memory: standing facts the user has stated about their own life (job, relationship, plans, worries), a short summary of each conversation, and a ledger of the dated predictions readings made. Each new reading is handed only what bears on the question (capped at about 600 tokens), stays consistent with what it predicted before, and can ask whether a past prediction happened. On an iPhone with Apple Intelligence the pass runs on-device for free; elsewhere it is one Claude Haiku call. The user sees all of it under "What Astrya knows" and can delete any of it, mark predictions as happened or not, or forget everything.
 - **Kundli.** The full Vedic chart as an on-screen diagram and a downloadable PDF with grahas, nakshatras, dasha periods, and numerology.
 - **Life timeline.** The user's Vimshottari dasha periods laid out as a life map, each with a plain-language theme and meaning written from their chart and the moments in it. Users pin real moments by hand, or accept moments Claude finds in their own chat history, with the quote it came from. The chat sees the timeline too. A widget shows the current period.
 - **Daily readings and dosha alerts.** A morning and night reading per user on their local clock, plus a push notification only when a dosha or hard transit starts or ends.
@@ -77,6 +78,8 @@ Two cron schedules in `vercel.json` hit `/api/cron/daily`, which writes the twic
 │       ├── profile/           Birth-detail intake
 │       ├── timeline/          Dasha life map, plus /scan for extraction
 │       ├── life-events/       Pin and unpin moments
+│       ├── facts/             Forget one learned fact (v1 list route kept for old apps)
+│       ├── memory/            "What Astrya knows": list, forget, "did it happen?", on-device ingest
 │       ├── devices/           APNs token registration
 │       ├── account/           Account deletion
 │       ├── geocode/           Birthplace autocomplete
@@ -85,6 +88,8 @@ Two cron schedules in `vercel.json` hit `/api/cron/daily`, which writes the twic
 ├── lib/
 │   ├── astrology/             Pure chart engine: chart, dasha, doshas, transits, numerology, prompt
 │   ├── timeline/              Life map builder and chat-history event extraction
+│   ├── facts/                 Standing facts: validation, storage, and limits
+│   ├── memory/                Summaries, predictions, retrieval, and the one-call memory pass
 │   ├── alerts/                Daily readings, dosha alerts, local-time slots
 │   ├── data/                  Supabase reads and writes for profiles, chats, history
 │   ├── supabase/              Browser, server, admin, and bearer-token clients
@@ -257,9 +262,9 @@ The tag triggers the GitHub release and the TestFlight upload. Vercel deploys th
 
 ## The handbook
 
-<a href="docs/handbook/Sanchara-Engineering-Handbook.pdf"><img src="docs/handbook/cover.jpg" width="160" align="right" alt="Sanchara Engineering Handbook cover"></a>
+<a href="docs/handbook/Sanchara-Engineering-Handbook.pdf"><img src="docs/handbook/cover.jpg" width="160" align="right" alt="Astrya Engineering Handbook cover"></a>
 
-The Sanchara Engineering Handbook is the long-form description of the system in 16 chapters and 3 appendices: the architecture, the chart engine, how a reading is written and what it costs, identity and access, one chapter per feature (intake, chat, kundli, the life timeline, daily readings and alerts, on-device answers and widgets, profile and admin, the web shell), then the data model, the iOS project, setup and release, and a catalogue of what breaks and what catches it. Read the chapter for the area you are changing before a large change.
+The Astrya Engineering Handbook is the long-form description of the system in 16 chapters and 3 appendices: the architecture, the chart engine, how a reading is written and what it costs, identity and access, one chapter per feature (intake, chat, kundli, the life timeline, daily readings and alerts, on-device answers and widgets, profile and admin, the web shell), then the data model, the iOS project, setup and release, and a catalogue of what breaks and what catches it. Read the chapter for the area you are changing before a large change.
 
 - [PDF](docs/handbook/Sanchara-Engineering-Handbook.pdf) and [EPUB](docs/handbook/Sanchara-Engineering-Handbook.epub) in the repo
 - Downloads on the [latest release](https://github.com/shivvyas2/astra/releases/latest)
@@ -283,7 +288,15 @@ Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for how the r
 
 ## Privacy
 
-Birth details and conversations are personal. Every table is behind Row Level Security, the model is handed one user's computed chart and nothing else, and the service-role and model keys never leave the server. There is no analytics SDK, no ad SDK, and no third-party crash reporter.
+Birth details and conversations are personal. Every table is behind Row Level Security, the model is handed one user's computed chart and nothing else, and the service-role and model keys never leave the server.
+
+The app keeps a short list (at most 40) of standing facts a user has stated about their own life in a reading, such as their job, relationship, family, plans, and worries, so later readings can be about their situation. Each is learned from the user's own message by a small model call after the reading, stored in `user_facts` under the same owner-only RLS, written with the user's own session, and never shown to admins. The user can see every fact and delete any or all of them from the profile screen; deleting the account deletes them.
+
+Alongside the facts it keeps a two-or-three-sentence summary of each conversation (`conversation_memories`) and the dated predictions readings made (`predictions`), under the same owner-only RLS and with no admin read policy. Deleting a conversation deletes its summary; predictions stay until the user deletes them, so they can still say whether one happened. On an iPhone with Apple Intelligence these notes are written by Apple's on-device model, so the reading text is not sent anywhere a second time; the phone posts only the resulting notes to `/api/memory/ingest`, which validates them exactly as it does the server's own pass (the user's own fact ids only, length and category limits, nothing about the chart stored as a fact about their life). Elsewhere the server sends the user's message and the reading to Claude Haiku once per turn to write them. "Forget everything" removes facts, summaries and predictions, and leaves transcripts alone. There is no analytics SDK, no ad SDK, and no third-party crash reporter.
+
+**Consent before anything goes to Anthropic.** Readings are written by Anthropic's Claude models, so before intake and the first reading both the web app and the iPhone app show a full-screen notice that says what is sent (birth date, time and place, the computed chart, the user's messages and conversation, and the facts and notes Astrya remembers), to whom (Anthropic, only to generate readings; on iPhones with Apple Intelligence some answers and memory notes come from Apple's on-device model and stay on the phone), what is stored and where (Supabase), that the team can read transcripts and memory, and how to delete it. The user chooses "Agree and continue" or "Not now"; nothing is sent until they agree. Agreement is stored per notice version in `ai_consents` (owner-only RLS), the chat route refuses a reading with `403 consent_required` without it, and the user can re-read or withdraw it from Profile, after which the notice is shown again. Bumping `CONSENT_VERSION` (lib/billing/consent.ts, and `ConsentPolicy.currentVersion` on iOS) asks everyone again. The public privacy policy is at `/privacy`.
+
+**Subscriptions.** Astrya Plus is an optional App Store subscription that gates nothing. The server stores only the product, status, expiry, environment and Apple's original transaction id (`subscriptions`, readable by the owner, written only by the server after verifying Apple's signature). Payment details never reach Astrya.
 
 ## License
 

@@ -20,6 +20,64 @@ All notable changes to Sanchara are recorded here. The format follows
 
 ### Added
 
+- **AI consent before the first reading (web and iOS).** A full screen, in the
+  app's own look, says plainly what a reading sends (birth details, chart,
+  your messages, remembered facts), to whom (Anthropic, to write the reading;
+  Apple's on-device model stays on the phone), what is stored where
+  (Supabase), that the team can read transcripts and memory, and how to
+  delete it. "Agree and continue" or "Not now", which explains why readings
+  need it and offers it again. It comes before intake. Agreement is recorded
+  per notice version (`ai_consents`, `POST /api/consent`), can be re-read and
+  withdrawn from Profile, and the chat route refuses a reading with
+  `403 consent_required` without it, failing open until migration 0011 is
+  applied.
+- **Astrya Plus, an optional subscription to support the app.** StoreKit 2 on
+  iPhone, $6.99 a month or $49.99 a year in the "Astrya Plus" group, with
+  Restore purchases, Manage subscription and the renewal terms on the sheet.
+  Plus gates nothing: readings stay unlimited and Deep readings stay open to
+  everyone. Every transaction is verified on the server against a pinned
+  Apple Root CA - G3 (x5c chain, Apple's marker OIDs, ES256 signature, bundle
+  and product ids) before `subscriptions` is written with the service role;
+  App Store Server Notifications v2 keep renewals, grace periods, expiry and
+  refunds current. `getPlan()` now returns the real entitlement. The web gets
+  `/app/plus` (subscribe on iPhone for now) and a public `/privacy` page.
+- **Memory, part two: conversations and predictions.** Astrya now remembers
+  what you talked about, not only what you told it: a two-or-three-sentence
+  summary of each conversation, and a ledger of every dated prediction a
+  reading made (what, the window, how sure). Later readings stay consistent
+  with what was predicted, or say plainly why they now read it differently,
+  and can ask whether a prediction whose window has opened came true. "What
+  Astrya knows" (web and iOS) gains "Past conversations" and "Predictions",
+  with "Did this happen?" (Yes / No / Not sure) on predictions whose window
+  has begun; everything is deletable. Facts now record whether they were
+  stated or inferred, where they came from, and when you last confirmed them.
+- **Readings get only the memory that matters.** Instead of every fact, a
+  reading is handed the core of your life (work, relationship, home), your
+  last three conversations and the predictions due now, plus whatever the
+  question's topic makes relevant (career to the 10th, marriage to the 7th,
+  money to the 2nd and 11th, and so on), all held under about 600 tokens. The
+  question-specific part rides on the newest message so the prompt cache
+  still hits.
+- **On-device memory on iPhone.** With Apple Intelligence on, the iPhone
+  writes the turn's facts, summary and predictions with Apple's on-device
+  model and posts them to the new `/api/memory/ingest`; the server skips its
+  Claude call for that turn, so memory costs nothing. Everywhere else one
+  Claude Haiku call per turn now produces all three (it used to produce
+  facts only). "What do you know about me?" on iPhone is answered from what
+  the phone already holds, with no call at all. Readings stay on Sonnet 5.5
+  and Deep on Opus 5.5. Needs migration `0009_memory.sql` (after 0008); until
+  it is applied, facts work as before and summaries and predictions are not
+  kept.
+- **Sanchara remembers what you tell it.** After each reading, a small, cheap
+  pass reads what you just wrote and keeps a short list of standing facts about
+  your life: your job, your relationship, your family, your plans, what is
+  worrying you. Only what you said about yourself is kept, never the reading's
+  predictions or a guess. Every later reading is given the list, so a career
+  question is read against the job you actually have and the prediction is tied
+  to a dated window and a house or period. See and delete any of it, or all of
+  it, under "What Sanchara knows" on the profile page (and on iOS). Needs
+  migration `0008_user_facts.sql`; until it is applied, readings run exactly as
+  before and the list is empty.
 - **Five named places.** The iOS app is now a tab bar: Today, Ask, Kundli,
   Life, You. The kundli was previously reachable only from Siri and the widget.
   Every screen opens with one line saying what it is for, and a one-time

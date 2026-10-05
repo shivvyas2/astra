@@ -24,23 +24,24 @@ struct ChatView: View {
             ZStack {
                 Atmosphere(mood: .ember)
 
-                if chat.messages.isEmpty {
-                    openingScreen
-                } else {
-                    VStack(spacing: 0) {
+                VStack(spacing: 0) {
+                    header
+                    if chat.messages.isEmpty {
+                        openingScreen
+                    } else {
                         transcript
                         suggestionChips
                         composer
                             .padding(.horizontal, 16)
                             .padding(.top, 8)
-                            .padding(.bottom, 8)
+                            .padding(.bottom, 12)
                     }
                 }
             }
-            .navigationTitle("")
-            .toolbar { toolbar }
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .navigationBarTitleDisplayMode(.inline)
+            .clearsTabBar()
+            // A header of our own rather than the system toolbar, which on
+            // iOS 26 wraps each button in a glass bubble of its own.
+            .toolbar(.hidden, for: .navigationBar)
         }
         .tint(Theme.fg)
         .sheet(isPresented: $showHistory) {
@@ -116,11 +117,13 @@ struct ChatView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(.top, 24)
+            .padding(.bottom, 36)
             .frame(maxWidth: 520)
             .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
+        .mask(EdgeFade())
     }
 
     /// One large phrase, a line saying what the screen is for, and an orbit
@@ -128,7 +131,7 @@ struct ChatView: View {
     private var hero: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("Ask").eyebrow()
-            greeting
+            greeting.headlineArrow()
                 .brutHeading(40)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Ask about work, love, money, a decision, a year. Every answer is read from your real birth chart, not your Sun sign.")
@@ -145,6 +148,14 @@ struct ChatView: View {
                 .offset(x: 18, y: -18)
         }
         .accessibilityElement(children: .combine)
+        // Spelled out so the arrow glyph is not read aloud.
+        .accessibilityLabel(heroSpoken)
+    }
+
+    private var heroSpoken: String {
+        let name = profile.details?.firstName ?? ""
+        let title = name.isEmpty ? "Read your stars." : "Read your stars, \(name)."
+        return "Ask. \(title) Ask about work, love, money, a decision, a year. Every answer is read from your real birth chart, not your Sun sign."
     }
 
     private var greeting: Text {
@@ -201,7 +212,8 @@ struct ChatView: View {
                     Color.clear.frame(height: 1).id(Self.bottomAnchor)
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 16)
+                // Both edges clear the fade, so at rest nothing is dimmed.
+                .padding(.top, 24)
                 // Room under the last line so it clears the chips and composer.
                 .padding(.bottom, 40)
                 .frame(maxWidth: 560)
@@ -218,6 +230,9 @@ struct ChatView: View {
             .coordinateSpace(name: Self.transcriptSpace)
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
+            // Text scrolls out under the toolbar and into the composer; fade
+            // it at both edges so no line is ever sliced in half.
+            .mask(EdgeFade())
             .background(
                 GeometryReader { geo in
                     Color.clear.preference(key: TranscriptViewportKey.self, value: geo.size.height)
@@ -362,6 +377,15 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, 16)
             }
+            // A fade at the trailing edge says the row scrolls, where a chip
+            // sliced off by the screen edge only looked broken.
+            .mask(
+                HStack(spacing: 0) {
+                    Color.black
+                    LinearGradient(colors: [.black, .clear], startPoint: .leading, endPoint: .trailing)
+                        .frame(width: 28)
+                }
+            )
             .padding(.bottom, 8)
         }
     }
@@ -378,7 +402,7 @@ struct ChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("", text: $chat.input, prompt: Text("Ask Sanchara…").foregroundStyle(Theme.muted), axis: .vertical)
+                TextField("", text: $chat.input, prompt: Text("Ask Astrya…").foregroundStyle(Theme.muted), axis: .vertical)
                     .lineLimit(1...5)
                     .font(.brutBody(15))
                     .foregroundStyle(Theme.fg)
@@ -414,10 +438,15 @@ struct ChatView: View {
                 .accessibilityLabel(chat.deep ? "Deep reading on" : "Deep reading off")
                 .accessibilityHint("A bigger model and a longer answer")
                 Spacer(minLength: 0)
-                Text("Guidance, not professional advice.")
+                // Always the same two lines, so the row looks the same in every
+                // mode instead of wrapping wherever the mode name leaves room.
+                Text("Guidance, not\nprofessional advice.")
                     .font(.brutMono(9, weight: .regular))
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.trailing)
+                    .lineLimit(2)
+                    .fixedSize()
+                    .accessibilityLabel("Guidance, not professional advice.")
             }
         }
     }
@@ -447,6 +476,9 @@ struct ChatView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.muted)
             }
+            // One line in every mode: "Numerology" wrapped at 375pt.
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .background {
@@ -460,28 +492,51 @@ struct ChatView: View {
         .accessibilityLabel("Reading mode: \(chat.mode.label). \(chat.mode.blurb). Opens a list of modes.")
     }
 
-    // MARK: - Toolbar
+    // MARK: - Header
 
-    @ToolbarContentBuilder
-    private var toolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            CircleButton(systemImage: "clock", label: "Past readings", size: 36) {
-                showHistory = true
+    /// Left: the way out of a conversation (back to the Ask screen, which
+    /// keeps the reading in Past readings), or the wordmark when there is no
+    /// conversation to leave. Right: past readings and a new one, together.
+    private var header: some View {
+        HStack(spacing: 12) {
+            if chat.messages.isEmpty {
+                HStack(spacing: 8) {
+                    AstraMark(size: 14)
+                    Text("ASTRYA")
+                        .font(.brutMono(11, weight: .bold))
+                        .tracking(3)
+                        .foregroundStyle(Theme.fg)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Astrya")
+                .accessibilityAddTraits(.isHeader)
+            } else {
+                CircleButton(systemImage: "chevron.left", label: "Back to Ask", size: 40) {
+                    startNewReading()
+                }
+                .accessibilityHint("Leaves this reading. It stays in Past readings.")
+                HStack(spacing: 7) {
+                    Circle().fill(chat.mode.dot).frame(width: 8, height: 8)
+                    Text(chat.mode.label)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.fg)
+                    if chat.deep {
+                        BrutTag(text: "Deep", fill: Theme.fg, textColor: Theme.ink)
+                    }
+                }
+                .lineLimit(1)
+                .accessibilityElement(children: .combine)
             }
-        }
 
-        ToolbarItem(placement: .principal) {
-            Text("SANCHARA")
-                .font(.brutMono(11, weight: .bold))
-                .tracking(3)
-                .foregroundStyle(Theme.fg)
-        }
+            Spacer(minLength: 8)
 
-        ToolbarItem(placement: .topBarTrailing) {
-            CircleButton(systemImage: "square.and.pencil", label: "New reading", size: 36) {
-                startNewReading()
-            }
+            HeaderActions(
+                onHistory: { showHistory = true },
+                onNew: chat.messages.isEmpty ? nil : { startNewReading() }
+            )
         }
+        .padding(.horizontal, 16)
+        .frame(height: 56)
     }
 
     private static let bottomAnchor = "sanchara-transcript-bottom"
@@ -496,6 +551,23 @@ struct ChatView: View {
 final class TranscriptScrollMetrics {
     var contentBottom: CGFloat = 0
     var viewportHeight: CGFloat = 0
+}
+
+/// A mask that is opaque except for a short fade at the top and bottom, so
+/// scrolled text dissolves at an edge instead of being cut off at it.
+private struct EdgeFade: View {
+    var top: CGFloat = 18
+    var bottom: CGFloat = 28
+
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                .frame(height: top)
+            Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                .frame(height: bottom)
+        }
+    }
 }
 
 private struct TranscriptContentBottomKey: PreferenceKey {
@@ -554,5 +626,40 @@ struct StreamingCaret: View {
                 .opacity(visible ? 1 : 0)
                 .accessibilityHidden(true)
         }
+    }
+}
+
+/// Past readings and a new reading in one outlined capsule, split by a
+/// hairline: the two things you do with conversations, kept together.
+private struct HeaderActions: View {
+    let onHistory: () -> Void
+    /// Nil when there is nothing to start over from; the button then shows
+    /// as unavailable rather than disappearing, so the capsule keeps its size.
+    let onNew: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 0) {
+            button("clock.arrow.circlepath", label: "Past readings", action: onHistory)
+            Rectangle().fill(Theme.line).frame(width: Theme.lineWidth, height: 20)
+            button("square.and.pencil", label: "New reading", action: onNew ?? {})
+                .disabled(onNew == nil)
+                .opacity(onNew == nil ? 0.35 : 1)
+        }
+        .background {
+            Capsule().fill(Theme.fg.opacity(0.04))
+            Capsule().strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
+        }
+    }
+
+    private func button(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Theme.fg)
+                .frame(width: 48, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(DipButtonStyle())
+        .accessibilityLabel(label)
     }
 }

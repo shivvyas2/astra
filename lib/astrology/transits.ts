@@ -98,7 +98,8 @@ export function describeGochara(
     // there at all. So a Western reading gets the plain sky it had before any
     // of this existed: where each body is, and which natal body it sits on.
     if (vedic) {
-      parts.push(`house ${houseFrom(asc, t.sign)} from the ascendant`);
+      // No birth time: the ascendant is a noon guess, so only the Moon counts.
+      if (natal.timeKnown !== false) parts.push(`house ${houseFrom(asc, t.sign)} from the ascendant`);
       parts.push(`${ORDINAL[houseFrom(moonSign, t.sign)]} from the Moon`);
     }
 
@@ -169,7 +170,7 @@ export function describeUpcomingTransits(
 
     const detail: string[] = [];
     if (vedic) {
-      detail.push(`house ${houseFrom(natal.ascendant.sign, sign)} from your ascendant`);
+      if (natal.timeKnown !== false) detail.push(`house ${houseFrom(natal.ascendant.sign, sign)} from your ascendant`);
       detail.push(`${ORDINAL[houseFrom(natal.moonSign, sign)]} from your Moon`);
     }
     const touching = natal.planets.filter((n) => n.sign === sign).map((n) => `natal ${n.name}`);

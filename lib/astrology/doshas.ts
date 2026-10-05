@@ -59,7 +59,9 @@ export function detectNatalDoshas(chart: Chart): Condition[] {
   // whole-sign change carries a stale Placidus house number, and this must
   // agree with the whole-sign facts deriveFacts.ts computes from the same
   // sign — see doshas.test.ts and derived.test.ts for the stale-house cases.
-  if (mars) {
+  // With no birth time the ascendant is a noon guess, so it is not read at all.
+  const lagnaKnown = chart.timeKnown !== false;
+  if (mars && lagnaKnown) {
     const marsHouse = houseFrom(chart.ascendant.sign, mars.sign);
     if ([1, 2, 4, 7, 8, 12].includes(marsHouse)) {
       found.push({
@@ -135,7 +137,7 @@ export function detectNatalDoshas(chart: Chart): Condition[] {
   // Derived from the sign, not `node.house`, for the same reason as Mangal
   // dosha above.
   for (const node of [rahu, ketu]) {
-    if (node && houseFrom(chart.ascendant.sign, node.sign) === 9) {
+    if (lagnaKnown && node && houseFrom(chart.ascendant.sign, node.sign) === 9) {
       found.push({
         kind: "pitru_dosha",
         signature: `pitru_dosha:${node.name}:${node.sign}`,
@@ -169,7 +171,8 @@ export function detectNatalDoshas(chart: Chart): Condition[] {
 export function detectTransitAfflictions(natal: Chart, transit: Chart): Condition[] {
   const found: Condition[] = [];
   const natalMoon = planet(natal, "Moon");
-  const lagna = natal.ascendant.sign;
+  // Null when the birth time is unknown: nothing is read from a noon ascendant.
+  const lagna = natal.timeKnown === false ? null : natal.ascendant.sign;
 
   const tSaturn = planet(transit, "Saturn");
   const tMars = planet(transit, "Mars");
@@ -202,7 +205,7 @@ export function detectTransitAfflictions(natal: Chart, transit: Chart): Conditio
     }
   }
 
-  if (tSaturn) {
+  if (tSaturn && lagna) {
     const h = houseFrom(lagna, tSaturn.sign);
     if ([4, 7, 10].includes(h)) {
       found.push({
@@ -228,7 +231,7 @@ export function detectTransitAfflictions(natal: Chart, transit: Chart): Conditio
         detail: `${node.name} is transiting ${node.sign}, the natal Moon's own sign.`,
       });
     }
-    if (node.sign === lagna) {
+    if (lagna && node.sign === lagna) {
       found.push({
         kind: `node_over_lagna_${node.name.toLowerCase()}`,
         signature: `node_over_lagna_${node.name.toLowerCase()}:${node.sign}`,
