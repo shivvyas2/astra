@@ -11,7 +11,9 @@ import { factsFor } from "@/lib/astrology/derived";
 import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
-import { ApnsClient, isPushConfigured, type PushEnvironment } from "@/lib/push/apns";
+import { loadDeviceZones, resolveZone } from "./zones";
+import { ApnsClient } from "@/lib/push/apns";
+import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
 import { trackUsage } from "@/lib/usage/record";
 
@@ -36,10 +38,11 @@ export type PredictionSummary = {
 /**
  * The twice-daily reading.
  *
- * Runs on a fixed UTC schedule, but each user is handled on their own clock:
- * the slot comes from their local hour, the date stored is their local date,
- * and a unique index means a repeat run writes nothing. Readings are kept
- * whether or not a push goes out, so the app can show the history by date.
+ * Runs every hour, but each user is handled on their own clock (the phone's
+ * zone, else the birthplace's): the slot comes from their local hour and the
+ * delivery windows in slots.ts, the date stored is their local date, and a
+ * unique index means a repeat run writes nothing. Readings are kept whether
+ * or not a push goes out, so the app can show the history by date.
  */
 export async function runDuePredictions(options: { limit?: number } = {}): Promise<PredictionSummary> {
   const admin = createAdminSupabase();
@@ -53,11 +56,12 @@ export async function runDuePredictions(options: { limit?: number } = {}): Promi
       .not("chart", "is", null)
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
+    const zones = await loadDeviceZones(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       summary.considered += 1;
       try {
-        const result = await writeDueReading(profile, admin, apns);
+        const result = await writeDueReading(profile, admin, apns, zones);
         if (result === null) summary.skipped += 1;
         else {
           summary.written += 1;
@@ -80,11 +84,12 @@ async function writeDueReading(
   profile: ProfileRow,
   admin: SupabaseClient,
   apns: ApnsClient,
+  zones: Map<string, string>,
 ): Promise<number | null> {
   const chart = profile.chart?.vedic;
   if (!chart) return null;
 
-  const zone = profile.timezone || "UTC";
+  const zone = resolveZone(zones.get(profile.user_id), profile.timezone);
   const nowLocal = DateTime.now().setZone(zone);
   const forDate = nowLocal.toFormat("yyyy-LL-dd");
 
@@ -139,7 +144,13 @@ async function writeDueReading(
     throw new Error(error.message);
   }
 
-  return pushToDevices(admin, apns, profile.user_id, row.id as string, copy, slot);
+  return pushToUserDevices(admin, apns, profile.user_id, {
+    title: copy.title,
+    body: copy.body,
+    alertId: row.id as string,
+    kind: "daily",
+    threadId: `sanchara-daily-${slot}`,
+  });
 }
 
 const SLOT_BRIEF: Record<Slot, string> = {
@@ -232,36 +243,4 @@ export function fallbackPrediction(slot: Slot, firstName: string): AlertCopy {
         body: `Good evening, ${firstName}. Tonight's reading is ready in Astrya.`,
         detail: "**Tonight**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astrya to see how today closed and what tomorrow opens with.",
       };
-}
-
-async function pushToDevices(
-  admin: SupabaseClient,
-  apns: ApnsClient,
-  userId: string,
-  readingId: string,
-  copy: AlertCopy,
-  slot: Slot,
-): Promise<number> {
-  if (!isPushConfigured()) return 0;
-
-  const { data } = await admin.from("device_tokens").select("token, environment").eq("user_id", userId);
-
-  let sent = 0;
-  const dead: string[] = [];
-  for (const device of (data ?? []) as { token: string; environment: PushEnvironment }[]) {
-    const result = await apns.send({
-      deviceToken: device.token,
-      environment: device.environment,
-      title: copy.title,
-      body: copy.body,
-      alertId: readingId,
-      kind: "daily",
-      threadId: `sanchara-daily-${slot}`,
-    });
-    if (result.ok) sent += 1;
-    else if (result.unregistered) dead.push(device.token);
-    else console.error("apns send failed", result.status, result.reason);
-  }
-  if (dead.length > 0) await admin.from("device_tokens").delete().in("token", dead);
-  return sent;
 }

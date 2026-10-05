@@ -20,6 +20,22 @@ All notable changes to Sanchara are recorded here. The format follows
 
 ### Added
 
+- **Readings arrive at 7 and 8, wherever you live.** The job now runs every
+  hour (GitHub Actions, since Vercel's Hobby plan allows one run a day per
+  cron) and each person is handled on their own clock: the morning reading
+  lands in the first run after 7:00 local and the night one after 20:00, in
+  Mumbai and New York alike. The clock is the phone's own timezone, sent when
+  it registers for pushes (migration `0013_device_timezone.sql`), so someone
+  born in India and living in New York gets New York mornings; the
+  birthplace timezone is the fallback. Dosha alerts only go out between 8:00
+  and 22:00 local, never at 3am.
+- **Discoveries: the occasional "did you know".** On about three days in
+  seven, at a different afternoon hour each time, Astrya sends one small true
+  thing about you: an exalted planet and the houses it rules, where the lord
+  of your 10th house sits, your personal year and month, a sign change coming
+  up in the sky read against your chart, or a prediction a past reading made
+  whose window is open now, asking gently whether it happened. They sit in
+  the bell inbox with the alerts. Written by Haiku for a fraction of a cent.
 - **An admin dashboard that tracks everything, on the web and on iPhone.**
   `/admin` now opens on an overview for the last 7, 30 or 90 days: users, new
   sign-ups, active users, readings and Deep share, model spend in total, today

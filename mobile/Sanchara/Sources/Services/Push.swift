@@ -60,11 +60,17 @@ final class PushStore {
         Task { await register() }
     }
 
-    /// Safe to call repeatedly — the route upserts on the token.
+    /// Safe to call repeatedly — the route upserts on the token. Called on
+    /// every launch, so a move between timezones is picked up the next time
+    /// the app opens.
     func register() async {
         guard let deviceToken, await Supa.accessToken() != nil else { return }
         do {
-            try await SancharaAPI.registerDevice(token: deviceToken, environment: Self.environment)
+            try await SancharaAPI.registerDevice(
+                token: deviceToken,
+                environment: Self.environment,
+                timezone: TimeZone.current.identifier
+            )
         } catch {
             // The next launch retries; a missed registration is not worth
             // interrupting the user over.

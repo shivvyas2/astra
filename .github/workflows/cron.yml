@@ -1,0 +1,39 @@
+# Runs the readings, alerts and discoveries job every hour.
+#
+# Vercel's Hobby plan only fires a cron once a day, and a morning reading in
+# Mumbai is a night reading in New York, so the hourly beat comes from here.
+# The job decides per user, on their own clock, whether anything is due, so
+# most runs do nothing. The two crons in vercel.json remain as a backstop.
+#
+# Needs one repository secret, CRON_SECRET, with the same value as the
+# Vercel production variable (see docs/PUSH_ALERTS.md). An optional repository
+# variable CRON_URL overrides the endpoint.
+name: Hourly readings and alerts
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: hourly-cron
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call the job
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          CRON_URL: ${{ vars.CRON_URL || 'https://astra.shivvyas.com/api/cron/daily' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "The CRON_SECRET repository secret is not set." >&2
+            exit 1
+          fi
+          curl --fail-with-body --silent --show-error --max-time 320 \
+            -H "Authorization: Bearer $CRON_SECRET" "$CRON_URL"

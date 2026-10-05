@@ -121,10 +121,16 @@ enum SancharaAPI {
     }
 
     /// Registers this device for dosha alerts. Mirrors `POST /api/devices`.
-    static func registerDevice(token: String, environment: String) async throws {
+    /// `timezone` is the phone's current zone, so the morning and night
+    /// readings follow the clock the person lives on, not their birthplace.
+    static func registerDevice(
+        token: String,
+        environment: String,
+        timezone: String = TimeZone.current.identifier
+    ) async throws {
         var req = try await request("api/devices", method: "POST")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["token": token, "environment": environment])
+        req.httpBody = try JSONEncoder().encode(["token": token, "environment": environment, "timezone": timezone])
         let (data, response) = try await URLSession.shared.data(for: req)
         try check(response, data)
     }

@@ -15,11 +15,18 @@ Both run from one endpoint, `/api/cron/daily`, fired twice a day.
 ## The twice-daily reading
 
 `lib/alerts/predictions.ts`. Each user is handled on **their own clock**, not
-the server's: anything before 14:00 local is that day's morning reading,
-anything after is that night's (`lib/alerts/slots.ts`). The row is stored
-against the user's local date with a unique index on
-`(user_id, for_date, slot)`, which means the job is safe to run more often than
-scheduled — a repeat run finds the slot already written and does nothing.
+the server's. The clock is the phone's own timezone, reported when it
+registers for pushes (`device_tokens.timezone`, migration 0013), falling back
+to the birthplace timezone on the profile, then UTC (`lib/alerts/zones.ts`).
+Someone born in Ahmedabad and living in New York gets New York hours.
+
+The job runs every hour. The morning reading is written by the first run that
+lands between 7:00 and 11:59 local, the night one by the first run between
+20:00 and 23:59 (`lib/alerts/slots.ts`), so in practice they arrive at about
+7 and 20 wherever the person is. Between the windows nothing is due. The row
+is stored against the user's local date with a unique index on
+`(user_id, for_date, slot)`, which means a repeat run finds the slot already
+written and does nothing.
 
 The reading is composed by Sonnet 5 at low effort, from the same cached chart
 prompt the chat uses, plus today's transits and any non-`info` conditions the
@@ -81,12 +88,16 @@ only be downloaded once).
 ### 3. Set the environment variables
 
 ```bash
-vercel env add CRON_SECRET          # any long random string
-vercel env add APNS_KEY_ID          # the 10-character key ID
-vercel env add APNS_TEAM_ID         # Z42YU5W6WY
-vercel env add APNS_BUNDLE_ID       # com.shivvyas.astra
-vercel env add APNS_PRIVATE_KEY     # full contents of the .p8 file
+openssl rand -hex 32 | tr -d '\n' | vercel env add CRON_SECRET production
+printf 'XXXXXXXXXX' | vercel env add APNS_KEY_ID production        # the 10-character key ID
+printf 'Z42YU5W6WY' | vercel env add APNS_TEAM_ID production
+printf 'com.shivvyas.astra' | vercel env add APNS_BUNDLE_ID production
+vercel env add APNS_PRIVATE_KEY production < AuthKey_XXXXXXXXXX.p8
 ```
+
+`CRON_SECRET` is sent as an HTTP header, so it must not end in a newline:
+Vercel refuses to build a deployment whose secret has leading or trailing
+whitespace. Piping through `tr -d '\n'` or using `printf` avoids that.
 
 Without the APNs variables the job still runs and still writes alerts — the app
 shows them in the bell inbox — it just sends no pushes.
@@ -97,6 +108,43 @@ shows them in the bell inbox — it just sends no pushes.
 tokens. TestFlight and App Store builds need `production`. The app reports which
 one it used when registering, and `lib/push/apns.ts` sends to the matching host,
 so both can coexist.
+
+### 5. Run it every hour
+
+Vercel's Hobby plan fires a cron at most once a day, and 7am in Mumbai is
+9:30pm in New York, so the hourly beat comes from GitHub Actions:
+`.github/workflows/cron.yml` calls `/api/cron/daily` on the custom domain at
+the top of every hour (the `*.vercel.app` domains sit behind Vercel's login
+wall; the custom domain does not). It needs one repository secret with the
+same value as the Vercel variable. Set both from one value so they cannot
+drift:
+
+```bash
+S=$(openssl rand -hex 32)
+vercel env rm CRON_SECRET production -y
+printf '%s' "$S" | vercel env add CRON_SECRET production
+printf '%s' "$S" | gh secret set CRON_SECRET --repo shivvyas2/astra
+unset S
+```
+
+Then redeploy. "Run workflow" on the Actions tab fires it by hand. The two
+crons in `vercel.json` (02:30 and 15:30 UTC) stay as a backstop: on their own
+they still land one morning and one night reading in both India and New York.
+
+## Discoveries
+
+`lib/alerts/discoveries.ts`. On about three days in seven, at some hour
+between 10:00 and 18:59 local, a person gets one small true thing about
+themselves: a placement in their chart (an exalted planet, a house lord's
+position, the running mahadasha), a number in their birth date (personal year
+and month, the Lo Shu grid), a sign change or station coming up in the sky
+read against their chart, or a prediction a past reading made whose window is
+open now, with a gentle "did it happen?". Which days and which hour come from
+a hash of the user and the local date, so every hourly run agrees and nothing
+is sent twice; the row is written to `alerts` with severity `info` and
+`kinds` starting with `discovery`, so it sits in the bell inbox like any other
+alert. Copy is written by Haiku 4.5 from the one fact, for a fraction of a
+cent, with a plain fallback if the call fails.
 
 ## Testing the job by hand
 
@@ -118,12 +166,14 @@ result for a second run in the same half of a user's day.
 
 ### Timezones and how often the job runs
 
-Two fixed UTC runs land at 08:00 and 21:00 in IST, which is exactly the morning
-and night slot. A user far from that timezone can have both runs land in the
-same half of their local day, in which case they get one reading that day
-rather than two. On a Vercel plan that allows sub-daily crons, changing the
-schedule to `0 * * * *` makes every timezone exact, and costs nothing extra:
-each hourly run writes only for users whose current slot is still missing.
+Every part of the job is decided per user, on the user's own clock, so the
+hourly run is cheap: most hours, for most people, nothing is due. The
+readings have the delivery windows above; the dosha sweep diffs the sky only
+between 8:00 and 21:59 local, so a condition that begins overnight is found
+and pushed at 8am rather than 3am; discoveries have their own hashed hour.
+If the hourly workflow is ever off, the two Vercel crons alone still give
+both India and New York a morning and a night reading, just at fixed times
+(08:00 and 21:00 IST; 22:30 and 11:30 in New York).
 
 Note that the **first** run for an existing user reports whatever standing natal
 doshas they have, because nothing was on record before. After that, only changes

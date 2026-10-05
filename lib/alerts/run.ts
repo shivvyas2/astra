@@ -6,7 +6,10 @@ import { computeChart } from "@/lib/astrology/chart";
 import { detectConditions, highestSeverity, type Condition, type Severity } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { composeAlert } from "./compose";
-import { ApnsClient, isPushConfigured, type PushEnvironment } from "@/lib/push/apns";
+import { ApnsClient, isPushConfigured } from "@/lib/push/apns";
+import { pushToUserDevices } from "@/lib/push/devices";
+import { isWakingHour } from "./slots";
+import { loadDeviceZones, resolveZone } from "./zones";
 
 /** Only these reach a lock screen; `info` conditions are recorded silently. */
 const NOTIFIABLE: Severity[] = ["caution", "warning"];
@@ -121,10 +124,11 @@ export async function runDailyAlerts(options: { limit?: number } = {}): Promise<
       .not("chart", "is", null)
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
+    const zones = await loadDeviceZones(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       try {
-        const result = await runAlertsForUser(profile, admin, apns);
+        const result = await runAlertsForUser(profile, admin, apns, zones);
         summary.processed += 1;
         if (result?.alerted) summary.alerted += 1;
         summary.pushesSent += result?.pushesSent ?? 0;
@@ -144,13 +148,19 @@ export async function runAlertsForUser(
   profile: ProfileRow,
   admin: SupabaseClient,
   apns: ApnsClient,
+  zones: Map<string, string> = new Map(),
 ): Promise<UserAlertResult | null> {
   const natal = profile.chart?.vedic;
   if (!natal) return null;
 
-  const zone = profile.timezone || "UTC";
+  const zone = resolveZone(zones.get(profile.user_id), profile.timezone);
   const nowLocal = DateTime.now().setZone(zone);
   const nowUtc = DateTime.utc();
+
+  // The job runs every hour. The sky is only diffed, and so only alerted,
+  // while this person is awake: a condition that begins overnight is found
+  // at 8am their time, not pushed at 3am.
+  if (!isWakingHour(nowLocal.hour)) return null;
 
   // Today's sky at the user's birthplace, the same way the chat route does it.
   const transit = await computeChart(
@@ -279,43 +289,11 @@ export async function runAlertsForUser(
   if (alertError) throw new Error(alertError.message);
 
   result.alerted = true;
-  result.pushesSent = await pushToDevices(admin, apns, profile.user_id, alertRow.id as string, copy.title, copy.body);
+  result.pushesSent = await pushToUserDevices(admin, apns, profile.user_id, {
+    title: copy.title,
+    body: copy.body,
+    alertId: alertRow.id as string,
+    kind: "alert",
+  });
   return result;
-}
-
-async function pushToDevices(
-  admin: SupabaseClient,
-  apns: ApnsClient,
-  userId: string,
-  alertId: string,
-  title: string,
-  body: string,
-): Promise<number> {
-  if (!isPushConfigured()) return 0;
-
-  const { data } = await admin
-    .from("device_tokens")
-    .select("token, environment")
-    .eq("user_id", userId);
-
-  let sent = 0;
-  const dead: string[] = [];
-  for (const device of (data ?? []) as { token: string; environment: PushEnvironment }[]) {
-    const result = await apns.send({
-      deviceToken: device.token,
-      environment: device.environment,
-      title,
-      body,
-      alertId,
-    });
-    if (result.ok) sent += 1;
-    else if (result.unregistered) dead.push(device.token);
-    else console.error("apns send failed", result.status, result.reason);
-  }
-
-  // Apple only tells you a token is dead when you use it; drop it now so the
-  // table does not fill with tokens from deleted apps.
-  if (dead.length > 0) await admin.from("device_tokens").delete().in("token", dead);
-
-  return sent;
 }

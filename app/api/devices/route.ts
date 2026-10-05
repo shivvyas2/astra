@@ -1,5 +1,7 @@
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { createAdminSupabase } from "@/lib/supabase/admin";
+import { cleanZone } from "@/lib/alerts/zones";
+import { isMissingRelation } from "@/lib/usage/record";
 
 export const runtime = "nodejs";
 
@@ -8,7 +10,8 @@ export const runtime = "nodejs";
 const TOKEN_PATTERN = /^[0-9a-fA-F]{64,200}$/;
 
 /**
- * Registers this device for dosha alerts.
+ * Registers this device for pushes, with the phone's own timezone so the
+ * morning and night readings follow the clock the person actually lives on.
  *
  * The row is written with the admin client: a device handed from one account to
  * another has to change owner, and the owner-only RLS policy would (correctly)
@@ -21,25 +24,29 @@ export async function POST(request: Request) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   const body = (await request.json().catch(() => null)) as
-    | { token?: string; environment?: string }
+    | { token?: string; environment?: string; timezone?: string }
     | null;
   const token = body?.token?.trim();
   if (!token || !TOKEN_PATTERN.test(token)) {
     return Response.json({ error: "Invalid device token" }, { status: 400 });
   }
   const environment = body?.environment === "sandbox" ? "sandbox" : "production";
+  const timezone = cleanZone(body?.timezone);
 
   const admin = createAdminSupabase();
-  const { error } = await admin.from("device_tokens").upsert(
-    {
-      token,
-      user_id: user.id,
-      platform: "ios",
-      environment,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "token" },
-  );
+  const row = {
+    token,
+    user_id: user.id,
+    platform: "ios",
+    environment,
+    updated_at: new Date().toISOString(),
+  };
+  let { error } = await admin.from("device_tokens").upsert({ ...row, timezone }, { onConflict: "token" });
+  // Before migration 0013 the column does not exist; register without it
+  // rather than refuse the device.
+  if (error && isMissingRelation(error)) {
+    ({ error } = await admin.from("device_tokens").upsert(row, { onConflict: "token" }));
+  }
   if (error) {
     console.error("device registration error", error);
     return Response.json({ error: "Could not register this device." }, { status: 500 });
