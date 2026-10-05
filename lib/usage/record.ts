@@ -93,7 +93,7 @@ type Inserter = { from(table: string): { insert(row: unknown): PromiseLike<{ err
 /** Inserts one usage row with the service-role client. Never throws. */
 export async function recordUsage(record: UsageRecord, db?: Inserter): Promise<void> {
   try {
-    if (!priceFor(record.model) && record.model !== "quota") {
+    if (!priceFor(record.model)) {
       logOnce(`price:${record.model}`, `model_usage: no price for ${record.model}; recorded at $0`);
     }
     const client = db ?? (createAdminSupabase() as unknown as Inserter);
