@@ -180,4 +180,39 @@ final class MemoryTests: XCTestCase {
             ["career", "relationships", "money", "health", "home", "family", "children", "travel", "education", "general"]
         )
     }
+
+    // MARK: - Scorecard (mirrors lib/memory/scorecard.test.ts)
+
+    private func item(_ status: PredictionStatus, start: String = "2026-06-01", confidence: String = "possible") -> PredictionItem {
+        PredictionItem(id: UUID().uuidString, topic: .career, claim: "A change of role", windowStart: start,
+                       windowEnd: "2026-08-31", confidence: confidence, status: status)
+    }
+
+    func testScorecardTakesTheRateOverHappenedAndDidntOnly() {
+        let card = Scorecard([item(.happened), item(.happened), item(.didnt), item(.unsure), item(.unsure)], today: "2026-10-09")
+        XCTAssertEqual(card.checked, 3)
+        XCTAssertEqual(card.unsure, 2)
+        XCTAssertEqual(card.rate, 67)
+        XCTAssertEqual(card.total, 5)
+    }
+
+    func testScorecardShowsNoRateUntilThereAreEnoughAnswers() {
+        XCTAssertNil(Scorecard([item(.happened), item(.happened)], today: "2026-10-09").rate)
+        XCTAssertEqual(Scorecard([item(.happened), item(.happened), item(.didnt)], today: "2026-10-09").rate, 67)
+    }
+
+    func testScorecardSplitsOpenIntoAwaitingAndUpcoming() {
+        let card = Scorecard([item(.open, start: "2026-10-09"), item(.open, start: "2026-01-01"), item(.open, start: "2027-03-01")],
+                             today: "2026-10-09")
+        XCTAssertEqual(card.awaiting, 2)
+        XCTAssertEqual(card.upcoming, 1)
+        XCTAssertNil(card.rate)
+    }
+
+    func testScorecardKeepsARecordOfLikelyCalls() {
+        let card = Scorecard([item(.happened, confidence: "likely"), item(.didnt, confidence: "likely"),
+                              item(.happened), item(.unsure, confidence: "likely")], today: "2026-10-09")
+        XCTAssertEqual(card.likelyChecked, 2)
+        XCTAssertEqual(card.likelyHappened, 1)
+    }
 }

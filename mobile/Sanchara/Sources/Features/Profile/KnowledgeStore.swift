@@ -393,3 +393,50 @@ final class KnowledgeStore {
         }, request: { try await KnowledgeAPI.deleteAll() }, failure: "Couldn't forget everything.")
     }
 }
+
+/// Astrya's record with one person: of the dated predictions its readings
+/// made, how many they said came true. Mirrors `scorecard` in
+/// lib/memory/scorecard.ts — keep the two in step.
+///
+/// Only the person's own answers count. "Not sure" stays out of the rate, and
+/// no rate is shown below `minCheckedForRate` answers: a 100% from one
+/// prediction is noise dressed up as a claim.
+struct Scorecard: Equatable {
+    static let minCheckedForRate = 3
+
+    var happened = 0
+    var didnt = 0
+    var unsure = 0
+    /// Open, and its window has begun: waiting for the person to say.
+    var awaiting = 0
+    /// Open, and its window is still ahead.
+    var upcoming = 0
+    var likelyChecked = 0
+    var likelyHappened = 0
+    var total = 0
+
+    /// happened + didnt: the answers the rate is taken over.
+    var checked: Int { happened + didnt }
+
+    /// Rounded percentage that happened, or nil below `minCheckedForRate` answers.
+    var rate: Int? {
+        guard checked >= Self.minCheckedForRate else { return nil }
+        return Int((Double(happened) / Double(checked) * 100).rounded())
+    }
+
+    init(_ predictions: [PredictionItem], today: String) {
+        total = predictions.count
+        for p in predictions {
+            switch p.status {
+            case .happened: happened += 1
+            case .didnt: didnt += 1
+            case .unsure: unsure += 1
+            case .open: if p.windowStart <= today { awaiting += 1 } else { upcoming += 1 }
+            }
+            if p.confidence == "likely" && (p.status == .happened || p.status == .didnt) {
+                likelyChecked += 1
+                if p.status == .happened { likelyHappened += 1 }
+            }
+        }
+    }
+}

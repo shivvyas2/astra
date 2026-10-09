@@ -77,6 +77,9 @@ struct KnowledgeView: View {
                 )
             } else {
                 VStack(alignment: .leading, spacing: 28) {
+                    if !store.predictions.isEmpty {
+                        AccuracyCard(card: Scorecard(store.predictions, today: Self.today))
+                    }
                     ForEach(store.groups) { group in
                         section(group)
                     }

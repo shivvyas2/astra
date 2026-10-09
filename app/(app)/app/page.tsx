@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { getBirthProfile } from "@/lib/data/birthProfile";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { AccuracyCard } from "@/components/AccuracyCard";
+import { createServerSupabase } from "@/lib/supabase/server";
+import { loadPredictions } from "@/lib/memory/store";
+import { scorecard } from "@/lib/memory/scorecard";
 
 const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -102,6 +106,10 @@ export default async function AppHome() {
     );
   }
 
+  // Astrya's record with this person, once a reading has made a prediction.
+  const { predictions } = await loadPredictions(await createServerSupabase(), 100);
+  const card = predictions.length > 0 ? scorecard(predictions, new Date().toISOString().slice(0, 10)) : null;
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl px-5 py-8 sm:py-12">
@@ -117,6 +125,12 @@ export default async function AppHome() {
             <img src={profile.avatar_url} alt="" className="mt-5 h-14 w-14 rounded-full border border-line object-cover" />
           ) : null}
         </ScreenHeader>
+
+        {card && (
+          <div className="mt-10">
+            <AccuracyCard card={card} href="/app/profile#predictions" />
+          </div>
+        )}
 
         <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {FEATURES.map((f) => (

@@ -1,5 +1,6 @@
 "use client";
-
+import { AccuracyCard } from "@/components/AccuracyCard";
+import { scorecard } from "@/lib/memory/scorecard";
 import { useState, type ReactNode } from "react";
 import { groupFacts, type UserFact } from "@/lib/facts/types";
 import {
@@ -140,6 +141,12 @@ export function KnowledgeList({
         your situation and to stay consistent.
       </p>
 
+      {predictions.length > 0 && (
+        <div className="mt-4">
+          <AccuracyCard card={scorecard(predictions, today)} />
+        </div>
+      )}
+
       <div className="brut-card mt-4 p-5">
         {total === 0 ? (
           <p className="text-sm text-muted">
@@ -178,7 +185,7 @@ export function KnowledgeList({
             )}
 
             {ordered.length > 0 && (
-              <div>
+              <div id="predictions" className="scroll-mt-6">
                 <p className="eyebrow">Predictions</p>
                 <ul className="mt-2 border-t border-rule">
                   {ordered.map((p) => (
