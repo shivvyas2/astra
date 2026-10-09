@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getBirthProfile } from "@/lib/data/birthProfile";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AccuracyCard } from "@/components/AccuracyCard";
+import { MoodCheckin } from "@/components/MoodCheckin";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { loadPredictions } from "@/lib/memory/store";
 import { scorecard } from "@/lib/memory/scorecard";
@@ -125,6 +126,8 @@ export default async function AppHome() {
             <img src={profile.avatar_url} alt="" className="mt-5 h-14 w-14 rounded-full border border-line object-cover" />
           ) : null}
         </ScreenHeader>
+
+        <MoodCheckin className="mt-10" />
 
         {card && (
           <div className="mt-10">

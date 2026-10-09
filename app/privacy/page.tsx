@@ -42,6 +42,15 @@ export default function PrivacyPage() {
         </section>
 
         <section className="mt-8 border-t border-rule pt-5">
+          <h2 className="text-lg font-semibold">Mood check-ins and key dates</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-muted">
+            <li>If you use the daily check-in, Astrya stores the date and the number you chose (1 to 5). Only your account can read it; the Astrya team cannot.</li>
+            <li>Check-ins are compared with your chart on Astrya&apos;s own servers. They are never sent to Anthropic or any other AI.</li>
+            <li>Key dates are computed from your chart. On iPhone, Add to calendar asks for write-only access: Astrya can add events but never reads your calendar.</li>
+          </ul>
+        </section>
+
+        <section className="mt-8 border-t border-rule pt-5">
           <h2 className="text-lg font-semibold">Subscriptions</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-muted">
             <li>Astrya Plus is sold through Apple. Apple handles payment; Astrya never sees your card.</li>

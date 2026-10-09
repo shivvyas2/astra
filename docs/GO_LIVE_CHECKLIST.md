@@ -48,6 +48,8 @@ Run these in order, exactly as they are in the repo, either with
    predictions ledger, and confidence/source columns on `user_facts`; needs
    0008 first. Until it exists, facts still work and summaries and
    predictions are simply not kept)
+5. `supabase/migrations/0014_mood.sql` (daily mood check-ins, 2026-10-09;
+   until it exists the check-in card stays hidden on web and iPhone)
 
 Confirm with:
 
@@ -55,7 +57,7 @@ Confirm with:
 select table_name from information_schema.tables
 where table_schema = 'public'
   and table_name in ('life_events', 'life_event_scans', 'period_readings', 'user_facts',
-                     'conversation_memories', 'predictions');
+                     'conversation_memories', 'predictions', 'mood_checkins');
 
 select column_name from information_schema.columns
 where table_schema = 'public' and table_name = 'user_facts'
@@ -150,6 +152,9 @@ their next visit; that is intended.
    - Data Linked to You: Contact Info (email), User ID, Purchases (subscription
      status), User Content (birth details, chat messages, remembered facts),
      Sensitive Info is not collected.
+   - Also User Content → Other User Content: mood check-ins (a date and a
+     1-5 number; owner-only, never sent to a model). Migration 0014.
+   - Calendar: write-only access to add Key dates (no calendar data is read).
    - Purpose for all of them: App Functionality. No Tracking, no Third-Party
      Advertising, no Analytics.
    - In the review notes and the privacy policy, say that birth details, chart,

@@ -99,6 +99,23 @@ enum SancharaAPI {
         return try JSONDecoder().decode(DateComparison.self, from: data)
     }
 
+    /// Mood check-ins and their patterns. Mirrors `GET /api/mood`.
+    static func mood() async throws -> MoodPayload {
+        let req = try await request("api/mood", method: "GET")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        return try JSONDecoder().decode(MoodPayload.self, from: data)
+    }
+
+    /// Records today's mood, 1 to 5. Mirrors `POST /api/mood`.
+    static func saveMood(day: String, mood: Int) async throws {
+        var req = try await request("api/mood", method: "POST")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["day": day, "mood": mood])
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+    }
+
     /// Asks the server to write the plain-language meaning of every period.
     /// Mirrors `POST /api/timeline/explain`, which answers with the same shape
     /// as the GET once the meanings are in place.

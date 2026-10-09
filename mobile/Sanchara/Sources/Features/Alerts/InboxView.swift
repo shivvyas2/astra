@@ -34,6 +34,8 @@ struct InboxView: View {
                             todayHeader
                                 .padding(.top, 8)
                                 .padding(.bottom, 24)
+                            MoodCheckinCard()
+                                .padding(.bottom, 24)
                         }
                         picker
                             .padding(.bottom, 20)

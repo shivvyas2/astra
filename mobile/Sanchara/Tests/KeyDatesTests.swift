@@ -43,4 +43,18 @@ final class KeyDatesTests: XCTestCase {
         XCTAssertEqual(c.winner?.date, "2026-11-03")
         XCTAssertEqual(c.a.factors.first?.score, 1)
     }
+
+    func testDecodesMoodWithAndWithoutASummary() throws {
+        let full = """
+        {"available":true,"checkins":[{"day":"2026-10-09","mood":4}],
+         "summary":{"days":12,"mean":3.2,"needed":0,"patterns":[{"key":"chandra","label":"Chandra bala",
+           "good":{"mean":4,"days":6},"other":{"mean":2,"days":6},"gap":2,"sentence":"On days the Moon is well placed."}]}}
+        """
+        let p = try JSONDecoder().decode(MoodPayload.self, from: Data(full.utf8))
+        XCTAssertEqual(p.summary?.patterns.first?.label, "Chandra bala")
+        XCTAssertEqual(p.checkins.first?.mood, 4)
+        let bare = try JSONDecoder().decode(MoodPayload.self, from: Data(#"{"available":false,"checkins":[],"summary":null}"#.utf8))
+        XCTAssertFalse(bare.available)
+        XCTAssertNil(bare.summary)
+    }
 }
