@@ -386,3 +386,8 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
   .animate-fade-up, .animate-fade-in, .animate-glow { animation: none; }
 }
 .callout-simple li::marker { color: var(--ink); }
+
+/* "Why Astrya said this": the chart facts under a reading, as hairline rows. */
+.prose-reading ul.basis-list { list-style: none; padding-left: 0; margin: 0.5rem 0 0; }
+.prose-reading ul.basis-list li { margin: 0; }
+.prose-reading p.basis-note { margin: 0; }

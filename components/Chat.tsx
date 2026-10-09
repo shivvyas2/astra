@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMode } from "@/lib/astrology/types";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { splitReading } from "@/lib/astrology/reading";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -13,17 +14,6 @@ const MODES: { key: ChatMode; label: string; chip: string; blurb: string }[] = [
   { key: "western", label: "Western", chip: "var(--violet)", blurb: "Tropical chart, Placidus houses" },
   { key: "numerology", label: "Numerology", chip: "var(--accent)", blurb: "Your numbers from your name and birth date" },
 ];
-
-// The model ends every answer with a bold "In simple words" heading followed by
-// a sentence or two. That tail is lifted into a highlighted callout once the
-// marker has streamed in; before that, everything renders as ordinary prose.
-const SIMPLE_MARKER = /\*\*\s*in simple words\s*:?\s*\*\*/i;
-
-function splitSimple(content: string): { main: string; simple: string | null } {
-  const m = SIMPLE_MARKER.exec(content);
-  if (!m) return { main: content, simple: null };
-  return { main: content.slice(0, m.index), simple: content.slice(m.index) };
-}
 
 // How close to the bottom (px) still counts as "following the stream".
 const NEAR_BOTTOM_PX = 80;
@@ -260,18 +250,46 @@ export function Chat({
 
 function AssistantTurn({ content, streaming }: { content: string; streaming: boolean }) {
   if (!content) return <span className="animate-shimmer text-sm text-muted">Reading your chart…</span>;
-  const { main, simple } = splitSimple(content);
+  // The body, then the lime "In simple words" callout, then the chart facts
+  // the reading rests on, folded into "Why Astrya said this".
+  const { main, simple, basis } = splitReading(content);
   const caret = <span className="caret">▍</span>;
   return (
     <div className="prose-reading max-w-none break-words text-[15px] text-fg">
       {main.trim() && <ReactMarkdown remarkPlugins={[remarkGfm]}>{main}</ReactMarkdown>}
-      {streaming && simple === null && caret}
+      {streaming && simple === null && basis === null && caret}
       {simple !== null && (
         <div className="callout-simple">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{simple}</ReactMarkdown>
-          {streaming && caret}
+          {streaming && basis === null && caret}
         </div>
       )}
+      {basis !== null && <ChartBasis facts={basis} streaming={streaming} />}
     </div>
+  );
+}
+
+/** The computed facts a reading rests on, behind a toggle, so it can be checked against the chart. */
+function ChartBasis({ facts, streaming }: { facts: string[]; streaming: boolean }) {
+  if (facts.length === 0 && !streaming) return null;
+  return (
+    <details className="group mt-3 rounded-[14px] border border-line bg-fg/[0.03]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
+        <span className="flex items-center gap-2">
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
+          Why Astrya said this
+        </span>
+        <span aria-hidden className="text-muted transition-transform group-open:rotate-45">+</span>
+      </summary>
+      <div className="px-4 pb-3">
+        <p className="basis-note text-xs text-muted">The facts from your computed chart this reading rests on.</p>
+        <ul className="basis-list">
+          {facts.map((f, i) => (
+            <li key={i} className="m-0 border-t border-rule py-2 text-sm text-fg">{f}</li>
+          ))}
+        </ul>
+        {streaming && <span className="caret">▍</span>}
+      </div>
+    </details>
   );
 }

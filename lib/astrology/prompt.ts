@@ -6,6 +6,15 @@ import { TOPIC_LABEL, windowLabel, type ConversationMemory, type Prediction } fr
 import { STABLE_MAX_TOKENS, TURN_MAX_TOKENS, fitLines, type SelectedMemory } from "@/lib/memory/select";
 import { factsFor, type Derived, type Dignity, type PlanetFact } from "./derived";
 import type { LoShu } from "./numerology";
+import { CHART_BASIS_TITLE } from "./reading";
+
+/**
+ * The last section of every reading: the computed facts it rests on, copied
+ * from the fact list in the prompt. Readers fold it into "Why Astrya said
+ * this" (splitReading in lib/astrology/reading.ts, MarkdownBlock on iOS), so
+ * anyone can check a reading against their own chart.
+ */
+const CHART_BASIS_RULE = `End with a section titled **${CHART_BASIS_TITLE}**: two to five "- " bullets, each one fact from the list above that this answer rests on, copied as it is written there (with its house or sign and any dates). Nothing that is not in that list; no commentary.`;
 
 const DIGNITY_WORD: Record<Dignity, string> = {
   exalted: "exalted",
@@ -265,7 +274,8 @@ Be specific and personal:
 Format:
 - Two or three short sections. Each is a bold markdown heading (for example **Career**) followed by one or two sentences, or a few "- " bullets.
 - Plain text only: no emoji, no decorative symbols, no dashes as separators, no bold inside sentences.
-- End with a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- After that, a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- ${CHART_BASIS_RULE}
 - This is guidance and reflection, not a substitute for professional advice. Say so only when it fits naturally.
 
 Never invent, and never flatter. If the honest reading is unremarkable, say so plainly.`;
@@ -319,7 +329,7 @@ export function buildTodaySystem(args: {
       "When you predict, take the window from here and name its dates.",
     );
   }
-  lines.push(`Length: ${args.maxWords ?? 160} words or fewer unless they ask for more.`);
+  lines.push(`Length: ${args.maxWords ?? 160} words or fewer unless they ask for more, not counting the ${CHART_BASIS_TITLE} list.`);
   return lines.join("\n");
 }
 
@@ -523,7 +533,8 @@ Accuracy:
 Format:
 - Two or three short sections. Each is a bold markdown heading (for example **Your Mulank ${args.mulank}**) followed by one or two sentences, or a few "- " bullets.
 - Plain text only: no emoji, no decorative symbols, no dashes as separators.
-- End with a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- After that, a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- ${CHART_BASIS_RULE}
 - This is guidance and reflection, not a substitute for professional advice. Say so only when it fits naturally.`;
 }
 

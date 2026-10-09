@@ -53,4 +53,30 @@ final class MarkdownBlockTests: XCTestCase {
     func testOrderedItemsKeepTheirNumber() {
         XCTAssertEqual(MarkdownBlock.parse("2) Second"), [.bullet(marker: "2.", text: "Second")])
     }
+
+    /// Mirrors lib/astrology/reading.test.ts.
+    func testChartBasisIsSplitOffAfterSimpleWords() {
+        let blocks = MarkdownBlock.parse("""
+        **Career**
+        Saturn in your 10th house asks for patience.
+
+        **In simple words**
+        Yes, around April.
+
+        **Chart basis**
+        - Saturn transiting the 10th house until April 2027
+        - Mahadasha: Venus until March 2031
+        """)
+        let (rest, basis) = MarkdownBlock.splitChartBasis(blocks)
+        XCTAssertEqual(basis, ["Saturn transiting the 10th house until April 2027", "Mahadasha: Venus until March 2031"])
+        let split = MarkdownBlock.splitSimpleWords(rest)
+        XCTAssertEqual(split.simple.first, .heading("In simple words"))
+        XCTAssertEqual(split.simple.count, 2)
+    }
+
+    func testOlderReadingsHaveNoChartBasis() {
+        let (rest, basis) = MarkdownBlock.splitChartBasis(MarkdownBlock.parse("**Career**\nSteady."))
+        XCTAssertNil(basis)
+        XCTAssertEqual(rest.count, 2)
+    }
 }

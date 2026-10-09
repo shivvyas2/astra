@@ -12,7 +12,7 @@ struct MarkdownText: View {
     let markdown: String
 
     var body: some View {
-        let blocks = MarkdownBlock.parse(markdown)
+        let (blocks, basis) = MarkdownBlock.splitChartBasis(MarkdownBlock.parse(markdown))
         let split = MarkdownBlock.splitSimpleWords(blocks)
 
         VStack(alignment: .leading, spacing: 0) {
@@ -32,6 +32,10 @@ struct MarkdownText: View {
                 .brutCard(fill: Theme.yellow)
                 .padding(.top, 16)
                 .accessibilityElement(children: .combine)
+            }
+            if let basis, !basis.isEmpty {
+                ChartBasisDisclosure(facts: basis)
+                    .padding(.top, 12)
             }
         }
         .tint(Theme.accent)
@@ -141,6 +145,32 @@ enum MarkdownBlock: Equatable {
         return (Array(blocks[..<index]), Array(blocks[index...]))
     }
 
+    /// The reading's last section, **Chart basis**: the computed facts it rests
+    /// on, which the reader folds into "Why Astrya said this". Returns the
+    /// blocks before it and the facts as plain strings, or nil when the
+    /// heading has not arrived. Mirrors `splitReading` in lib/astrology/reading.ts.
+    static func splitChartBasis(_ blocks: [MarkdownBlock]) -> ([MarkdownBlock], [String]?) {
+        guard let index = blocks.lastIndex(where: { block in
+            if case .heading(let text) = block { return normalized(text) == "chart basis" }
+            return false
+        }) else {
+            return (blocks, nil)
+        }
+        let facts: [String] = blocks[(index + 1)...].compactMap { block in
+            switch block {
+            case .bullet(_, let text), .paragraph(let text): text
+            case .heading, .rule: nil
+            }
+        }
+        return (Array(blocks[..<index]), facts)
+    }
+
+    private static func normalized(_ text: String) -> String {
+        text.replacingOccurrences(of: "*", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+            .lowercased()
+    }
+
     static func isSimpleWordsHeading(_ text: String) -> Bool {
         text.replacingOccurrences(of: "*", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
@@ -187,5 +217,58 @@ enum MarkdownBlock: Equatable {
             markdown: text,
             options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         )) ?? AttributedString(text)
+    }
+}
+
+
+/// "Why Astrya said this": the chart facts under a reading, behind a toggle,
+/// so a reading can be checked against the person's own chart.
+struct ChartBasisDisclosure: View {
+    let facts: [String]
+    @State private var open = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(Theme.snap) { open.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Circle().fill(Theme.accent).frame(width: 6, height: 6)
+                    Text("Why Astrya said this")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(Theme.fg)
+                    Spacer(minLength: 8)
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .rotationEffect(.degrees(open ? 45 : 0))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(open ? "Hides the chart facts" : "Shows the chart facts this reading rests on")
+
+            if open {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("The facts from your computed chart this reading rests on.")
+                        .font(.brutBody(12))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.bottom, 6)
+                    ForEach(Array(facts.enumerated()), id: \.offset) { _, fact in
+                        BrutDivider()
+                        Text(MarkdownBlock.inline(fact))
+                            .font(.brutBody(14))
+                            .foregroundStyle(Theme.fg)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 8)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
+            }
+        }
+        .brutBordered(fill: Theme.fg.opacity(0.03))
     }
 }
