@@ -25,22 +25,22 @@ export default async function PlusPage() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-xl px-4 py-10 sm:px-6">
-        <p className="eyebrow flex items-center gap-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-accent" aria-hidden />
-          Astrya Plus
-        </p>
-        <h1 className="mt-3 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">Support Astrya</h1>
+        <div className="flex items-center">
+          <p className="screen-eyebrow">Astrya Plus</p>
+          <span className="astra-mark ml-auto" aria-hidden />
+        </div>
+        <h1 className="headline headline-arrow mt-3 text-5xl sm:text-6xl">Support Astrya</h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted">
           Every reading is free and unlimited, Deep readings included. Plus is a way to keep it that way.
         </p>
 
-        <div className="mt-8 border-t-2 border-fg/20">
-          <div className="flex items-baseline justify-between gap-4 border-b-2 border-fg/20 py-4">
+        <div className="mt-8 border-t border-rule">
+          <div className="flex items-baseline justify-between gap-4 border-b border-rule py-4">
             <span className="text-sm text-muted">Your plan</span>
-            <span className="text-2xl font-black tracking-tight">{plan === "plus" ? "Plus" : "Free"}</span>
+            <span className="text-3xl font-medium tracking-tight">{plan === "plus" ? "Plus" : "Free"}</span>
           </div>
           {renews && (
-            <div className="flex items-baseline justify-between gap-4 border-b-2 border-fg/20 py-4">
+            <div className="flex items-baseline justify-between gap-4 border-b border-rule py-4">
               <span className="text-sm text-muted">Renews or ends</span>
               <span className="font-mono text-sm">{renews}</span>
             </div>
@@ -50,9 +50,9 @@ export default async function PlusPage() {
         <ul className="mt-8 space-y-5">
           {PLUS_BENEFITS.map((b, i) => (
             <li key={b.title} className="flex gap-4">
-              <span className="font-mono text-sm font-bold text-accent">{String(i + 1).padStart(2, "0")}.</span>
+              <span className="number-badge h-fit">{String(i + 1).padStart(2, "0")}.</span>
               <span>
-                <span className="block font-extrabold">{b.title}</span>
+                <span className="block font-semibold">{b.title}</span>
                 <span className="mt-1 block text-sm text-muted">{b.detail}</span>
               </span>
             </li>
@@ -63,7 +63,7 @@ export default async function PlusPage() {
           {[PLUS_PRICES.monthly, PLUS_PRICES.yearly].map((p) => (
             <div key={p.id} className="brut-card p-4">
               <p className="eyebrow">{p.label}</p>
-              <p className="mt-2 text-2xl font-black tracking-tight">{p.price}</p>
+              <p className="mt-2 text-3xl font-light tabular-nums tracking-tight">{p.price}</p>
               <p className="text-xs text-muted">
                 per {p.per}
                 {"perMonth" in p ? ` · ${p.perMonth}/month` : ""}
@@ -73,7 +73,7 @@ export default async function PlusPage() {
         </div>
 
         <div className="brut-bordered mt-6 p-4">
-          <p className="text-sm font-bold">Subscribe in the iPhone app</p>
+          <p className="text-sm font-semibold">Subscribe in the iPhone app</p>
           <p className="mt-1 text-sm text-muted">
             For now Plus is sold through the App Store, in Astrya for iPhone under You → Astrya Plus. It is billed to your
             Apple ID and you can cancel any time in your Apple ID settings.

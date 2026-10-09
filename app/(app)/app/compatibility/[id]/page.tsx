@@ -16,7 +16,7 @@ function categoryText(k: KootaForClient, value: string): string {
   return value;
 }
 
-const TONE_CLASS = { harmonious: "text-fg", challenging: "text-accent", intense: "text-yellow" } as const;
+const TONE_CLASS = { harmonious: "text-fg", challenging: "text-ember", intense: "text-accent" } as const;
 
 export default async function CompatibilityPage({
   params,
@@ -45,17 +45,17 @@ export default async function CompatibilityPage({
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-md px-5 py-8">
-        <Link href={`/app/profiles/${person.id}`} className="eyebrow">← {name}</Link>
-        <p className="eyebrow mt-4">Compatibility</p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight">You &amp; {name}</h1>
+        <Link href={`/app/profiles/${person.id}`} className="eyebrow transition-colors hover:text-fg">← {name}</Link>
+        <p className="screen-eyebrow mt-5">Compatibility</p>
+        <h1 className="headline headline-arrow mt-3 text-4xl sm:text-5xl">You &amp; {name}</h1>
 
         <section className="brut-card mt-5 p-5">
           <p className="eyebrow">Guna Milan</p>
           <p className="mt-2 flex items-baseline gap-2">
-            <span className="text-7xl font-light tabular-nums tracking-tight">{fmt(r.guna.total)}</span>
-            <span className="text-xl font-bold text-muted">/ 36</span>
+            <span className="text-7xl font-light tabular-nums tracking-tight text-accent">{fmt(r.guna.total)}</span>
+            <span className="text-xl font-normal text-muted">/ 36</span>
           </p>
-          <p className="mt-1 font-black">{r.guna.verdict}</p>
+          <p className="mt-1 text-lg font-semibold">{r.guna.verdict}</p>
           <p className="mt-2 text-xs text-muted">
             The classical tables read one chart as the groom&apos;s and one as the bride&apos;s. Read with{" "}
             {groomSide === "you" ? "you" : name} as the groom&apos;s; the other way round it is {fmt(r.guna.swappedTotal)}.{" "}
@@ -64,7 +64,7 @@ export default async function CompatibilityPage({
         </section>
 
         <section className="mt-5">
-          <div className="flex justify-between rounded-sm bg-fg px-3 py-2 text-[11px] font-bold uppercase tracking-widest text-ink">
+          <div className="flex justify-between rounded-full bg-fg px-4 py-2 text-[11px] font-semibold uppercase tracking-widest text-ink">
             <span>Koota</span>
             <span>You · {name} · Points</span>
           </div>
@@ -89,8 +89,8 @@ export default async function CompatibilityPage({
         {r.guna.doshas.length > 0 && (
           <section className="mt-5 space-y-3">
             {r.guna.doshas.map((d) => (
-              <div key={d.kind} className={`brut-bordered p-3 text-sm ${d.present ? "border-accent" : ""}`}>
-                <p className="font-black">
+              <div key={d.kind} className={`brut-bordered p-3 text-sm ${d.present ? "border-ember/60 bg-ember/10" : ""}`}>
+                <p className="font-semibold">
                   {d.kind === "nadi" ? "Nadi dosha" : d.kind === "bhakoot" ? "Bhakoot dosha" : "Mangal dosha"}
                   {d.present ? "" : " — none"}
                 </p>
@@ -109,7 +109,7 @@ export default async function CompatibilityPage({
           <p className="eyebrow">Western synastry</p>
           <p className="mt-2 flex items-baseline gap-2">
             <span className="text-5xl font-light tabular-nums">{r.synastry.score0to100}</span>
-            <span className="text-lg font-bold text-muted">/ 100</span>
+            <span className="text-lg font-normal text-muted">/ 100</span>
           </p>
           <ul className="mt-3">
             {r.synastry.aspects.slice(0, 6).map((a) => (

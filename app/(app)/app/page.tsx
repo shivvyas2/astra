@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getBirthProfile } from "@/lib/data/birthProfile";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
@@ -16,7 +17,7 @@ const FEATURES: {
   {
     href: "/app/chat",
     tag: "Reading",
-    fill: "bg-accent",
+    fill: "bg-ember",
     title: "Ask a reading",
     blurb: "Love, work, timing, anything on your mind. Every answer is read from your own birth chart, in the tradition you pick.",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" {...stroke}><path d="M12 3l2.1 6.4L21 11l-6.9 1.6L12 19l-2.1-6.4L3 11l6.9-1.6z" /></svg>,
@@ -32,9 +33,17 @@ const FEATURES: {
     external: true,
   },
   {
+    href: "/app/profiles",
+    tag: "People",
+    fill: "bg-fg",
+    title: "People",
+    blurb: "Save a partner, a parent or a friend and see how your charts meet.",
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" {...stroke}><path d="M9 11a4 4 0 100-8 4 4 0 000 8zM2 21a7 7 0 0114 0M16 3.5a4 4 0 010 7M22 21a7 7 0 00-4.5-6.5" /></svg>,
+  },
+  {
     href: "/app/profile",
     tag: "Account",
-    fill: "bg-yellow",
+    fill: "bg-accent",
     title: "Profile",
     blurb: "Birth details, photo and account. Changing your birth data recomputes your chart.",
     icon: <svg width="22" height="22" viewBox="0 0 24 24" {...stroke}><path d="M12 12a4 4 0 100-8 4 4 0 000 8zM5 20a7 7 0 0114 0" /></svg>,
@@ -42,17 +51,25 @@ const FEATURES: {
 ];
 
 function FeatureCard({ f }: { f: (typeof FEATURES)[number] }) {
-  const cls = `brut-card block p-5 transition-colors hover:bg-surface-raised ${f.wide ? "sm:col-span-2" : ""}`;
+  const cls = `brut-card group relative flex flex-col overflow-hidden p-5 transition-colors hover:border-fg ${f.wide ? "sm:col-span-2 sm:p-7" : ""}`;
   const inner = (
     <>
+      {f.wide && (
+        <span className="orbit -right-6 -top-10 [--orbit:150px]" aria-hidden>
+          <span className="astra-mark" />
+        </span>
+      )}
       <div className="flex items-center justify-between">
-        <span className="grid h-10 w-10 place-items-center rounded-sm border-2 border-fg bg-bg text-fg">{f.icon}</span>
-        <span className={`brut-tag ${f.fill}`}>{f.tag}</span>
+        <span className="circle-btn pointer-events-none">{f.icon}</span>
+        <span className={`brut-tag ${f.fill} ${f.wide ? "mr-24 sm:mr-28" : ""}`}>{f.tag}</span>
       </div>
-      <h2 className="mt-4 text-xl font-black tracking-tight">{f.title}</h2>
-      <p className="mt-1.5 text-sm text-muted">{f.blurb}</p>
-      <span className="mt-4 inline-flex items-center gap-1 text-sm font-bold">
-        Open <span aria-hidden>→</span>
+      <h2 className={`headline mt-5 ${f.wide ? "text-3xl sm:text-4xl" : "text-2xl"}`}>{f.title}</h2>
+      <p className="mt-2 max-w-md flex-1 text-sm leading-relaxed text-muted">{f.blurb}</p>
+      <span className="mt-5 flex items-center justify-between border-t border-rule pt-4 text-sm font-medium">
+        Open
+        <span className={`circle-btn pointer-events-none h-9 w-9 transition-transform duration-200 group-hover:translate-x-0.5 ${f.wide ? "circle-btn-accent" : ""}`} aria-hidden>
+          <svg width="15" height="15" viewBox="0 0 24 24" {...stroke}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </span>
       </span>
     </>
   );
@@ -69,13 +86,15 @@ export default async function AppHome() {
   if (!profile) {
     return (
       <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex min-h-full max-w-md flex-col items-center justify-center px-5 py-8 text-center">
-          <p className="eyebrow">First step</p>
-          <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Let&apos;s build your chart</h1>
-          <p className="mt-3 max-w-sm text-sm text-muted">
-            We compute your real birth chart from your date, time, and place.
-          </p>
-          <Link href="/app/intake" className="brut-btn brut-btn-accent mt-7 w-full max-w-xs py-3">
+        <div className="mx-auto flex min-h-full max-w-md flex-col justify-center px-5 py-8">
+          <ScreenHeader
+            eyebrow="First step"
+            title="Let's build your chart"
+            arrow
+            size="xl"
+            blurb="We compute your real birth chart from your date, time, and place."
+          />
+          <Link href="/app/intake" className="brut-btn brut-btn-accent brut-btn-arrow mt-8 min-h-[54px] w-full">
             Enter birth details
           </Link>
         </div>
@@ -86,19 +105,20 @@ export default async function AppHome() {
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl px-5 py-8 sm:py-12">
-        <div className="flex items-center gap-4">
+        <ScreenHeader
+          eyebrow="Home"
+          title={<>Hello,<br />{profile.first_name}</>}
+          arrow
+          size="xl"
+          blurb="Your chart is ready. Pick where to go."
+        >
           {profile.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={profile.avatar_url} alt="" className="h-14 w-14 shrink-0 rounded-sm border-2 border-fg object-cover" />
+            <img src={profile.avatar_url} alt="" className="mt-5 h-14 w-14 rounded-full border border-line object-cover" />
           ) : null}
-          <div>
-            <p className="eyebrow">Home</p>
-            <h1 className="mt-1 text-3xl font-black tracking-tight">Hello, {profile.first_name}</h1>
-          </div>
-        </div>
-        <p className="mt-3 max-w-md text-sm text-muted">Your chart is ready. Pick where to go.</p>
+        </ScreenHeader>
 
-        <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {FEATURES.map((f) => (
             <FeatureCard key={f.href} f={f} />
           ))}

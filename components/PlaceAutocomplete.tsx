@@ -18,7 +18,7 @@ export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }
   return (
     <div className="relative w-full">
       <label className="block">
-        <span className="eyebrow mb-1.5 block">Birthplace</span>
+        <span className="eyebrow block">Birthplace</span>
         <input
           value={q}
           onChange={(e) => search(e.target.value)}
@@ -28,9 +28,9 @@ export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }
       </label>
       {picked && <p className="mt-1.5 text-xs text-accent">Selected: {picked}</p>}
       {results.length > 0 && !picked && (
-        <ul className="brut-card absolute z-10 mt-2 max-h-60 w-full overflow-y-auto">
+        <ul className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-[14px] border border-line bg-surface py-1 shadow-2xl shadow-black/60">
           {results.map((r, i) => (
-            <li key={i} className="border-b-2 border-fg/10 last:border-b-0">
+            <li key={i} className="border-b border-rule last:border-b-0">
               <button type="button"
                 onClick={() => { onPick(r); setPicked(r.name); setResults([]); setQ(r.name); }}
                 className="block w-full truncate px-3 py-2 text-left text-sm transition-colors hover:bg-surface-raised">

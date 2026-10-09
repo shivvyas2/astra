@@ -39,35 +39,27 @@ export function AiConsentGate({ version }: { version: string }) {
   }
 
   return (
-    <div className="relative min-h-dvh overflow-y-auto bg-bg text-fg">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0"
-        style={{
-          background:
-            "radial-gradient(60% 45% at 92% 0%, color-mix(in srgb, var(--violet) 30%, transparent), transparent 70%), radial-gradient(55% 40% at 0% 100%, color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%)",
-        }}
-      />
+    <div className="atmosphere atmosphere-dusk min-h-dvh overflow-y-auto text-fg">
       <main className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pb-8 pt-10 sm:px-6 sm:pt-16">
         {declined ? (
           <Declined onReview={() => setDeclined(false)} />
         ) : (
           <>
             <header className="animate-fade-up">
-              <p className="eyebrow flex items-center gap-2">
-                <span className="inline-block h-2 w-2 rounded-full bg-accent" aria-hidden />
-                {CONSENT_COPY.eyebrow}
-              </p>
-              <h1 className="mt-3 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">{CONSENT_COPY.title}</h1>
+              <div className="flex items-center">
+                <p className="screen-eyebrow">{CONSENT_COPY.eyebrow}</p>
+                <span className="astra-mark ml-auto" aria-hidden />
+              </div>
+              <h1 className="headline headline-arrow mt-3 text-4xl sm:text-5xl">{CONSENT_COPY.title}</h1>
               <p className="mt-4 text-[15px] leading-relaxed text-muted">{CONSENT_COPY.intro}</p>
             </header>
 
             <section className="mt-8 animate-fade-up delay-1" aria-label="What happens to your data">
               {CONSENT_COPY.sections.map((s) => (
-                <div key={s.title} className="grid grid-cols-[4.5rem_1fr] gap-4 border-t-2 border-fg/20 py-5 sm:grid-cols-[6rem_1fr]">
-                  <p className="pt-0.5 font-mono text-[11px] font-bold uppercase tracking-[0.14em] text-accent">{s.label}</p>
+                <div key={s.title} className="grid grid-cols-[4.5rem_1fr] gap-4 border-t border-rule py-5 sm:grid-cols-[6rem_1fr]">
+                  <p className="pt-0.5 text-[11px] font-semibold uppercase tracking-[0.13em] text-accent">{s.label}</p>
                   <div>
-                    <h2 className="text-base font-extrabold">{s.title}</h2>
+                    <h2 className="text-base font-semibold">{s.title}</h2>
                     <ul className="mt-2 space-y-2 text-sm leading-relaxed text-muted">
                       {s.points.map((p) => (
                         <li key={p} className="flex gap-2">
@@ -79,9 +71,9 @@ export function AiConsentGate({ version }: { version: string }) {
                   </div>
                 </div>
               ))}
-              <p className="border-t-2 border-fg/20 pt-4 text-xs text-muted">
+              <p className="border-t border-rule pt-4 text-xs text-muted">
                 Full details in the{" "}
-                <a href={PRIVACY_PATH} target="_blank" rel="noreferrer" className="font-bold text-fg underline underline-offset-2">
+                <a href={PRIVACY_PATH} target="_blank" rel="noreferrer" className="font-semibold text-fg underline underline-offset-2">
                   privacy policy
                 </a>
                 .
@@ -93,19 +85,19 @@ export function AiConsentGate({ version }: { version: string }) {
               style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
             >
               {error && (
-                <p role="alert" className="brut-bordered mb-3 px-3 py-2 text-sm">
+                <p role="alert" className="mb-3 rounded-[14px] border border-ember/55 bg-ember/10 px-3.5 py-3 text-sm font-medium">
                   {error}
                 </p>
               )}
               <div className="flex flex-col gap-3 sm:flex-row-reverse">
-                <button type="button" onClick={agree} disabled={busy} className="brut-btn brut-btn-primary flex-1 px-5 py-3 text-[15px]">
+                <button type="button" onClick={agree} disabled={busy} className="brut-btn brut-btn-primary brut-btn-arrow min-h-[54px] flex-1 px-5">
                   {busy ? "Saving…" : CONSENT_COPY.agree}
                 </button>
                 <button
                   type="button"
                   onClick={() => setDeclined(true)}
                   disabled={busy}
-                  className="brut-btn brut-btn-secondary flex-1 px-5 py-3 text-[15px]"
+                  className="brut-btn brut-btn-secondary min-h-[54px] flex-1 px-5"
                 >
                   {CONSENT_COPY.notNow}
                 </button>
@@ -121,11 +113,11 @@ export function AiConsentGate({ version }: { version: string }) {
 function Declined({ onReview }: { onReview: () => void }) {
   return (
     <div className="my-auto animate-fade-up">
-      <p className="eyebrow">Nothing was sent</p>
-      <h1 className="mt-3 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">{CONSENT_COPY.declinedTitle}</h1>
+      <p className="screen-eyebrow">Nothing was sent</p>
+      <h1 className="headline mt-3 text-4xl sm:text-5xl">{CONSENT_COPY.declinedTitle}</h1>
       <p className="mt-4 text-[15px] leading-relaxed text-muted">{CONSENT_COPY.declinedBody}</p>
       <div className="mt-8 flex flex-col gap-3">
-        <button type="button" onClick={onReview} className="brut-btn brut-btn-primary px-5 py-3 text-[15px]">
+        <button type="button" onClick={onReview} className="brut-btn brut-btn-primary brut-btn-arrow min-h-[54px] px-5">
           {CONSENT_COPY.reviewAgain}
         </button>
         <form action={signOut}>

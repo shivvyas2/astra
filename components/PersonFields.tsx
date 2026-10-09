@@ -5,11 +5,11 @@ export function PersonFields({ label, relationship }: { label?: string; relation
   return (
     <div className="grid grid-cols-2 gap-3">
       <label className="block">
-        <span className="eyebrow mb-1.5 block">Call them</span>
+        <span className="eyebrow block">Call them</span>
         <input name="label" maxLength={60} placeholder="Priya, Mom…" defaultValue={label ?? ""} className="brut-field" />
       </label>
       <label className="block">
-        <span className="eyebrow mb-1.5 block">They are your</span>
+        <span className="eyebrow block">They are your</span>
         <select name="relationship" defaultValue={relationship ?? "partner"} className="brut-field cursor-pointer [color-scheme:dark]">
           {RELATIONSHIPS.map((r) => (
             <option key={r} value={r}>{RELATIONSHIP_LABEL[r]}</option>
@@ -20,13 +20,13 @@ export function PersonFields({ label, relationship }: { label?: string; relation
   );
 }
 
-/** Two initials in a bordered square: the avatar a saved person gets. */
+/** Two initials in an outlined circle: the avatar a saved person gets. */
 export function Initials({ first, last, size = 44 }: { first: string; last?: string; size?: number }) {
   const text = `${first.trim()[0] ?? ""}${(last ?? "").trim()[0] ?? ""}`.toUpperCase() || "?";
   return (
     <span
       aria-hidden
-      className="brut-bordered grid shrink-0 place-items-center font-black"
+      className="grid shrink-0 place-items-center rounded-full border border-line bg-fg/[0.06] font-medium tracking-tight"
       style={{ width: size, height: size, fontSize: size * 0.36 }}
     >
       {text}

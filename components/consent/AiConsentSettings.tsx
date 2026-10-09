@@ -33,8 +33,8 @@ export function AiConsentSettings() {
 
   return (
     <section className="mt-8" aria-labelledby="ai-consent-heading">
-      <p className="eyebrow" id="ai-consent-heading">AI and your data</p>
-      <div className="mt-2 border-t-2 border-fg/20">
+      <p className="screen-eyebrow" id="ai-consent-heading">AI and your data</p>
+      <div className="mt-2 border-t border-rule">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -42,7 +42,7 @@ export function AiConsentSettings() {
           className="flex w-full items-center justify-between gap-3 py-3 text-left"
         >
           <span>
-            <span className="block text-[15px] font-bold">What's shared with Anthropic</span>
+            <span className="block text-[15px] font-semibold">What's shared with Anthropic</span>
             <span className="mt-0.5 block text-xs text-muted">You agreed to this before your first reading.</span>
           </span>
           <span aria-hidden className="text-muted">{open ? "−" : "+"}</span>
@@ -51,22 +51,22 @@ export function AiConsentSettings() {
           <ul className="space-y-3 pb-4 text-sm text-muted">
             {CONSENT_COPY.sections.map((s) => (
               <li key={s.title}>
-                <span className="font-bold text-fg">{s.title}. </span>
+                <span className="font-semibold text-fg">{s.title}. </span>
                 {s.points.join(" ")}
               </li>
             ))}
             <li>
-              <a href={PRIVACY_PATH} className="font-bold text-fg underline underline-offset-2">Privacy policy</a>
+              <a href={PRIVACY_PATH} className="font-semibold text-fg underline underline-offset-2">Privacy policy</a>
             </li>
           </ul>
         )}
       </div>
-      <div className="border-t-2 border-fg/20 py-3">
+      <div className="border-t border-rule py-3">
         {confirming ? (
           <div>
             <p className="text-sm text-muted">Readings pause until you agree again. Nothing already stored is deleted by this.</p>
             <div className="mt-3 flex gap-2">
-              <button type="button" onClick={withdraw} disabled={busy} className="brut-btn brut-btn-accent px-3 py-2 text-sm">
+              <button type="button" onClick={withdraw} disabled={busy} className="brut-btn brut-btn-ember px-4 py-2 text-sm">
                 {busy ? "Withdrawing…" : "Withdraw consent"}
               </button>
               <button type="button" onClick={() => setConfirming(false)} className="brut-btn brut-btn-quiet px-3 py-2 text-sm">
@@ -76,11 +76,11 @@ export function AiConsentSettings() {
           </div>
         ) : (
           <button type="button" onClick={() => setConfirming(true)} className="text-left">
-            <span className="block text-[15px] font-bold">Withdraw consent</span>
+            <span className="block text-[15px] font-semibold">Withdraw consent</span>
             <span className="mt-0.5 block text-xs text-muted">Stop sending your details to Anthropic.</span>
           </button>
         )}
-        {error && <p role="alert" className="mt-2 text-sm text-accent">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-sm text-ember">{error}</p>}
       </div>
     </section>
   );

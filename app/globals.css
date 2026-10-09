@@ -1,19 +1,32 @@
 @import "tailwindcss";
 
 :root {
+  /* Kept in step with mobile/Sanchara/Sources/Design/Theme.swift; ThemeTests
+     asserts the iOS side against these values. */
   --bg: #0a0a0b;
   --surface: #151518;
   --surface-raised: #1d1d21;
   --fg: #f4f1ea;
   --muted: #9a978f;
-  --accent: #ff6b3d;
+  /* Lime: the one vivid colour. The word a screen is about, the thing to tap. */
+  --accent: #dfee6b;
+  /* Warm: Vedic, warnings, destructive actions, the warm colour field. */
+  --ember: #ff6b3d;
+  /* Cool: Western, the cool colour field. */
   --violet: #7c6cff;
-  --yellow: #ffd23f;
+  /* Older call sites say yellow for the highlight colour; it is the accent. */
+  --yellow: var(--accent);
   --ink: #0a0a0b;
-  --line: var(--fg);
-  --radius: 4px;
-  --line-w: 2px;
-  --shadow-off: 4px;
+  /* Structure is a one-pixel line, never a filled box or a shadow. */
+  --line: rgb(244 241 234 / 0.28);
+  --line-strong: var(--fg);
+  --rule: rgb(244 241 234 / 0.14);
+  --tint: rgb(244 241 234 / 0.04);
+  --radius: 14px;
+  --card-radius: 24px;
+  --line-w: 1px;
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
 @theme inline {
@@ -23,13 +36,18 @@
   --color-fg: var(--fg);
   --color-muted: var(--muted);
   --color-accent: var(--accent);
+  --color-ember: var(--ember);
   --color-violet: var(--violet);
   --color-yellow: var(--yellow);
   --color-ink: var(--ink);
+  --color-line: var(--line);
+  --color-rule: var(--rule);
+  --font-sans: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 html, body { background: var(--bg); color: var(--fg); overflow-x: hidden; max-width: 100%; }
+body { font-family: var(--font-sans); font-feature-settings: "tnum" 0; }
 * { box-sizing: border-box; }
 ::selection { background: var(--accent); color: var(--ink); }
 
@@ -43,124 +61,268 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
   input, select, textarea { font-size: 16px !important; }
 }
 
-/* Neo-brutalist primitives. They live in the components layer so Tailwind
+/* The shared primitives, drawn the way the iPhone app draws them: a quiet
+   one-pixel outline over a see-through fill, big radii, round controls, and a
+   single lime accent. The `brut-` names predate this look and are kept so call
+   sites did not have to change. They live in the components layer so Tailwind
    utilities (bg-surface-raised, p-0, pr-8, ...) still win at the call site. */
 @layer components {
   .brut-card {
-    background: var(--surface);
+    background: var(--tint);
     border: var(--line-w) solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow-off) var(--shadow-off) 0 0 var(--line);
+    border-radius: var(--card-radius);
   }
   .brut-bordered {
-    background: var(--surface);
+    background: var(--tint);
     border: var(--line-w) solid var(--line);
     border-radius: var(--radius);
   }
 
+  /* Pills. Primary is bone, accent is lime, both with ink text; secondary is
+     outlined; quiet is text on nothing. A press dips rather than shifts. */
   .brut-btn {
-    --btn-shadow: var(--line);
-    --btn-lift: var(--shadow-off);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
-    padding: 0.625rem 1rem;
-    background: var(--surface);
+    gap: 0.625rem;
+    min-height: 2.5rem;
+    padding: 0.625rem 1.25rem;
+    background: var(--tint);
     color: var(--fg);
-    font-size: 0.875rem;
-    font-weight: 700;
+    font-size: 0.9375rem;
+    font-weight: 600;
     line-height: 1;
     text-align: center;
-    border: var(--line-w) solid var(--line);
-    border-radius: var(--radius);
-    box-shadow: var(--btn-lift) var(--btn-lift) 0 0 var(--btn-shadow);
+    border: var(--line-w) solid transparent;
+    border-radius: 999px;
     cursor: pointer;
     user-select: none;
-    transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease, color 120ms ease, opacity 120ms ease;
+    transition: transform 140ms ease-out, opacity 140ms ease-out, background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out;
   }
-  .brut-btn:active { transform: translate(var(--btn-lift), var(--btn-lift)); box-shadow: none; }
-  .brut-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: var(--btn-lift) var(--btn-lift) 0 0 var(--btn-shadow);
+  .brut-btn:active { transform: scale(0.98); opacity: 0.82; }
+  .brut-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .brut-btn-primary { background: var(--fg); color: var(--ink); }
+  .brut-btn-primary:hover:not(:disabled) { background: #fffdf7; }
+  .brut-btn-accent { background: var(--accent); color: var(--ink); }
+  .brut-btn-accent:hover:not(:disabled) { background: #e8f57f; }
+  .brut-btn-ember { background: var(--ember); color: var(--ink); }
+  .brut-btn-secondary { background: var(--tint); color: var(--fg); border-color: var(--line); }
+  .brut-btn-secondary:hover:not(:disabled) { border-color: var(--fg); }
+  .brut-btn-quiet { background: transparent; color: var(--fg); }
+  .brut-btn-quiet:hover:not(:disabled) { background: var(--tint); }
+  /* The main way forward ends in an arrow, as it does in the app. */
+  .brut-btn-arrow::after {
+    content: "";
+    width: 14px;
+    height: 14px;
+    flex-shrink: 0;
+    background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12h14M13 6l6 6-6 6'/%3E%3C/svg%3E") center / contain no-repeat;
+    transition: transform 200ms var(--ease);
   }
-  .brut-btn-primary { background: var(--fg); color: var(--ink); --btn-shadow: var(--accent); }
-  .brut-btn-accent { background: var(--accent); color: var(--ink); --btn-shadow: var(--line); }
-  .brut-btn-secondary { background: var(--surface); color: var(--fg); }
-  .brut-btn-secondary:hover { background: var(--surface-raised); }
-  .brut-btn-quiet { background: transparent; color: var(--fg); --btn-lift: 0px; }
-  .brut-btn-quiet:hover { background: var(--surface); }
-  .brut-btn-quiet:active { background: var(--surface-raised); }
+  .brut-btn-arrow:hover:not(:disabled)::after { transform: translateX(3px); }
 
+  /* A round control with one symbol. */
+  .circle-btn {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0;
+    color: var(--fg);
+    background: var(--tint);
+    border: var(--line-w) solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 140ms ease-out, opacity 140ms ease-out, border-color 140ms ease-out;
+  }
+  .circle-btn:hover:not(:disabled) { border-color: var(--fg); }
+  .circle-btn:active { transform: scale(0.95); opacity: 0.8; }
+  .circle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .circle-btn-accent { background: var(--accent); color: var(--ink); border-color: var(--accent); }
+  .circle-btn-bone { background: var(--fg); color: var(--ink); border-color: var(--fg); }
+
+  /* Fields are text over a single line that turns lime on focus. */
   .brut-field {
     display: block;
     width: 100%;
     min-width: 0;
-    padding: 0.625rem 0.75rem;
-    background: var(--surface);
+    padding: 0.625rem 0;
+    background: transparent;
     color: var(--fg);
-    font-size: 0.9375rem;
+    font-size: 1.0625rem;
     letter-spacing: normal;
     text-transform: none;
-    border: var(--line-w) solid var(--line);
-    border-radius: var(--radius);
+    border: 0;
+    border-bottom: var(--line-w) solid var(--line);
+    border-radius: 0;
     outline: none;
-    transition: border-color 120ms ease;
+    transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
   }
-  .brut-field::placeholder { color: var(--muted); }
-  .brut-field:focus, .brut-field:focus-visible { border-color: var(--accent); outline: none; }
+  .brut-field::placeholder { color: rgb(154 151 143 / 0.8); }
+  .brut-field:focus, .brut-field:focus-visible { border-bottom-color: var(--accent); box-shadow: 0 1px 0 0 var(--accent); outline: none; }
+  select.brut-field option { background: var(--surface); color: var(--fg); }
 
   .brut-chip {
-    --chip: var(--fg);
+    --chip: var(--accent);
     display: inline-flex;
     align-items: center;
     gap: 0.375rem;
-    padding: 0.4rem 0.65rem;
-    background: transparent;
+    padding: 0.5625rem 0.875rem;
+    background: var(--tint);
     color: var(--fg);
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: 0.8125rem;
+    font-weight: 500;
     line-height: 1;
     white-space: nowrap;
     border: var(--line-w) solid var(--line);
-    border-radius: var(--radius);
+    border-radius: 999px;
     cursor: pointer;
-    transition: background-color 120ms ease, color 120ms ease;
+    transition: transform 140ms ease-out, background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out;
   }
-  .brut-chip:hover { background: var(--surface-raised); }
-  .brut-chip.is-active { background: var(--chip); color: var(--ink); }
+  .brut-chip:hover { border-color: var(--fg); }
+  .brut-chip:active { transform: scale(0.95); }
+  .brut-chip.is-active { background: var(--chip); border-color: var(--chip); color: var(--ink); }
 
+  /* A small uppercase label on a flat fill: NOW, VEDIC, PARTNER. */
   .brut-tag {
     display: inline-flex;
     align-items: center;
-    padding: 3px 5px 2px;
-    background: var(--fg);
+    padding: 4px 8px;
+    background: var(--accent);
     color: var(--ink);
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
     font-size: 10px;
     font-weight: 700;
     line-height: 1;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
     white-space: nowrap;
-    border: 1.5px solid var(--line);
-    border-radius: var(--radius);
+    border-radius: 999px;
   }
 
   .eyebrow {
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
     line-height: 1.2;
-    letter-spacing: 0.15em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
     color: var(--muted);
   }
+  /* The eyebrow at the top of a screen: a dot and the label, in the accent. */
+  .screen-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  .screen-eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: currentColor;
+    flex-shrink: 0;
+  }
 
-  .brut-btn:focus-visible, .brut-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* A screen's large word. Medium weight, set tight: size does the work. */
+  .headline {
+    font-weight: 500;
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+    color: var(--fg);
+    text-wrap: balance;
+  }
+  /* "Your profile ↘" — the diagonal arrow in the accent. */
+  .headline-arrow::after { content: "\00a0\2198"; color: var(--accent); }
+
+  /* "01." — a numbered bone pill beside a step. */
+  .number-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 11px;
+    background: var(--fg);
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    border-radius: 12px;
+  }
+
+  /* A small label left, a large value right, a rule beneath. */
+  .data-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .data-row > :first-child { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .data-row > :last-child { font-size: 1.5rem; font-weight: 500; letter-spacing: -0.03em; text-align: right; }
+
+  .hairline { border-color: var(--rule); }
+
+  .brut-btn:focus-visible, .brut-chip:focus-visible, .circle-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
+
+/* The colour field behind a screen: the ground with two soft washes of colour.
+   Static radial gradients, nothing blurred and nothing animated, so it costs
+   nothing to scroll over. Mirrors Atmosphere(mood:) in the app. */
+.atmosphere { position: relative; isolation: isolate; }
+.atmosphere::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(55% 45% at 90% 2%, color-mix(in srgb, var(--wash-top) 34%, transparent), transparent 100%),
+    radial-gradient(50% 45% at 0% 95%, color-mix(in srgb, var(--wash-bottom) 22%, transparent), transparent 100%),
+    var(--bg);
+}
+.atmosphere-dusk { --wash-top: var(--violet); --wash-bottom: var(--ember); }
+.atmosphere-ember { --wash-top: var(--ember); --wash-bottom: var(--violet); }
+.atmosphere-violet { --wash-top: var(--violet); --wash-bottom: var(--ember); }
+.atmosphere-lime { --wash-top: color-mix(in srgb, var(--accent) 70%, transparent); --wash-bottom: var(--violet); }
+
+/* The Astrya mark: the app icon's lit orange disc and its corona, drawn small. */
+.astra-mark {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  width: var(--mark, 16px);
+  height: var(--mark, 16px);
+  border-radius: 999px;
+  background: linear-gradient(#ff7e4e, #b9502f);
+  box-shadow:
+    inset 0 1px 0 0 rgb(244 241 234 / 0.85),
+    0 0 calc(var(--mark, 16px) * 0.6) calc(var(--mark, 16px) * 0.15) rgb(255 107 61 / 0.4);
+}
+
+/* A tilted ellipse with the mark on it — an orbit. Decoration only. */
+.orbit {
+  position: absolute;
+  pointer-events: none;
+  width: var(--orbit, 160px);
+  height: var(--orbit, 160px);
+}
+.orbit::before {
+  content: "";
+  position: absolute;
+  inset: 19% 0;
+  border: 1px solid rgb(244 241 234 / 0.3);
+  border-radius: 50%;
+  transform: rotate(-28deg);
+}
+.orbit .astra-mark { position: absolute; left: 80%; top: 24%; --mark: 14px; }
 
 /* Animations */
 @keyframes fade-up {
@@ -195,11 +357,12 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 .delay-3 { animation-delay: 0.24s; }
 
 /* Markdown reading styles */
-.prose-reading { line-height: 1.6; }
+.prose-reading { line-height: 1.6; color: rgb(244 241 234 / 0.92); }
 .prose-reading > *:first-child { margin-top: 0; }
 .prose-reading p { margin: 0.6rem 0; }
-.prose-reading strong { font-weight: 800; color: var(--fg); }
-.prose-reading h1, .prose-reading h2, .prose-reading h3 { font-weight: 800; margin: 1.1rem 0 0.4rem; font-size: 1rem; }
+.prose-reading strong { font-weight: 650; color: var(--fg); }
+.prose-reading h1, .prose-reading h2, .prose-reading h3 { font-weight: 600; margin: 1.1rem 0 0.4rem; font-size: 1rem; letter-spacing: -0.01em; }
+.prose-reading li::marker { color: var(--accent); }
 .prose-reading ul { margin: 0.5rem 0; padding-left: 1.1rem; list-style: disc; }
 .prose-reading ol { margin: 0.5rem 0; padding-left: 1.1rem; list-style: decimal; }
 .prose-reading li { margin: 0.25rem 0; }
@@ -208,12 +371,10 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 
 /* The plain-language summary the model ends every answer with. */
 .callout-simple {
-  background: var(--yellow);
+  background: var(--accent);
   color: var(--ink);
-  border: 2px solid var(--line);
-  box-shadow: 4px 4px 0 0 var(--line);
-  padding: 0.75rem 1rem;
-  border-radius: var(--radius);
+  padding: 0.875rem 1rem;
+  border-radius: var(--card-radius);
   margin-top: 1rem;
 }
 .callout-simple strong, .callout-simple p { color: var(--ink); }
@@ -224,3 +385,4 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 @media (prefers-reduced-motion: reduce) {
   .animate-fade-up, .animate-fade-in, .animate-glow { animation: none; }
 }
+.callout-simple li::marker { color: var(--ink); }

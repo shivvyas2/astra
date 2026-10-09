@@ -74,11 +74,11 @@ export function IntakeForm({
   }
 
   return (
-    <form action={action} className="w-full max-w-md space-y-4">
+    <form action={action} className="w-full max-w-md space-y-6">
       {extra}
       {photo && <div className="flex items-center gap-4">
         <label className="cursor-pointer">
-          <div className="brut-bordered grid h-16 w-16 place-items-center overflow-hidden text-center text-[10px] font-bold uppercase tracking-wide text-muted transition-colors hover:border-accent">
+          <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-dashed border-line bg-fg/[0.04] text-center text-[10px] font-semibold uppercase tracking-wide text-muted transition-colors hover:border-accent">
             {preview ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
@@ -97,17 +97,17 @@ export function IntakeForm({
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="eyebrow mb-1.5 block">First name</span>
+          <span className="eyebrow block">First name</span>
           <input name="first_name" required placeholder="First name" defaultValue={initial?.firstName ?? ""} className="brut-field" />
         </label>
         <label className="block">
-          <span className="eyebrow mb-1.5 block">Last name</span>
+          <span className="eyebrow block">Last name</span>
           <input name="last_name" required={!lastNameOptional} placeholder={lastNameOptional ? "Optional" : "Last name"} defaultValue={initial?.lastName ?? ""} className="brut-field" />
         </label>
       </div>
 
       <label className="block">
-        <span className="eyebrow mb-1.5 block">Birth date</span>
+        <span className="eyebrow block">Birth date</span>
         <input name="birth_date" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
           className="brut-field [color-scheme:dark]" />
         <span className={`mt-1.5 block text-xs ${birthDate ? "text-accent" : "text-muted"}`}>
@@ -138,7 +138,7 @@ export function IntakeForm({
       <input type="hidden" name="lat" value={geo?.lat ?? ""} />
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
       <input type="hidden" name="timezone" value={geo?.timezone ?? ""} />
-      <button disabled={!geo} className="brut-btn brut-btn-primary w-full py-3">
+      <button disabled={!geo} className="brut-btn brut-btn-primary brut-btn-arrow mt-2 min-h-[54px] w-full">
         {submitLabel ?? (editing ? "Update my details" : "Save & build my chart")}
       </button>
       {geo && <p className="text-xs text-muted">{geo.name ? `${geo.name} · ` : ""}{geo.timezone}</p>}

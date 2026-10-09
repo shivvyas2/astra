@@ -13,7 +13,7 @@ type Section = {
 
 const HERO: Section = {
   eyebrow: "Computed astrology, never guessed",
-  title: "ASTRYA",
+  title: "Astrya",
   lines: ["Your real birth chart, read by the stars."],
   cta: {
     primary: { label: "Get your reading", href: "/signup" },
@@ -24,7 +24,7 @@ const HERO: Section = {
 const SECTIONS: Section[] = [
   {
     eyebrow: "A real engine",
-    title: "THE SCIENCE",
+    title: "The science",
     lines: [
       "We compute your exact chart with the Swiss Ephemeris:",
       "ascendant, houses, nakshatras, and your Vimshottari dasha.",
@@ -32,7 +32,7 @@ const SECTIONS: Section[] = [
   },
   {
     eyebrow: "Vedic, Western & Numerology",
-    title: "YOUR CHART",
+    title: "Your chart",
     lines: [
       "Switch between sidereal Vedic, tropical Western, and numerology.",
       "Every answer is grounded in your actual placements.",
@@ -40,7 +40,7 @@ const SECTIONS: Section[] = [
   },
   {
     eyebrow: "Ask anything",
-    title: "YOUR FUTURE",
+    title: "Your future",
     lines: [
       "Career, relationships, timing, a kundli reading,",
       "explained in plain words anyone can understand.",
@@ -86,42 +86,57 @@ export default function CosmicHero() {
   const split = (s: string) => s.split("").map((ch, i) => <span key={i} className="ch inline-block">{ch}</span>);
 
   return (
-    <div ref={root}>
-      {/* HERO — planet photo background */}
-      <section className="relative flex min-h-[100svh] flex-col items-center justify-center bg-cover bg-center px-6 text-center"
-        style={{ backgroundImage: "url(/images/planet-sun.jpg)" }}>
-        <p className="animate-fade-in mb-4 text-xs uppercase tracking-[0.3em] text-fg/70 drop-shadow-[0_1px_8px_rgba(0,0,0,0.85)]">
-          {HERO.eyebrow}
-        </p>
+    <div ref={root} className="atmosphere atmosphere-dusk">
+      {/* Top bar: the mark and the way back in, as in the app. */}
+      <nav className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-5 py-5 sm:px-8">
+        <Link href="/" className="flex items-center gap-2.5 text-lg font-medium tracking-tight">
+          <span className="astra-mark" aria-hidden />
+          Astrya
+        </Link>
+        <Link href={HERO.cta!.secondary!.href} className="brut-btn brut-btn-secondary bg-bg/40 px-4 py-2 text-sm backdrop-blur-sm">
+          {HERO.cta!.secondary!.label}
+        </Link>
+      </nav>
+
+      {/* HERO — the planet photo, darkened toward the foot so the huge word sits on the ground. */}
+      <section className="relative isolate flex min-h-[100svh] flex-col justify-end overflow-hidden px-5 pb-14 pt-28 sm:px-8 sm:pb-20">
+        <div aria-hidden className="absolute inset-0 -z-10 bg-cover bg-center opacity-70" style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
+        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-b from-bg/10 via-bg/40 to-bg" />
+        <span className="orbit right-[6%] top-[18%] hidden [--orbit:260px] sm:block" aria-hidden>
+          <span className="astra-mark" />
+        </span>
+        <p className="screen-eyebrow animate-fade-in">{HERO.eyebrow}</p>
         <h1 ref={titleRef} style={{ visibility: "hidden" }}
-          className="max-w-full break-words text-5xl font-bold leading-none tracking-tight drop-shadow-[0_2px_24px_rgba(0,0,0,0.75)] sm:text-7xl md:text-8xl lg:text-9xl">
+          className="headline mt-4 max-w-full break-words text-[22vw] leading-[0.86] text-accent sm:text-[18vw] lg:text-[15rem]">
           {split(HERO.title)}
         </h1>
-        <div className="mt-6 max-w-2xl text-base text-fg/85 drop-shadow-[0_1px_12px_rgba(0,0,0,0.9)] sm:text-lg">
-          {HERO.lines.map((l, k) => <p key={k}>{l}</p>)}
-        </div>
-        <div className="animate-fade-up delay-2 mt-9 flex flex-wrap items-center justify-center gap-3">
-          <Link href={HERO.cta!.primary.href} className="rounded-lg bg-fg px-6 py-3 font-medium text-bg transition-transform hover:scale-[1.03]">
-            {HERO.cta!.primary.label}
-          </Link>
-          <Link href={HERO.cta!.secondary!.href} className="rounded-lg border border-white/30 bg-black/25 px-6 py-3 backdrop-blur-sm transition-colors hover:bg-white/10">
-            {HERO.cta!.secondary!.label}
-          </Link>
+        <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-md text-lg leading-snug text-fg/90 sm:text-xl">
+            {HERO.lines.map((l, k) => <p key={k}>{l}</p>)}
+          </div>
+          <div className="animate-fade-up delay-2 flex flex-wrap items-center gap-3">
+            <Link href={HERO.cta!.primary.href} className="brut-btn brut-btn-primary brut-btn-arrow min-h-[54px] px-6">
+              {HERO.cta!.primary.label}
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* DARK sections with cinematic scroll reveals */}
+      {/* Sections: a numbered step, one large phrase, quiet copy, hairlines between. */}
       {SECTIONS.map((s, i) => (
-        <section key={i} className="flex min-h-[100svh] flex-col items-center justify-center bg-bg px-6 text-center">
-          <div className="reveal flex flex-col items-center">
-            <p className="mb-4 text-xs uppercase tracking-[0.3em] text-muted">{s.eyebrow}</p>
-            <h2 className="max-w-full break-words text-4xl font-bold leading-none tracking-tight sm:text-7xl">{s.title}</h2>
-            <div className="mt-6 max-w-2xl space-y-1 text-base text-muted sm:text-lg">
+        <section key={i} className="flex min-h-[80svh] flex-col justify-center border-t border-rule px-5 py-20 sm:px-8">
+          <div className="reveal mx-auto flex w-full max-w-5xl flex-col">
+            <div className="flex items-center gap-3">
+              <span className="number-badge">{String(i + 1).padStart(2, "0")}.</span>
+              <p className="screen-eyebrow">{s.eyebrow}</p>
+            </div>
+            <h2 className="headline headline-arrow mt-6 max-w-full break-words text-6xl sm:text-8xl lg:text-9xl">{s.title}</h2>
+            <div className="mt-8 max-w-xl space-y-1 border-t border-rule pt-6 text-base leading-relaxed text-muted sm:text-lg">
               {s.lines.map((l, k) => <p key={k}>{l}</p>)}
             </div>
             {s.cta && (
-              <div className="mt-9">
-                <Link href={s.cta.primary.href} className="rounded-lg bg-accent px-6 py-3 font-medium text-bg transition-transform hover:scale-[1.03]">
+              <div className="mt-10">
+                <Link href={s.cta.primary.href} className="brut-btn brut-btn-accent brut-btn-arrow min-h-[54px] px-6">
                   {s.cta.primary.label}
                 </Link>
               </div>
@@ -129,6 +144,13 @@ export default function CosmicHero() {
           </div>
         </section>
       ))}
+
+      <footer className="border-t border-rule px-5 py-8 text-xs text-muted sm:px-8">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+          <span>For guidance and reflection. Not a substitute for professional advice.</span>
+          <Link href="/privacy" className="underline underline-offset-4 hover:text-fg">Privacy</Link>
+        </div>
+      </footer>
     </div>
   );
 }

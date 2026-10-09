@@ -6,7 +6,10 @@ import dynamic from "next/dynamic";
 const CosmicHero = dynamic(() => import("./CosmicHero"), {
   ssr: false,
   loading: () => (
-    <div className="min-h-[100svh] bg-cover bg-center" style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
+    <div className="relative min-h-[100svh] bg-bg">
+      <div className="absolute inset-0 bg-cover bg-center opacity-70" style={{ backgroundImage: "url(/images/planet-sun.jpg)" }} />
+      <div className="absolute inset-0 bg-gradient-to-b from-bg/10 via-bg/40 to-bg" />
+    </div>
   ),
 });
 

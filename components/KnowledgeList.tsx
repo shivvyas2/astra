@@ -131,8 +131,8 @@ export function KnowledgeList({
 
   return (
     <section className="mt-8" aria-labelledby="knowledge-heading">
-      <p className="eyebrow">Memory</p>
-      <h2 id="knowledge-heading" className="mt-1 text-2xl font-black tracking-tight">
+      <p className="screen-eyebrow">Memory</p>
+      <h2 id="knowledge-heading" className="headline mt-3 text-3xl">
         What Astrya knows
       </h2>
       <p className="mt-2 text-sm text-muted">
@@ -151,7 +151,7 @@ export function KnowledgeList({
             {groups.map((group) => (
               <div key={group.category}>
                 <p className="eyebrow">{group.label}</p>
-                <ul className="mt-2 border-t-2 border-fg/15">
+                <ul className="mt-2 border-t border-rule">
                   {group.facts.map((fact) => (
                     <Row key={fact.id} onForget={() => forget(fact)} label={fact.fact}>
                       <span className="text-sm leading-snug">{fact.fact}</span>
@@ -164,7 +164,7 @@ export function KnowledgeList({
             {summaries.length > 0 && (
               <div>
                 <p className="eyebrow">Past conversations</p>
-                <ul className="mt-2 border-t-2 border-fg/15">
+                <ul className="mt-2 border-t border-rule">
                   {summaries.map((m) => (
                     <Row key={m.conversation_id} onForget={() => forgetSummary(m)} label={m.summary}>
                       <span className="block text-sm leading-snug">{m.summary}</span>
@@ -180,7 +180,7 @@ export function KnowledgeList({
             {ordered.length > 0 && (
               <div>
                 <p className="eyebrow">Predictions</p>
-                <ul className="mt-2 border-t-2 border-fg/15">
+                <ul className="mt-2 border-t border-rule">
                   {ordered.map((p) => (
                     <Row key={p.id} onForget={() => forgetPrediction(p)} label={p.claim}>
                       <span className="block text-sm leading-snug">{p.claim}</span>
@@ -192,7 +192,7 @@ export function KnowledgeList({
                       </span>
                       {canCheck(p, today) ? (
                         <span className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-bold">Did this happen?</span>
+                          <span className="text-xs font-semibold">Did this happen?</span>
                           <button type="button" className="brut-chip" onClick={() => mark(p, "happened")}>
                             Yes
                           </button>
@@ -223,12 +223,12 @@ export function KnowledgeList({
             <div className="flex flex-wrap items-center gap-2">
               {confirming ? (
                 <>
-                  <span className="text-sm font-bold">Forget all {total}? This can&apos;t be undone.</span>
+                  <span className="text-sm font-semibold">Forget all {total}? This can&apos;t be undone.</span>
                   <button
                     type="button"
                     onClick={forgetAll}
                     disabled={busy}
-                    className="brut-btn brut-btn-accent px-3 py-2 text-sm"
+                    className="brut-btn brut-btn-ember px-4 py-2 text-sm"
                   >
                     Yes, forget everything
                   </button>
@@ -245,7 +245,7 @@ export function KnowledgeList({
                 <button
                   type="button"
                   onClick={() => setConfirming(true)}
-                  className="brut-btn brut-btn-quiet px-0 py-2 text-sm text-accent"
+                  className="brut-btn brut-btn-quiet px-0 py-2 text-sm text-ember"
                 >
                   Forget everything
                 </button>
@@ -255,7 +255,7 @@ export function KnowledgeList({
         )}
 
         {error && (
-          <p role="alert" className="mt-4 text-sm font-bold text-accent">
+          <p role="alert" className="mt-4 text-sm font-semibold text-ember">
             {error}
           </p>
         )}
@@ -266,7 +266,7 @@ export function KnowledgeList({
 
 function Row({ children, label, onForget }: { children: ReactNode; label: string; onForget: () => void }) {
   return (
-    <li className="flex items-start gap-3 border-b-2 border-fg/15 py-2.5">
+    <li className="flex items-start gap-3 border-b border-rule py-2.5">
       <div className="min-w-0 flex-1">{children}</div>
       <button
         type="button"

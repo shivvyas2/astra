@@ -9,6 +9,7 @@ import type { Chart } from "@/lib/astrology/types";
 import { IntakeForm } from "@/components/IntakeForm";
 import { Initials, PersonFields } from "@/components/PersonFields";
 import { deletePersonAction, updatePersonAction } from "../actions";
+import { Notice } from "@/components/Notice";
 
 export const dynamic = "force-dynamic";
 
@@ -33,16 +34,16 @@ export default async function PersonPage({
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-md px-5 py-8">
-        <Link href="/app/profiles" className="eyebrow">← People</Link>
+        <Link href="/app/profiles" className="eyebrow transition-colors hover:text-fg">← People</Link>
         <div className="mt-3 flex items-center gap-3">
           <Initials first={person.first_name} last={person.last_name} size={52} />
           <div className="min-w-0">
-            <h1 className="truncate text-3xl font-black tracking-tight">{person.label}</h1>
-            <span className="brut-tag mt-1">{RELATIONSHIP_LABEL[person.relationship] ?? person.relationship}</span>
+            <h1 className="headline truncate text-4xl sm:text-5xl">{person.label}</h1>
+            <span className="brut-tag mt-2">{RELATIONSHIP_LABEL[person.relationship] ?? person.relationship}</span>
           </div>
         </div>
-        {error && <p role="alert" className="brut-bordered mt-4 border-accent p-3 text-sm">{error}</p>}
-        {saved && <p className="brut-bordered mt-4 p-3 text-sm">Saved. Their chart was recomputed.</p>}
+        {error && <Notice className="mt-4">{error}</Notice>}
+        {saved && <Notice tone="info" className="mt-4">Saved. Their chart was recomputed.</Notice>}
 
         {vedic && (
           <section className="brut-card mt-5 p-5">
@@ -59,7 +60,7 @@ export default async function PersonPage({
             </dl>
             <table className="mt-4 w-full text-sm">
               <thead>
-                <tr className="bg-fg text-left text-[11px] font-bold uppercase tracking-widest text-ink">
+                <tr className="bg-fg text-left text-[11px] font-semibold uppercase tracking-widest text-ink">
                   <th className="px-2 py-1.5">Graha</th>
                   <th className="px-2 py-1.5 text-right">Sign · Nakshatra</th>
                 </tr>
@@ -83,12 +84,12 @@ export default async function PersonPage({
           </section>
         )}
 
-        <Link href={`/app/compatibility/${person.id}`} className="brut-btn brut-btn-accent mt-5 w-full py-3">
+        <Link href={`/app/compatibility/${person.id}`} className="brut-btn brut-btn-accent brut-btn-arrow mt-5 min-h-[54px] w-full">
           Check compatibility →
         </Link>
 
         <details className="brut-card mt-5 p-5">
-          <summary className="cursor-pointer font-black">Edit {person.label}&apos;s details</summary>
+          <summary className="cursor-pointer font-semibold">Edit {person.label}&apos;s details</summary>
           <div className="mt-4">
             <IntakeForm
               action={update}
@@ -123,10 +124,10 @@ export default async function PersonPage({
 
 function Row({ label, value, detail }: { label: string; value: string; detail?: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2.5">
+    <div className="flex items-baseline justify-between gap-4 border-b border-rule py-3.5 last:border-b-0">
       <dt className="text-sm text-muted">{label}</dt>
       <dd className="text-right">
-        <span className="text-xl font-black">{value}</span>
+        <span className="text-2xl font-medium tracking-tight">{value}</span>
         {detail && <span className="block font-mono text-[11px] text-muted">{detail}</span>}
       </dd>
     </div>

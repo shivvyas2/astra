@@ -4,13 +4,14 @@ import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ChatMode } from "@/lib/astrology/types";
+import { ScreenHeader } from "@/components/ScreenHeader";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
 const MODES: { key: ChatMode; label: string; chip: string; blurb: string }[] = [
-  { key: "vedic", label: "Vedic", chip: "var(--accent)", blurb: "Sidereal chart, dashas and transits" },
+  { key: "vedic", label: "Vedic", chip: "var(--ember)", blurb: "Sidereal chart, dashas and transits" },
   { key: "western", label: "Western", chip: "var(--violet)", blurb: "Tropical chart, Placidus houses" },
-  { key: "numerology", label: "Numerology", chip: "var(--yellow)", blurb: "Your numbers from your name and birth date" },
+  { key: "numerology", label: "Numerology", chip: "var(--accent)", blurb: "Your numbers from your name and birth date" },
 ];
 
 // The model ends every answer with a bold "In simple words" heading followed by
@@ -173,7 +174,7 @@ export function Chat({
           className={`brut-chip ml-auto${deep ? " is-active" : ""}`}
           style={{ "--chip": "var(--fg)" } as CSSProperties}
         >
-          Deep reading
+          Deep
         </button>
       </div>
       <p className="mt-2 text-xs text-muted">{mode.blurb}</p>
@@ -189,7 +190,7 @@ export function Chat({
           </button>
         </div>
       )}
-      <div className="brut-bordered flex items-center gap-2 py-2 pl-4 pr-2">
+      <div className="flex items-center gap-2 rounded-[28px] border border-line bg-fg/[0.04] py-1 pl-[18px] pr-1 transition-colors focus-within:border-fg">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -198,7 +199,7 @@ export function Chat({
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-fg outline-none placeholder:text-muted"
         />
         <button onClick={() => send()} disabled={busy || !input.trim()} aria-label="Send"
-          className="brut-btn brut-btn-primary h-10 w-10 shrink-0 p-0">
+          className="circle-btn circle-btn-accent h-10 w-10">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
       </div>
@@ -212,14 +213,14 @@ export function Chat({
       {empty ? (
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-8 px-4 py-8">
-            <div className="animate-fade-up text-center">
-              <p className="eyebrow">New reading</p>
-              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-5xl">
-                {firstName ? `Let's read your stars, ${firstName}` : "Let's read your stars"}
-              </h1>
-              <p className="mx-auto mt-3 max-w-md text-sm text-muted">
-                Pick a tradition, then ask anything. Every answer is read from your own birth chart.
-              </p>
+            <div className="w-full animate-fade-up">
+              <ScreenHeader
+                eyebrow="New reading"
+                title={firstName ? `Let's read your stars, ${firstName}` : "Let's read your stars"}
+                arrow
+                size="xl"
+                blurb="Pick a tradition, then ask anything. Every answer is read from your own birth chart."
+              />
             </div>
             <div className="w-full animate-fade-up delay-1">
               <div className="mb-3">{modeBar}</div>
@@ -235,13 +236,16 @@ export function Chat({
                 const streaming = busy && i === messages.length - 1;
                 return m.role === "user" ? (
                   <div key={i} className="flex justify-end animate-fade-up">
-                    <div className="brut-card max-w-[85%] whitespace-pre-wrap break-words bg-surface-raised px-4 py-2.5 text-[15px]">
+                    <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-[22px] border border-line bg-fg/[0.06] px-4 py-3 text-[15px] sm:max-w-[75%]">
                       {m.content}
                     </div>
                   </div>
                 ) : (
-                  <div key={i} className="border-l-4 border-accent pl-4 animate-fade-up">
+                  <div key={i} className="flex gap-3 animate-fade-up">
+                    <span aria-hidden className="w-0.5 shrink-0 rounded-full bg-accent" />
+                    <div className="min-w-0 flex-1">
                     <AssistantTurn content={m.content} streaming={streaming} />
+                    </div>
                   </div>
                 );
               })}
