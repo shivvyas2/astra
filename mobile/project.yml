@@ -83,6 +83,10 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra
         GENERATE_INFOPLIST_FILE: NO
+        # Plus's alternate icons (mobile/scripts/make-icon.py alternates).
+        # Names must match AppIconChoice in Features/Billing/AppIconPicker.swift.
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Lime AppIcon-Violet AppIcon-Bone"
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         TARGETED_DEVICE_FAMILY: "1"
     # A shared scheme, so Run uses the local StoreKit configuration (Astrya
     # Plus products, no App Store Connect needed) and Test runs SancharaTests.

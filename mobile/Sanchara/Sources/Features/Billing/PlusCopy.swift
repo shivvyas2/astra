@@ -2,11 +2,10 @@ import Foundation
 
 /// The words on the Plus paywall.
 ///
-/// OWNER: decide what Plus includes before shipping it, and edit `benefits`.
-/// Every line must be true on the day it ships. Today Plus gates nothing —
-/// readings are unlimited for everyone and Deep readings are open to all — so
-/// the honest offer is support. Do not add "more readings" or "unlock" lines
-/// unless the product actually changes. Mirror edits in lib/billing/copy.ts
+/// Every line must be true on the day it ships. Plus never gates or caps
+/// readings — they are unlimited for everyone and Deep readings are open to
+/// all — so what it offers is support and cosmetic extras (alternate app
+/// icons, the badge). Do not add "more readings" or "unlock" lines. Mirror edits in lib/billing/copy.ts
 /// (`PLUS_BENEFITS`).
 enum PlusCopy {
     struct Benefit: Identifiable {
@@ -21,8 +20,12 @@ enum PlusCopy {
             detail: "Plus pays for the model calls and the ephemeris behind every reading. No ads, no data sales."
         ),
         Benefit(
+            title: "Three more app icons",
+            detail: "The Astrya mark in lime, violet or bone on your home screen. Change it any time under You → App icon."
+        ),
+        Benefit(
             title: "A thank-you mark",
-            detail: "A Plus badge on your profile. That's it: every reading stays free and unlimited for everyone."
+            detail: "A Plus badge on your profile. Every reading stays free and unlimited for everyone."
         ),
     ]
 

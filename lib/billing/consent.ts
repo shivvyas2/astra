@@ -144,3 +144,29 @@ export async function requireConsent(db: Db, userId: string): Promise<Response |
     { status: 403, headers: { "cache-control": "no-store" } },
   );
 }
+
+/**
+ * For the scheduled jobs, which run as the service role across every user:
+ * the ids of people who have agreed to the current notice. `null` means the
+ * table is missing or unreadable, and callers carry on for everyone (fail
+ * open, as `requireConsent` does) rather than silently stopping every reading.
+ */
+export async function loadConsentedUserIds(db: Db): Promise<Set<string> | null> {
+  try {
+    const { data, error } = await db.from("ai_consents").select("user_id").eq("version", CONSENT_VERSION);
+    if (error) {
+      if (isMissingTable(error)) logMissing("cron");
+      else console.error("ai consent list error", error);
+      return null;
+    }
+    return new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id));
+  } catch (err) {
+    console.error("ai consent list threw", err);
+    return null;
+  }
+}
+
+/** True when a scheduled job may send this user's data to the model. */
+export function consentAllows(consented: Set<string> | null, userId: string): boolean {
+  return consented === null || consented.has(userId);
+}

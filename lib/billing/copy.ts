@@ -73,8 +73,12 @@ export const PLUS_BENEFITS: { title: string; detail: string }[] = [
     detail: "Plus pays for the model calls and the ephemeris behind every reading. No ads, no data sales.",
   },
   {
+    title: "Three more app icons",
+    detail: "The Astrya mark in lime, violet or bone on your iPhone home screen. Change it any time under You → App icon.",
+  },
+  {
     title: "A thank-you mark",
-    detail: "A Plus badge on your profile. That's it: every reading stays free and unlimited for everyone.",
+    detail: "A Plus badge on your profile. Every reading stays free and unlimited for everyone.",
   },
 ];
 

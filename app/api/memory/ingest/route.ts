@@ -6,6 +6,7 @@ import { MAX_FACTS, isUuid } from "@/lib/facts/types";
 import { MAX_INGEST_BYTES, applyMemoryUpdate, checkIngestShape, parseMemoryUpdate } from "@/lib/memory/apply";
 import { rememberTurn } from "@/lib/memory/extract";
 import { loadMemories, loadPredictions } from "@/lib/memory/store";
+import { requireConsent } from "@/lib/billing/consent";
 
 export const runtime = "nodejs";
 
@@ -62,6 +63,9 @@ export async function POST(request: Request) {
   const today = DateTime.utc().toISODate()!;
 
   if (body.fallback === "server") {
+    // The server pass sends the exchange to Anthropic: only with AI consent.
+    const consentBlock = await requireConsent(supabase, user.id);
+    if (consentBlock) return consentBlock;
     const turn = await lastExchange(supabase, conversationId);
     if (!turn) return Response.json({ ok: true, fallback: false });
     try {

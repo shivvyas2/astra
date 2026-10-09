@@ -1,6 +1,7 @@
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { loadBirthRow, loadTimeline, loadScanState } from "@/lib/timeline/load";
 import { explainTimeline, eventsHashFor, NOW_LORD } from "@/lib/timeline/explain";
+import { requireConsent } from "@/lib/billing/consent";
 
 export const runtime = "nodejs";
 // One model call that covers the whole life; longer than a chat turn.
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
   const supabase = await createRouteSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  // AI consent (App Store 5.1.2), as the chat route does.
+  const consentBlock = await requireConsent(supabase, user.id);
+  if (consentBlock) return consentBlock;
 
   const row = await loadBirthRow(supabase);
   const timeline = row ? await loadTimeline(supabase, row) : null;

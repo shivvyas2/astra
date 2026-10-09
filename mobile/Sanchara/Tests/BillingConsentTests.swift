@@ -119,4 +119,18 @@ final class BillingConsentTests: XCTestCase {
         guard let text = try? String(contentsOf: config, encoding: .utf8) else { throw XCTSkip("storekit file not reachable") }
         for id in PlusProducts.all { XCTAssertTrue(text.contains("\"\(id)\""), id) }
     }
+
+    /// The alternates must match ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES
+    /// in project.yml, or `setAlternateIconName` fails at runtime.
+    func testAppIconChoicesMatchTheBuiltAlternates() {
+        let built = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any]
+        let alternates = (built?["CFBundleAlternateIcons"] as? [String: Any]).map { Set($0.keys) } ?? []
+        let offered = Set(AppIconChoice.allCases.compactMap(\.iconName))
+        XCTAssertEqual(offered, ["AppIcon-Lime", "AppIcon-Violet", "AppIcon-Bone"])
+        XCTAssertEqual(alternates, offered)
+        XCTAssertFalse(AppIconChoice.ember.needsPlus)
+        XCTAssertTrue(AppIconChoice.allCases.filter { $0 != .ember }.allSatisfy(\.needsPlus))
+        XCTAssertEqual(AppIconChoice(iconName: nil), .ember)
+        XCTAssertEqual(AppIconChoice(iconName: "AppIcon-Bone"), .bone)
+    }
 }

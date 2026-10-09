@@ -70,7 +70,9 @@ struct ProfileView: View {
                         }
 
                         memoryBlock
-                    helpBlock
+                        PlanRow()
+                        AppIconPicker()
+                        helpBlock
                         suggestionsBlock
                         accountBlock
                     }

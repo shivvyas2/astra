@@ -10,6 +10,7 @@ import { ApnsClient, isPushConfigured } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { isWakingHour } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
+import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
 /** Only these reach a lock screen; `info` conditions are recorded silently. */
 const NOTIFIABLE: Severity[] = ["caution", "warning"];
@@ -125,8 +126,11 @@ export async function runDailyAlerts(options: { limit?: number } = {}): Promise<
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
     const zones = await loadDeviceZones(admin);
+    // Nothing goes to the model for someone who has not agreed to the current AI notice.
+    const consented = await loadConsentedUserIds(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
+      if (!consentAllows(consented, profile.user_id)) continue;
       try {
         const result = await runAlertsForUser(profile, admin, apns, zones);
         summary.processed += 1;

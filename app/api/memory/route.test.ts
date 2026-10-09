@@ -9,9 +9,11 @@ const state = vi.hoisted(() => ({
   calls: [] as { table: string; ops: { op: string; args: unknown[] }[] }[],
   afterTasks: [] as (() => Promise<unknown>)[],
   create: vi.fn(),
+  consentBlock: null as Response | null,
 }));
 
 vi.mock("next/server", () => ({ after: (task: () => Promise<unknown>) => state.afterTasks.push(task) }));
+vi.mock("@/lib/billing/consent", () => ({ requireConsent: async () => state.consentBlock }));
 vi.mock("@/lib/anthropic", () => ({ anthropic: () => ({ messages: { create: state.create } }) }));
 vi.mock("@/lib/supabase/route", () => ({
   createRouteSupabase: vi.fn(async () => {
@@ -183,6 +185,19 @@ describe("POST /api/memory/ingest", () => {
     await state.afterTasks[0]();
     expect(state.create).toHaveBeenCalledTimes(1);
     expect(state.create.mock.calls[0][0].messages[0].content).toContain("Likely Feb to May 2027.");
+  });
+
+  it("refuses the server pass, sending nothing to the model, without AI consent", async () => {
+    state.respond = fullDb;
+    state.consentBlock = Response.json({ error: "consent_required" }, { status: 403 });
+    try {
+      const res = await INGEST(req("POST", "/api/memory/ingest", { conversationId: CONV, fallback: "server" }));
+      expect(res.status).toBe(403);
+      expect(state.afterTasks).toHaveLength(0);
+      expect(state.create).not.toHaveBeenCalled();
+    } finally {
+      state.consentBlock = null;
+    }
   });
 });
 

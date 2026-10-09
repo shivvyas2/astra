@@ -14,6 +14,7 @@ import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
 import { isWakingHour } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
+import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
 /**
  * Discoveries: the occasional "did you know" push.
@@ -144,9 +145,15 @@ export async function runDiscoveries(options: { limit?: number } = {}): Promise<
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
     const zones = await loadDeviceZones(admin);
+    // Nothing goes to the model for someone who has not agreed to the current AI notice.
+    const consented = await loadConsentedUserIds(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       summary.considered += 1;
+      if (!consentAllows(consented, profile.user_id)) {
+        summary.skipped += 1;
+        continue;
+      }
       try {
         const sent = await writeDueDiscovery(profile, admin, apns, zones);
         if (sent === null) summary.skipped += 1;

@@ -135,11 +135,13 @@ their next visit; that is intended.
    No free trial, no introductory offer, no weekly plan. Add a display name and
    description to each and to the group, and a review screenshot of the paywall
    (You → Astrya Plus).
-2. **Decide what Plus includes before submitting.** Today it is a support
-   subscription with a thank-you badge and gates nothing. The benefit lines live
-   in `lib/billing/copy.ts` (`PLUS_BENEFITS`) and
-   `mobile/Sanchara/Sources/Features/Billing/PlusCopy.swift`; every line must be
-   true when it ships.
+2. **Plus is support plus cosmetic extras** (decided 2026-10-09). It never
+   gates or caps readings. It adds three alternate app icons (lime, violet,
+   bone; You → App icon) and the badge. The benefit lines live in
+   `lib/billing/copy.ts` (`PLUS_BENEFITS`) and
+   `mobile/Sanchara/Sources/Features/Billing/PlusCopy.swift`; every line must
+   be true when it ships. In the review notes, say Plus is reached from
+   You → Astrya Plus and that the icons are under You → App icon.
 3. **App Information → App Store Server Notifications**: set both the Production
    and the Sandbox URL to `https://astra.shivvyas.com/api/billing/apple/notifications`,
    Version 2. Use "Request a Test Notification" and check the Vercel logs for
@@ -170,7 +172,8 @@ None.
 
 ### Known follow-ups
 
-`/api/timeline/explain`, `/api/timeline/scan` and the daily-readings cron also
-send chart data to Anthropic and do not yet call `requireConsent`
-(`lib/billing/consent.ts`). Add it there (the cron should skip users without a
-current `ai_consents` row) before relying on server enforcement alone.
+Done 2026-10-09: `/api/timeline/explain`, `/api/timeline/scan` and the
+server fallback of `/api/memory/ingest` call `requireConsent`, and the
+scheduled jobs (daily readings, alerts, discoveries) skip anyone without a
+current `ai_consents` row (`loadConsentedUserIds`; fails open while the table
+is missing, like the chat route).

@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { fakeDb } from "@/lib/facts/testDb";
 import {
   CONSENT_VERSION,
+  consentAllows,
+  loadConsentedUserIds,
   readConsent,
   recordConsent,
   requireConsent,
@@ -86,5 +88,23 @@ describe("readConsent / recordConsent / withdrawConsent", () => {
     expect(calls[0].ops.map((o) => o.op)).toEqual(["delete", "eq"]);
     const { db: missing } = fakeDb(() => ({ error: MISSING }));
     expect(await withdrawConsent(missing, "u1")).toEqual({ ok: true });
+  });
+});
+
+describe("loadConsentedUserIds", () => {
+  it("returns the people who agreed to the current notice, filtered on the version", async () => {
+    const { db, calls } = fakeDb(() => ({ data: [{ user_id: "u1" }, { user_id: "u2" }] }));
+    const ids = await loadConsentedUserIds(db);
+    expect(ids).toEqual(new Set(["u1", "u2"]));
+    expect(calls[0].ops).toContainEqual({ op: "eq", args: ["version", CONSENT_VERSION] });
+    expect(consentAllows(ids, "u1")).toBe(true);
+    expect(consentAllows(ids, "u3")).toBe(false);
+  });
+
+  it("fails open (null) when the table is missing, so scheduled readings carry on", async () => {
+    const { db } = fakeDb(() => ({ error: MISSING }));
+    const ids = await loadConsentedUserIds(db);
+    expect(ids).toBeNull();
+    expect(consentAllows(ids, "anyone")).toBe(true);
   });
 });

@@ -1,6 +1,7 @@
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { loadBirthRow } from "@/lib/timeline/load";
 import { extractLifeEvents, type Utterance } from "@/lib/timeline/extract";
+import { requireConsent } from "@/lib/billing/consent";
 
 export const runtime = "nodejs";
 // Reading a chat history and extracting from it takes longer than a chat turn.
@@ -22,6 +23,9 @@ export async function POST(request: Request) {
   const supabase = await createRouteSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return new Response("Unauthorized", { status: 401 });
+  // AI consent (App Store 5.1.2), as the chat route does.
+  const consentBlock = await requireConsent(supabase, user.id);
+  if (consentBlock) return consentBlock;
 
   const row = await loadBirthRow(supabase);
   if (!row) return Response.json({ error: "Complete your birth details first." }, { status: 400 });

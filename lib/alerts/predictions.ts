@@ -16,6 +16,7 @@ import { ApnsClient } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
 import { trackUsage } from "@/lib/usage/record";
+import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
 type ProfileRow = {
   user_id: string;
@@ -57,9 +58,15 @@ export async function runDuePredictions(options: { limit?: number } = {}): Promi
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
     const zones = await loadDeviceZones(admin);
+    // Nothing goes to the model for someone who has not agreed to the current AI notice.
+    const consented = await loadConsentedUserIds(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       summary.considered += 1;
+      if (!consentAllows(consented, profile.user_id)) {
+        summary.skipped += 1;
+        continue;
+      }
       try {
         const result = await writeDueReading(profile, admin, apns, zones);
         if (result === null) summary.skipped += 1;
