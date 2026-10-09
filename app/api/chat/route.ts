@@ -41,6 +41,8 @@ import { selectMemory } from "@/lib/memory/select";
 import { rememberTurn } from "@/lib/memory/extract";
 import { recordUsage, type UsageLike } from "@/lib/usage/record";
 import { answerKey, claimAnswer, reuseAnswer } from "@/lib/usage/dedupe";
+import { skyEvents } from "@/lib/timing/sky";
+import { describeTiming, personalTiming } from "@/lib/timing/engine";
 
 export const runtime = "nodejs";
 
@@ -203,7 +205,19 @@ export async function POST(request: Request) {
       // sign change or station. Its own try/catch: losing it should not take
       // SKY TODAY with it.
       let upcomingTransits = "";
-      if (todaySky) {
+      if (tradition === "vedic") {
+        // The timing engine: every ingress and station over the next year,
+        // settled to the day and read against this chart. The dasha lines
+        // come from describeUpcomingPeriods below, so only the sky is asked for.
+        try {
+          const day = localDate;
+          const sky = await skyEvents(day, 12);
+          const horizonEnd = DateTime.fromISO(day).plus({ months: 12 }).toISODate()!;
+          upcomingTransits = describeTiming(personalTiming({ natal: chart, sky, today: day, horizonEnd }));
+        } catch (err) {
+          console.error("chat timing engine skipped", err);
+        }
+      } else if (todaySky) {
         try {
           const samples = await Promise.all(
             UPCOMING_SAMPLE_DAYS.map(async (days) => {

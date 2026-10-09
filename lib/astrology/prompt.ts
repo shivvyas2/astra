@@ -295,7 +295,8 @@ export function buildTodaySystem(args: {
   transits?: string;
   /**
    * Dated changes ahead — sign ingresses, stations, the next sub-periods —
-   * from {@link describeUpcomingTransits} and {@link describeUpcomingPeriods}.
+   * from the timing engine (lib/timing, Vedic) or {@link describeUpcomingTransits}
+   * (Western), and {@link describeUpcomingPeriods}.
    * Phrased relative to today ("about 14 months from now"), which is why it
    * lives in this half even though a dasha boundary moves only once a year.
    */
