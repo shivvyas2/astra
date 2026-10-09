@@ -18,6 +18,7 @@ struct TimelineView: View {
     @State private var showAdd = false
     @State private var pendingDelete: LifeEvent?
     @State private var showExplainer = false
+    @State private var showKeyDates = false
     /// The period last chosen in the scrubber; nil means "the one running now".
     @State private var scrubbed: String?
     @Environment(\.dismiss) private var dismiss
@@ -45,8 +46,11 @@ struct TimelineView: View {
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    BrutIconButton(systemImage: "plus", label: "Pin a moment") { showAdd = true }
-                        .disabled(store.state != .ready)
+                    HStack(spacing: 8) {
+                        BrutIconButton(systemImage: "calendar", label: "Key dates") { showKeyDates = true }
+                        BrutIconButton(systemImage: "plus", label: "Pin a moment") { showAdd = true }
+                            .disabled(store.state != .ready)
+                    }
                 }
             }
             .toolbarBackground(Theme.bg, for: .navigationBar)
@@ -54,6 +58,9 @@ struct TimelineView: View {
         .tint(Theme.fg)
         .presentationBackground(Theme.bg)
         .task { await store.load() }
+        .sheet(isPresented: $showKeyDates) {
+            KeyDatesView()
+        }
         .sheet(isPresented: $showExplainer) {
             PeriodExplainerView()
         }

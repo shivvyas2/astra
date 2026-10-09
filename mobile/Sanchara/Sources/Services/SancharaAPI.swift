@@ -75,6 +75,14 @@ enum SancharaAPI {
         return try JSONDecoder().decode(TimelinePayload.self, from: data)
     }
 
+    /// Key dates: the timing engine's year ahead. Mirrors `GET /api/timing`.
+    static func timing() async throws -> TimingPayload {
+        let req = try await request("api/timing", method: "GET")
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        return try JSONDecoder().decode(TimingPayload.self, from: data)
+    }
+
     /// Asks the server to write the plain-language meaning of every period.
     /// Mirrors `POST /api/timeline/explain`, which answers with the same shape
     /// as the GET once the meanings are in place.
