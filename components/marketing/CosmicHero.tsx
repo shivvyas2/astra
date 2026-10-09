@@ -3,11 +3,13 @@ import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { AppShowcase, ChartFactsVisual, ReadingVisual, TraditionsVisual } from "./Showcase";
 
 type Section = {
   eyebrow: string;
   title: string;
   lines: string[];
+  visual?: React.ReactNode;
   cta?: { primary: { label: string; href: string }; secondary?: { label: string; href: string } };
 };
 
@@ -29,6 +31,7 @@ const SECTIONS: Section[] = [
       "We compute your exact chart with the Swiss Ephemeris:",
       "ascendant, houses, nakshatras, and your Vimshottari dasha.",
     ],
+    visual: <ChartFactsVisual />,
   },
   {
     eyebrow: "Vedic, Western & Numerology",
@@ -37,6 +40,7 @@ const SECTIONS: Section[] = [
       "Switch between sidereal Vedic, tropical Western, and numerology.",
       "Every answer is grounded in your actual placements.",
     ],
+    visual: <TraditionsVisual />,
   },
   {
     eyebrow: "Ask anything",
@@ -45,6 +49,7 @@ const SECTIONS: Section[] = [
       "Career, relationships, timing, a kundli reading,",
       "explained in plain words anyone can understand.",
     ],
+    visual: <ReadingVisual />,
     cta: { primary: { label: "Create your free account", href: "/signup" } },
   },
 ];
@@ -124,13 +129,14 @@ export default function CosmicHero() {
 
       {/* Sections: a numbered step, one large phrase, quiet copy, hairlines between. */}
       {SECTIONS.map((s, i) => (
-        <section key={i} className="flex min-h-[80svh] flex-col justify-center border-t border-rule px-5 py-20 sm:px-8">
-          <div className="reveal mx-auto flex w-full max-w-5xl flex-col">
+        <section key={i} className="border-t border-rule px-5 py-20 sm:px-8 sm:py-28">
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+          <div className={`reveal flex flex-col ${i % 2 === 1 ? "lg:order-2" : ""}`}>
             <div className="flex items-center gap-3">
               <span className="number-badge">{String(i + 1).padStart(2, "0")}.</span>
               <p className="screen-eyebrow">{s.eyebrow}</p>
             </div>
-            <h2 className="headline headline-arrow mt-6 max-w-full break-words text-6xl sm:text-8xl lg:text-9xl">{s.title}</h2>
+            <h2 className="headline headline-arrow mt-6 max-w-full break-words text-6xl sm:text-7xl xl:text-8xl">{s.title}</h2>
             <div className="mt-8 max-w-xl space-y-1 border-t border-rule pt-6 text-base leading-relaxed text-muted sm:text-lg">
               {s.lines.map((l, k) => <p key={k}>{l}</p>)}
             </div>
@@ -142,8 +148,23 @@ export default function CosmicHero() {
               </div>
             )}
           </div>
+          {s.visual && <div className="reveal">{s.visual}</div>}
+          </div>
         </section>
       ))}
+
+      <AppShowcase />
+
+      <section className="border-t border-rule px-5 py-20 sm:px-8 sm:py-28">
+        <div className="reveal mx-auto flex max-w-6xl flex-col items-start gap-8 sm:flex-row sm:items-end sm:justify-between">
+          <h2 className="headline max-w-3xl text-5xl sm:text-7xl">
+            Ask the sky your <span className="text-accent">first question.</span>
+          </h2>
+          <Link href="/signup" className="brut-btn brut-btn-accent brut-btn-arrow min-h-[54px] shrink-0 px-6">
+            Get your reading
+          </Link>
+        </div>
+      </section>
 
       <footer className="border-t border-rule px-5 py-8 text-xs text-muted sm:px-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
