@@ -176,6 +176,7 @@ struct KeyDatesView: View {
                 }
                 if let notice { BrutNotice(text: notice, tone: .info) }
                 if let next = events.first { nextCard(next) }
+                CompareDatesSection()
                 ForEach(KeyDates.byMonth(events), id: \.month) { group in
                     VStack(alignment: .leading, spacing: 0) {
                         Text(KeyDates.monthTitle(group.month)).eyebrow().padding(.bottom, 6)

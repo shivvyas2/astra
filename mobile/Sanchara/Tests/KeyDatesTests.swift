@@ -31,4 +31,16 @@ final class KeyDatesTests: XCTestCase {
         XCTAssertEqual(KeyDates.monthTitle("2026-10"), "October 2026")
         XCTAssertEqual(KeyDates.dayNumber("2026-10-02"), "02")
     }
+
+    func testDecodesADateComparison() throws {
+        let json = """
+        {"a":{"date":"2026-11-03","score":2,"factors":[{"label":"Chandra bala","detail":"Moon in Libra.","score":1}],
+          "moonSign":"Libra","nakshatra":"Swati"},
+         "b":{"date":"2026-12-01","score":0,"factors":[],"moonSign":"Leo","nakshatra":"Magha"},
+         "better":"a","topic":null}
+        """
+        let c = try JSONDecoder().decode(DateComparison.self, from: Data(json.utf8))
+        XCTAssertEqual(c.winner?.date, "2026-11-03")
+        XCTAssertEqual(c.a.factors.first?.score, 1)
+    }
 }

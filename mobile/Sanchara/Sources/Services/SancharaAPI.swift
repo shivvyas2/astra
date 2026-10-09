@@ -83,6 +83,22 @@ enum SancharaAPI {
         return try JSONDecoder().decode(TimingPayload.self, from: data)
     }
 
+    /// Two dates for one decision. Mirrors `GET /api/timing/compare`.
+    static func compareDates(_ a: String, _ b: String, topic: String?) async throws -> DateComparison {
+        guard var components = URLComponents(
+            url: AppConfig.apiBaseURL.appendingPathComponent("api/timing/compare"),
+            resolvingAgainstBaseURL: false
+        ) else { throw APIError.badURL }
+        components.queryItems = [URLQueryItem(name: "a", value: a), URLQueryItem(name: "b", value: b)]
+            + (topic.map { [URLQueryItem(name: "topic", value: $0)] } ?? [])
+        guard let url = components.url else { throw APIError.badURL }
+        var req = try await request("api/timing/compare", method: "GET")
+        req.url = url
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try check(response, data)
+        return try JSONDecoder().decode(DateComparison.self, from: data)
+    }
+
     /// Asks the server to write the plain-language meaning of every period.
     /// Mirrors `POST /api/timeline/explain`, which answers with the same shape
     /// as the GET once the meanings are in place.

@@ -4,6 +4,7 @@ import type { TimingEvent, Tone } from "@/lib/timing/engine";
 import type { Timing } from "@/lib/timing/load";
 import { TOPIC_LABEL } from "@/lib/memory/types";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { CompareDates } from "@/components/CompareDates";
 const TONE: Record<Tone, { label: string; cls: string }> = {
   supportive: { label: "Supportive", cls: "bg-accent" },
   challenging: { label: "Challenging", cls: "bg-ember" },
@@ -13,7 +14,7 @@ const TONE: Record<Tone, { label: string; cls: string }> = {
 const KIND: Record<TimingEvent["kind"], string> = { ingress: "Transit", station: "Station", dasha: "Period" };
 
 /** Key dates: the timing engine's year ahead, grouped by month. */
-export function KeyDates({ timing }: { timing: Pick<Timing, "events"> }) {
+export function KeyDates({ timing }: { timing: Pick<Timing, "events" | "today"> }) {
   const months = new Map<string, TimingEvent[]>();
   for (const e of timing.events) {
     const key = e.date.slice(0, 7);
@@ -51,6 +52,8 @@ export function KeyDates({ timing }: { timing: Pick<Timing, "events"> }) {
             <p className="mt-2 text-sm leading-relaxed text-muted">{next.detail}</p>
           </section>
         )}
+
+        <CompareDates today={timing.today} />
 
         {timing.events.length === 0 && (
           <p className="brut-card mt-10 p-5 text-sm text-muted">Nothing changes in your sky in the next twelve months.</p>
