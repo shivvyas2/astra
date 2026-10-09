@@ -31,8 +31,8 @@ const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLin
 function HomeIcon(p: IconProps) {
   return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M3 11l9-8 9 8v9a2 2 0 01-2 2h-4v-7H9v7H5a2 2 0 01-2-2z" /></svg>;
 }
-function SparkIcon(p: IconProps) {
-  return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M12 3l2.1 6.4L21 11l-6.9 1.6L12 19l-2.1-6.4L3 11l6.9-1.6z" /></svg>;
+function ChatIcon(p: IconProps) {
+  return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z" /></svg>;
 }
 function FileIcon(p: IconProps) {
   return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V9z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>;
@@ -52,7 +52,7 @@ function CloseIcon(p: IconProps) {
 
 const NAV: { href: string; label: string; blurb: string; icon: (p: IconProps) => React.JSX.Element; external?: boolean }[] = [
   { href: "/app", label: "Home", blurb: "Your chart at a glance", icon: HomeIcon },
-  { href: "/app/chat", label: "New reading", blurb: "Ask anything, read from your chart", icon: SparkIcon },
+  { href: "/app/chat", label: "New reading", blurb: "Ask anything, read from your chart", icon: ChatIcon },
   { href: "/api/kundli", label: "Kundli", blurb: "Your birth chart as a PDF", icon: FileIcon, external: true },
   { href: "/app/profiles", label: "People", blurb: "Partners, family, compatibility", icon: PeopleIcon },
   { href: "/app/profile", label: "Profile", blurb: "Birth details, photo, account", icon: UserIcon },

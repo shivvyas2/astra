@@ -20,7 +20,7 @@ const FEATURES: {
     fill: "bg-ember",
     title: "Ask a reading",
     blurb: "Love, work, timing, anything on your mind. Every answer is read from your own birth chart, in the tradition you pick.",
-    icon: <svg width="22" height="22" viewBox="0 0 24 24" {...stroke}><path d="M12 3l2.1 6.4L21 11l-6.9 1.6L12 19l-2.1-6.4L3 11l6.9-1.6z" /></svg>,
+    icon: <svg width="22" height="22" viewBox="0 0 24 24" {...stroke}><path d="M21 12a8 8 0 01-11.6 7.1L4 20l1-4.6A8 8 0 1121 12z" /></svg>,
     wide: true,
   },
   {
