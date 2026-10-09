@@ -6,6 +6,15 @@ import { getPerson } from "@/lib/profiles/store";
 import { computeCompatibility, type ChartPair, type KootaForClient } from "@/lib/compat/compatibility";
 import { GRAHA_SANSKRIT, RASHI_SANSKRIT } from "@/lib/profiles/names";
 import { AskAboutUs } from "@/components/AskAboutUs";
+import { birthUtFrom, overTime, type StretchTone } from "@/lib/compat/overTime";
+import { DateTime } from "luxon";
+
+const STRETCH: Record<StretchTone, { label: string; cls: string }> = {
+  warm: { label: "Warm", cls: "bg-accent" },
+  steady: { label: "Steady", cls: "bg-fg/80" },
+  strained: { label: "Strained", cls: "bg-ember" },
+};
+const monthYear = (iso: string) => DateTime.fromISO(iso).toFormat("LLL yyyy");
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +50,11 @@ export default async function CompatibilityPage({
     groom: groomSide,
   });
   const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  const years = overTime(
+    { name: me.first_name, chart: (me.chart as unknown as ChartPair).vedic, birthUt: birthUtFrom(String(me.birth_date), String(me.birth_time), String(me.timezone)) },
+    { name, chart: (person.chart as unknown as ChartPair).vedic, birthUt: birthUtFrom(person.birth_date, person.birth_time, person.timezone) },
+    new Date().toISOString().slice(0, 10),
+  );
 
   return (
     <div className="h-full overflow-y-auto">
@@ -129,6 +143,31 @@ export default async function CompatibilityPage({
             ))}
           </ul>
         </section>
+
+        {years.length > 0 && (
+          <section className="brut-card mt-5 p-5">
+            <p className="eyebrow">Your years together</p>
+            <h2 className="headline mt-3 text-2xl">The next three years, period by period</h2>
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Guna Milan is one number for a lifetime. Here both of your dasha calendars run side by side: whose
+              sub-period touches relationships, and whether the two running lords get on.
+            </p>
+            <ol className="mt-4 border-t border-rule">
+              {years.map((y) => (
+                <li key={y.start} className="border-b border-rule py-3.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-sm font-semibold tabular-nums">{monthYear(y.start)} – {monthYear(y.end)}</span>
+                    <span className={`brut-tag ${STRETCH[y.tone].cls}`}>{STRETCH[y.tone].label}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-muted">You: {y.you} · {name}: {y.them}</p>
+                  <ul className="mt-2 space-y-1 text-sm text-muted">
+                    {y.reasons.map((reason) => <li key={reason}>{reason}</li>)}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         <p className="mt-5 text-sm leading-relaxed">{r.summary}</p>
 

@@ -2,6 +2,7 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 import { ensureCurrentChart, type BirthProfileRow } from "@/lib/data/birthProfile";
 import { getPerson, WRITE_ERROR } from "@/lib/profiles/store";
 import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
+import { birthUtFrom, overTime } from "@/lib/compat/overTime";
 
 export const runtime = "nodejs";
 
@@ -46,7 +47,13 @@ export async function GET(request: Request) {
       them: { name: person.label || person.first_name, relationship: person.relationship, chart: person.chart as unknown as ChartPair },
       groom,
     });
-    return Response.json(result, { headers: { "cache-control": "no-store" } });
+    // The next three years, both dasha calendars side by side.
+    const years = overTime(
+      { name: me.first_name, chart: (me.chart as unknown as ChartPair).vedic, birthUt: birthUtFrom(me.birth_date, me.birth_time, me.timezone) },
+      { name: person.label || person.first_name, chart: (person.chart as unknown as ChartPair).vedic, birthUt: birthUtFrom(person.birth_date, person.birth_time, person.timezone) },
+      new Date().toISOString().slice(0, 10),
+    );
+    return Response.json({ ...result, overTime: years }, { headers: { "cache-control": "no-store" } });
   } catch (err) {
     console.error("compatibility compute error", err);
     return Response.json({ error: "Could not compare these charts. Please try again." }, { status: 500 });
