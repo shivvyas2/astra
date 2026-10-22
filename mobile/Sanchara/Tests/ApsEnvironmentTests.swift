@@ -59,3 +59,22 @@ final class ApsEnvironmentTests: XCTestCase {
         XCTAssertEqual(ApsEnvironment.current, "sandbox")
     }
 }
+
+final class PushDiagnosisTests: XCTestCase {
+    private func device(_ attempts: [(String, Bool, String?)], delivered: Bool = false) -> PushTestReport.Device {
+        PushTestReport.Device(
+            tokenTail: "abcd1234",
+            stored: "sandbox",
+            registeredAt: "2026-10-22T00:00:00Z",
+            attempts: attempts.map { .init(environment: $0.0, ok: $0.1, status: $0.1 ? 200 : 400, reason: $0.2) },
+            delivered: delivered
+        )
+    }
+
+    func testNamesTheFixForEachKindOfRefusal() {
+        XCTAssertTrue(PushDiagnosis.explain(device([("production", true, nil)], delivered: true)).hasPrefix("Apple accepted it"))
+        XCTAssertTrue(PushDiagnosis.explain(device([("production", false, "InvalidProviderToken")])).contains("server's key"))
+        XCTAssertTrue(PushDiagnosis.explain(device([("production", false, "DeviceTokenNotForTopic")])).contains("APNS_BUNDLE_ID"))
+        XCTAssertTrue(PushDiagnosis.explain(device([("sandbox", false, "BadDeviceToken"), ("production", false, "BadDeviceToken")])).contains("Sign out"))
+    }
+}

@@ -670,7 +670,13 @@ struct AdminAPI: AdminService {
         try await get("api/admin/conversations/\(Self.pathSafe(id))")
     }
 
-    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+    /// Sends a test notification to this admin's own phones and returns what
+    /// Apple answered for each. Mirrors `POST /api/admin/push-test`.
+    func pushTest() async throws -> PushTestReport {
+        try await get("api/admin/push-test", method: "POST")
+    }
+
+    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = [], method: String = "GET") async throws -> T {
         guard var components = URLComponents(url: AppConfig.apiBaseURL, resolvingAgainstBaseURL: false) else {
             throw AdminError.server("That request could not be built.")
         }
@@ -685,7 +691,7 @@ struct AdminAPI: AdminService {
         guard let url = components.url else { throw AdminError.server("That request could not be built.") }
 
         var req = URLRequest(url: url)
-        req.httpMethod = "GET"
+        req.httpMethod = method
         guard let token = await Supa.accessToken() else { throw AdminError.notAdmin }
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Accept")

@@ -12,6 +12,9 @@ struct AdminOverviewView: View {
                 rangeBar
                     .padding(.horizontal, 16)
 
+                AdminPushTestView(api: AdminAPI())
+                    .padding(.horizontal, 16)
+
                 if let overview = store.overview {
                     content(overview)
                 } else if case .failed(let message) = store.overviewPhase {
