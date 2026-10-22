@@ -69,6 +69,7 @@ struct MainTabView: View {
     @State private var alerts = AlertsStore()
     @State private var inboxTab: InboxView.Tab = .daily
     @State private var showTour = !WelcomeTour.seen
+    @State private var notificationPrompt: NotificationPrompt.Kind?
     /// While the keyboard is up the tab bar stays where it is and the
     /// keyboard covers it, so whatever is being typed into sits directly on
     /// the keys instead of on top of the tabs.
@@ -125,16 +126,28 @@ struct MainTabView: View {
             withAnimation(.easeOut(duration: 0.25)) { keyboardUp = false }
         }
         .tint(Theme.fg)
-        .sheet(isPresented: $showTour) {
+        .sheet(isPresented: $showTour, onDismiss: {
+            // After the tour, never on top of it: one sheet at a time.
+            Task { notificationPrompt = await NotificationPrompt.due() }
+        }) {
             WelcomeTourView { showTour = false }
+        }
+        .sheet(item: Binding(
+            get: { notificationPrompt.map(PromptItem.init) },
+            set: { notificationPrompt = $0?.kind }
+        )) { item in
+            NotificationPromptView(kind: item.kind) { notificationPrompt = nil }
         }
         .task {
             await daily.load()
             await alerts.load()
             // Asked here rather than at launch: by this point the user has a
             // chart, so "we'll tell you when a dosha starts" means something.
-            await PushStore.shared.requestAuthorization()
+            // Our own screen asks first (NotificationPrompt); Apple's alert
+            // only follows a tap on Turn on.
+            await PushStore.shared.registerIfAllowed()
             await PushStore.shared.register()
+            if !showTour { notificationPrompt = await NotificationPrompt.due() }
         }
         .task {
             // For the period widget: it draws from the cache, and the cache is
@@ -150,7 +163,14 @@ struct MainTabView: View {
             openPushed(PushStore.shared.pending)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { DeepLink.shared.drain() }
+            guard phase == .active else { return }
+            DeepLink.shared.drain()
+            // Back from Settings with notifications turned on: register now
+            // rather than on the next launch.
+            Task {
+                await PushStore.shared.registerIfAllowed()
+                await PushStore.shared.register()
+            }
         }
         .onChange(of: DeepLink.shared.pending) { _, destination in
             handle(destination)

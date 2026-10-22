@@ -54,6 +54,20 @@ final class PushStore {
         }
     }
 
+    /// Registers for remote notifications only when they are already
+    /// allowed: the launch path, which must never prompt on its own. Asking
+    /// is `NotificationPromptView`'s job.
+    func registerIfAllowed() async {
+        let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+        switch status {
+        case .authorized, .provisional, .ephemeral:
+            isAuthorized = true
+            UIApplication.shared.registerForRemoteNotifications()
+        default:
+            isAuthorized = false
+        }
+    }
+
     func received(deviceToken data: Data) {
         let token = data.map { String(format: "%02x", $0) }.joined()
         deviceToken = token

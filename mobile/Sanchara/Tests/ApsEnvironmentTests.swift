@@ -78,3 +78,24 @@ final class PushDiagnosisTests: XCTestCase {
         XCTAssertTrue(PushDiagnosis.explain(device([("sandbox", false, "BadDeviceToken"), ("production", false, "BadDeviceToken")])).contains("Sign out"))
     }
 }
+
+final class NotificationPromptTests: XCTestCase {
+    private let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+    func testAsksWhenNeverAskedAndPointsToSettingsWhenDeclined() {
+        XCTAssertEqual(NotificationPrompt.kind(for: .notDetermined, lastShown: nil, now: now), .ask)
+        XCTAssertEqual(NotificationPrompt.kind(for: .denied, lastShown: nil, now: now), .openSettings)
+    }
+
+    func testStaysQuietWhenAllowed() {
+        XCTAssertNil(NotificationPrompt.kind(for: .authorized, lastShown: nil, now: now))
+        XCTAssertNil(NotificationPrompt.kind(for: .provisional, lastShown: nil, now: now))
+    }
+
+    func testComesBackAtMostEveryTwoWeeks() {
+        let tenDays = now.addingTimeInterval(-10 * 24 * 3600)
+        let fifteenDays = now.addingTimeInterval(-15 * 24 * 3600)
+        XCTAssertNil(NotificationPrompt.kind(for: .denied, lastShown: tenDays, now: now))
+        XCTAssertEqual(NotificationPrompt.kind(for: .denied, lastShown: fifteenDays, now: now), .openSettings)
+    }
+}
