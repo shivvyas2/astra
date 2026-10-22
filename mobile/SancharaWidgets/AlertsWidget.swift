@@ -98,7 +98,7 @@ struct AlertsWidgetView: View {
     private func small(_ alert: ChartCache.CachedAlert) -> some View {
         let tone = AlertTone.color(for: alert.severity)
         return VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(eyebrow: AlertTone.label(for: alert.severity), dot: tone)
+            WidgetHeader(eyebrow: AlertTone.label(for: alert.severity), tint: tone)
             Spacer(minLength: 0)
             WidgetDisplay(text: alert.title, size: 19, lines: 3)
             Text(footer(alert))
@@ -114,7 +114,7 @@ struct AlertsWidgetView: View {
     private func medium(_ alert: ChartCache.CachedAlert) -> some View {
         let tone = AlertTone.color(for: alert.severity)
         return VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(eyebrow: "Alert · \(AlertTone.label(for: alert.severity))", dot: tone)
+            WidgetHeader(eyebrow: "Alert · \(AlertTone.label(for: alert.severity))", tint: tone)
             WidgetDisplay(text: alert.title, size: 22, lines: 2)
                 .padding(.top, 2)
             Text(alert.body)

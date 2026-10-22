@@ -155,7 +155,7 @@ struct ReadingWidgetView: View {
         WidgetHeader(
             // The small size has no room for the day beside the slot.
             eyebrow: family == .systemSmall ? reading.slotLabel : "\(reading.slotLabel) · \(reading.dayLabel)",
-            dot: snapshot.alert.map { AlertTone.color(for: $0.severity) }
+            tint: snapshot.alert.map { AlertTone.color(for: $0.severity) } ?? Theme.muted
         )
     }
 
@@ -200,7 +200,6 @@ struct ReadingWidgetView: View {
             let tone = AlertTone.color(for: alert.severity)
             let section = VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
-                    Circle().fill(tone).frame(width: 6, height: 6)
                     WidgetEyebrow(text: "Alert · \(AlertTone.label(for: alert.severity))", color: tone)
                     Spacer(minLength: 4)
                     Text(WidgetTime.ago(alert.createdAt, now: entry.date))

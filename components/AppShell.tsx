@@ -83,7 +83,6 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
     <div className="flex h-full flex-col p-3">
       <div className="flex items-center justify-between px-3 pb-5 pt-3">
         <Link href="/app" onClick={close} className="flex items-center gap-2.5 text-lg font-medium tracking-tight">
-          <span className="astra-mark" aria-hidden />
           Astrya
         </Link>
         <button type="button" aria-label="Close menu" onClick={close} className="circle-btn h-9 w-9 md:hidden">
@@ -160,8 +159,8 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
             <MenuIcon />
           </button>
           <span className="text-[15px] font-semibold tracking-tight">{section}</span>
-          <Link href="/app" aria-label="Astrya home" className="ml-auto grid h-[38px] w-[38px] place-items-center">
-            <span className="astra-mark" aria-hidden />
+          <Link href="/app" className="ml-auto grid min-h-[38px] place-items-center px-2 text-[15px] font-semibold">
+            Astrya
           </Link>
         </header>
         <main className="min-h-0 flex-1">{children}</main>

@@ -468,7 +468,6 @@ struct ChatView: View {
             }
         } label: {
             HStack(spacing: 7) {
-                Circle().fill(chat.mode.dot).frame(width: 8, height: 8)
                 Text(chat.mode.label)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.fg)
@@ -500,13 +499,9 @@ struct ChatView: View {
     private var header: some View {
         HStack(spacing: 12) {
             if chat.messages.isEmpty {
-                HStack(spacing: 8) {
-                    AstraMark(size: 14)
-                    Text("ASTRYA")
-                        .font(.brutMono(11, weight: .bold))
-                        .tracking(3)
-                        .foregroundStyle(Theme.fg)
-                }
+                Text("Astrya")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.fg)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Astrya")
                 .accessibilityAddTraits(.isHeader)
@@ -516,7 +511,6 @@ struct ChatView: View {
                 }
                 .accessibilityHint("Leaves this reading. It stays in Past readings.")
                 HStack(spacing: 7) {
-                    Circle().fill(chat.mode.dot).frame(width: 8, height: 8)
                     Text(chat.mode.label)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)

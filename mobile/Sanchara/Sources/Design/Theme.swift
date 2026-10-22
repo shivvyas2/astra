@@ -122,9 +122,7 @@ extension Text {
     /// The eyebrow: small, uppercase, tracked, muted. Sits above a title or
     /// labels a block.
     func eyebrow() -> some View {
-        self.font(.system(size: 11, weight: .semibold))
-            .textCase(.uppercase)
-            .tracking(1.4)
+        self.font(.system(size: 13, weight: .medium))
             .foregroundStyle(Theme.muted)
     }
 

@@ -203,32 +203,20 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
   }
 
   .eyebrow {
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 1.2;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.3;
     color: var(--muted);
   }
-  /* The eyebrow at the top of a screen: a dot and the label, in the accent. */
+  /* The eyebrow at the top of a screen: the label, in the accent. */
   .screen-eyebrow {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 600;
-    line-height: 1.2;
-    letter-spacing: 0.13em;
-    text-transform: uppercase;
+    line-height: 1.3;
     color: var(--accent);
-  }
-  .screen-eyebrow::before {
-    content: "";
-    width: 7px;
-    height: 7px;
-    border-radius: 999px;
-    background: currentColor;
-    flex-shrink: 0;
   }
 
   /* A screen's large word. Medium weight, set tight: size does the work. */

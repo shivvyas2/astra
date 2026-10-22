@@ -103,11 +103,8 @@ struct KundliView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 8) {
                     HStack(spacing: 8) {
-                        Circle().fill(Theme.accent).frame(width: 7, height: 7)
                         Text("Birth chart")
-                            .font(.system(size: 11, weight: .semibold))
-                            .textCase(.uppercase)
-                            .tracking(1.4)
+                            .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.accent)
                     }
                     .accessibilityElement(children: .combine)

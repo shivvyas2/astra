@@ -24,7 +24,6 @@ export function ScreenHeader({
     <header>
       <div className="flex items-center gap-2">
         <p className="screen-eyebrow">{eyebrow}</p>
-        <span className="astra-mark ml-auto" aria-hidden />
       </div>
       <h1 className={`headline mt-3 ${titleSize}${arrow ? " headline-arrow" : ""}`}>{title}</h1>
       {blurb && <p className="mt-3 max-w-md text-[15px] leading-relaxed text-muted">{blurb}</p>}

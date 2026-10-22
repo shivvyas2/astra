@@ -95,14 +95,12 @@ struct WidgetEyebrow: View {
 /// The eyebrow on the left, the Astra disc on the right.
 struct WidgetHeader: View {
     let eyebrow: String
-    var dot: Color? = nil
+    /// Colours the eyebrow, e.g. by alert severity.
+    var tint: Color = Theme.muted
 
     var body: some View {
         HStack(spacing: 6) {
-            if let dot {
-                Circle().fill(dot).frame(width: 6, height: 6).widgetAccentable()
-            }
-            WidgetEyebrow(text: eyebrow)
+            WidgetEyebrow(text: eyebrow, color: tint)
             Spacer(minLength: 4)
             AstraDisc(size: 11)
         }

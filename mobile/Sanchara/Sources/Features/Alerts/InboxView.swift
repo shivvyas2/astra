@@ -109,14 +109,9 @@ struct InboxView: View {
     private var todayHeader: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
-                Circle().fill(Theme.accent).frame(width: 7, height: 7)
                 Text("Today")
-                    .font(.system(size: 11, weight: .semibold))
-                    .textCase(.uppercase)
-                    .tracking(1.4)
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.accent)
-                Spacer(minLength: 0)
-                AstraMark(size: 16)
             }
             BigNumber(
                 value: Self.todayPart("dd"),

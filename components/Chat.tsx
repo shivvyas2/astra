@@ -276,7 +276,6 @@ function ChartBasis({ facts, streaming }: { facts: string[]; streaming: boolean 
     <details className="group mt-3 rounded-[14px] border border-line bg-fg/[0.03]">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2">
-          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-accent" />
           Why Astrya said this
         </span>
         <span aria-hidden className="text-muted transition-transform group-open:rotate-45">+</span>

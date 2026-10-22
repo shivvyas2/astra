@@ -48,7 +48,6 @@ export function AiConsentGate({ version }: { version: string }) {
             <header className="animate-fade-up">
               <div className="flex items-center">
                 <p className="screen-eyebrow">{CONSENT_COPY.eyebrow}</p>
-                <span className="astra-mark ml-auto" aria-hidden />
               </div>
               <h1 className="headline headline-arrow mt-3 text-4xl sm:text-5xl">{CONSENT_COPY.title}</h1>
               <p className="mt-4 text-[15px] leading-relaxed text-muted">{CONSENT_COPY.intro}</p>
