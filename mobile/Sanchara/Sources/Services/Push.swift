@@ -114,11 +114,17 @@ final class SancharaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotifica
     /// server sends — wakes the app here in the background, if the user has
     /// not force-quit it. That is the moment to fetch the new row and reload
     /// the widgets, so the Home Screen shows the alert before anyone taps it.
-    nonisolated func application(
+    ///
+    /// The completion-handler form, on the main actor: the payload itself is
+    /// never read here, so nothing non-Sendable has to cross an actor.
+    func application(
         _ application: UIApplication,
-        didReceiveRemoteNotification userInfo: [AnyHashable: Any]
-    ) async -> UIBackgroundFetchResult {
-        await BackgroundRefresh.run(force: true) ? .newData : .noData
+        didReceiveRemoteNotification userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void
+    ) {
+        Task {
+            completionHandler(await BackgroundRefresh.run(force: true) ? .newData : .noData)
+        }
     }
 
     /// An alert that arrives while the app is open still shows as a banner —
@@ -153,14 +159,23 @@ enum ApsEnvironment {
     static let sandbox = "sandbox"
     static let production = "production"
 
-    /// The environment for the running app. A simulator build has no profile
-    /// and cannot receive pushes at all, so sandbox is the harmless answer.
+    /// The environment for the running app.
+    ///
+    /// A simulator cannot receive pushes at all, so sandbox is the harmless
+    /// answer there. On a device, a missing profile means an App Store or
+    /// TestFlight build: Apple strips `embedded.mobileprovision` when it
+    /// re-signs, and both always use production. Answering sandbox for them
+    /// sent every push to the wrong host.
     static var current: String {
+        #if targetEnvironment(simulator)
+        return sandbox
+        #else
         guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
-              let data = try? Data(contentsOf: url) else { return sandbox }
+              let data = try? Data(contentsOf: url) else { return production }
         // Latin-1 maps every byte to a character, so the binary envelope
         // around the plist cannot make the decode fail.
         return parse(profileText: String(data: data, encoding: .isoLatin1) ?? "")
+        #endif
     }
 
     /// `production` only when the profile says so; anything else, including

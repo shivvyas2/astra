@@ -21,7 +21,18 @@ export async function pushToUserDevices(
   let sent = 0;
   const dead: string[] = [];
   for (const device of (data ?? []) as { token: string; environment: PushEnvironment }[]) {
-    const result = await apns.send({ deviceToken: device.token, environment: device.environment, ...payload });
+    let result = await apns.send({ deviceToken: device.token, environment: device.environment, ...payload });
+    // A token sent to the wrong host comes back BadDeviceToken, which is not
+    // the same as dead: an App Store build that once reported "sandbox" did
+    // exactly this. Try the other host once, and remember it if it works.
+    if (!result.ok && result.reason === "BadDeviceToken") {
+      const other: PushEnvironment = device.environment === "sandbox" ? "production" : "sandbox";
+      const retry = await apns.send({ deviceToken: device.token, environment: other, ...payload });
+      if (retry.ok) {
+        await admin.from("device_tokens").update({ environment: other }).eq("token", device.token);
+      }
+      result = retry;
+    }
     if (result.ok) sent += 1;
     else if (result.unregistered) dead.push(device.token);
     else console.error("apns send failed", result.status, result.reason);

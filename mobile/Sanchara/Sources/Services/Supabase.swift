@@ -11,7 +11,14 @@ enum Supa {
         supabaseURL: AppConfig.supabaseURL,
         supabaseKey: AppConfig.supabaseAnonKey,
         options: SupabaseClientOptions(
-            auth: .init(storage: SharedAuthStorage(), storageKey: SharedSession.storageKey)
+            // The library's next major behaviour, opted into now: the stored
+            // session is emitted as-is at launch. AuthStore never reads that
+            // event; it asks `auth.session`, which refreshes an expired one.
+            auth: .init(
+                storage: SharedAuthStorage(),
+                storageKey: SharedSession.storageKey,
+                emitLocalSessionAsInitialSession: true
+            )
         )
     )
 

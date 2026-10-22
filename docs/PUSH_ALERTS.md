@@ -105,9 +105,15 @@ shows them in the bell inbox — it just sends no pushes.
 ### 4. Match the APNs environment on the app side
 
 `mobile/project.yml` sets `aps-environment: development`, which mints **sandbox**
-tokens. TestFlight and App Store builds need `production`. The app reports which
-one it used when registering, and `lib/push/apns.ts` sends to the matching host,
-so both can coexist.
+tokens; archiving for TestFlight or the App Store re-signs the app with
+`production`. The app reports which one it has when registering
+(`ApsEnvironment` in `Services/Push.swift`): it reads the embedded provisioning
+profile, and a device build with no profile is an App Store or TestFlight
+build, because Apple strips the profile when it re-signs, so it reports
+`production`. `lib/push/apns.ts` sends to the matching host, and if Apple
+answers `BadDeviceToken` the sender tries the other host once and stores
+whichever worked (`lib/push/devices.ts`), so a wrong report heals itself
+instead of the token being deleted.
 
 ### 5. Run it every hour
 

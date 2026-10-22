@@ -133,7 +133,7 @@ enum OnDeviceMemory {
             let response = try await session.respond(
                 to: input,
                 generating: ConversationNotes.self,
-                options: GenerationOptions(sampling: .greedy, maximumResponseTokens: 700)
+                options: GenerationOptions(samplingMode: .greedy, maximumResponseTokens: 700)
             )
             let c = response.content
             return ProposedNotes(

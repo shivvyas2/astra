@@ -90,8 +90,11 @@ extension View {
     /// appears. Put it on the screen that holds `AdminEntryRow` — the row
     /// cannot ask for itself while hidden, because a view that draws nothing
     /// never appears.
-    func adminGateCheck(_ gate: AdminGate = .shared) -> some View {
-        task { await gate.check() }
+    /// `nil` means the shared gate, looked up on the main actor: a default
+    /// argument of `.shared` would be evaluated outside it.
+    @MainActor
+    func adminGateCheck(_ gate: AdminGate? = nil) -> some View {
+        task { await (gate ?? .shared).check() }
     }
 }
 

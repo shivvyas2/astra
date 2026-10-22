@@ -110,7 +110,7 @@ final class OnDeviceReasoner {
             let response = try await session.respond(
                 to: "Question: \(question)",
                 generating: Classification.self,
-                options: GenerationOptions(sampling: .greedy)
+                options: GenerationOptions(samplingMode: .greedy)
             )
             return response.content.isRetrieval
         } catch {

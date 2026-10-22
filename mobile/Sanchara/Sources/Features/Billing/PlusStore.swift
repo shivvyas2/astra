@@ -22,7 +22,7 @@ final class PlusStore {
     /// Off while Astrya ships free: no paywall, no plan row, no locked icons,
     /// and StoreKit is never started. Flip to bring Plus back; nothing else
     /// needs to change.
-    static let isEnabled = false
+    nonisolated static let isEnabled = false
 
     enum LoadState: Equatable { case idle, loading, loaded, failed }
 
@@ -140,7 +140,7 @@ final class PlusStore {
         // Signed out, offline, or Xcode's local StoreKit testing (which the
         // server rightly refuses): the phone's own verification still shows
         // the plan, and the next launch posts again.
-        try? await BillingAPI.postTransaction(jws: jws)
+        _ = try? await BillingAPI.postTransaction(jws: jws)
     }
 
     static func snapshot(_ t: Transaction) -> EntitlementSnapshot {
