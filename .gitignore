@@ -11,7 +11,8 @@ ephemeris-data/
 # iOS — the Xcode project is generated from mobile/project.yml by XcodeGen.
 # Run `cd mobile && xcodegen generate` after changing the spec.
 mobile/Sanchara.xcodeproj/
-mobile/build/
+# A folder or, when Xcode makes it one, a symlink: no trailing slash.
+mobile/build
 mobile/Sanchara/Sources/Generated/
 
 # Local release-rule cache written by the release skill.
