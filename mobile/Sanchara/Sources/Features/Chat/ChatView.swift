@@ -411,6 +411,8 @@ struct ChatView: View {
                     .submitLabel(.send)
                     .onSubmit { chat.sendCurrentInput() }
                     .padding(.vertical, 10)
+                    // As tall as the button, so one line sits centred on it.
+                    .frame(minHeight: 40)
 
                 CircleButton(systemImage: "arrow.up", label: "Send", fill: .accent, size: 40) {
                     inputFocused = false
@@ -418,15 +420,15 @@ struct ChatView: View {
                 }
                 .disabled(!canSend)
                 .opacity(canSend ? 1 : 0.35)
-                .padding(.bottom, 4)
             }
+            // Concentric: the same 6 pt inset on every side of the button, and
+            // the pill's radius is the button's (20) plus that inset.
             .padding(.leading, 18)
-            .padding(.trailing, 4)
-            .padding(.vertical, 0)
+            .padding([.vertical, .trailing], 6)
             .background {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .fill(Theme.fg.opacity(0.04))
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
                     .strokeBorder(Theme.line, lineWidth: Theme.lineWidth)
             }
 

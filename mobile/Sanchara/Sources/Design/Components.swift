@@ -235,19 +235,51 @@ struct AstraMark: View {
     }
 }
 
-/// A tilted ellipse with the Astra mark on it — an orbit. Decoration only.
+/// A tilted orbit with a planet on it. Decoration only.
+///
+/// The planet is placed by the ellipse's own equation, so it sits exactly on
+/// the line at any size, and the line fades away behind it like a trail: it
+/// reads as something moving rather than a dot dropped near a ring.
 struct OrbitDecoration: View {
     var color: Color = Theme.fg.opacity(0.35)
 
+    /// The orbit's tilt, and where on it the planet is (0° is the right-hand
+    /// end of the ellipse, negative is up).
+    private static let tilt = Angle.degrees(-28)
+    private static let position = Angle.degrees(-38)
+
     var body: some View {
         GeometryReader { geo in
+            let a = geo.size.width / 2
+            let b = geo.size.height * 0.31
+            let t = Self.position.radians
+            let x = a * cos(t), y = b * sin(t)
+            let r = Self.tilt.radians
+            let planet = CGPoint(
+                x: geo.size.width / 2 + x * cos(r) - y * sin(r),
+                y: geo.size.height / 2 + x * sin(r) + y * cos(r)
+            )
+            // The gradient measures angles from the centre, not along the
+            // ellipse, so the trail ends at the planet's polar angle.
+            let polar = Angle.radians(atan2(y, x))
             ZStack {
                 Ellipse()
-                    .stroke(color, lineWidth: 1)
-                    .frame(width: geo.size.width, height: geo.size.height * 0.62)
-                    .rotationEffect(.degrees(-28))
-                AstraMark(size: 14)
-                    .position(x: geo.size.width * 0.86, y: geo.size.height * 0.3)
+                    .stroke(
+                        AngularGradient(
+                            colors: [color.opacity(0), color.opacity(0.5), color],
+                            center: .center,
+                            startAngle: polar - .degrees(360),
+                            endAngle: polar
+                        ),
+                        lineWidth: 1
+                    )
+                    .frame(width: a * 2, height: b * 2)
+                    .rotationEffect(Self.tilt)
+                Circle()
+                    .fill(Theme.ember)
+                    .frame(width: 9, height: 9)
+                    .background(Circle().fill(Theme.ember.opacity(0.25)).frame(width: 20, height: 20).blur(radius: 4))
+                    .position(planet)
             }
             .frame(width: geo.size.width, height: geo.size.height)
         }

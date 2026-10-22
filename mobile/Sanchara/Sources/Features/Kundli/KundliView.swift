@@ -64,7 +64,7 @@ struct KundliView: View {
                     }
                 }
             }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .presentationBackground(Theme.bg)
         .sheet(item: $selectedHouse) { house in
@@ -569,7 +569,7 @@ struct HouseDetailSheet: View {
                         .foregroundStyle(Theme.fg)
                 }
             }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)

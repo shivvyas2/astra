@@ -53,7 +53,7 @@ struct TimelineView: View {
                     }
                 }
             }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .tint(Theme.fg)
         .presentationBackground(Theme.bg)
@@ -240,8 +240,9 @@ struct TimelineView: View {
         .frame(height: Self.scrubberHeight, alignment: .bottom)
         .background {
             // Full-bleed, past the list's side padding, so rows scroll
-            // cleanly under it.
-            Theme.bg.opacity(0.96)
+            // cleanly under it. Frosted, like the bar above it, so the pinned
+            // strip takes the screen's colour instead of cutting a black band.
+            Rectangle().fill(.ultraThinMaterial)
                 .padding(.horizontal, -16)
                 .overlay(alignment: .bottom) {
                     BrutDivider().padding(.horizontal, -16)
