@@ -62,8 +62,10 @@ struct KundliView: View {
             .navigationTitle(embedded ? "" : "Your kundli")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !embedded {
-                    ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if embedded {
+                        ProfileAvatarButton()
+                    } else {
                         Button("Done") { dismiss() }
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Theme.fg)

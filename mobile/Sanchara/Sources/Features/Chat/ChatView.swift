@@ -10,7 +10,6 @@ struct ChatView: View {
     let chat: ChatStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.navigator) private var navigator
     @State private var suggestions = SuggestionEngine()
     @State private var showHistory = false
     @FocusState private var inputFocused: Bool
@@ -583,15 +582,8 @@ struct ChatView: View {
                 onHistory: { showHistory = true },
                 onNew: chat.messages.isEmpty ? nil : { startNewReading() }
             )
-            // You lives here rather than in the tab bar: the photo, or the
-            // initials, opens it as a sheet.
-            Button { navigator.open(.you) } label: {
-                AvatarBadge(details: profile.details, size: 40)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(DipButtonStyle())
-            .accessibilityLabel("You")
-            .accessibilityHint("Birth details, photo, and your account")
+            // You lives here rather than in the tab bar, as on every tab.
+            ProfileAvatarButton()
         }
         .padding(.horizontal, 16)
         .frame(height: 56)

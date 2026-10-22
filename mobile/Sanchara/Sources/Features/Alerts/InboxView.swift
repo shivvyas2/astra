@@ -112,6 +112,11 @@ struct InboxView: View {
                 Text("Today")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.accent)
+                if embedded {
+                    Spacer(minLength: 8)
+                    // This tab hides its bar, so You sits beside the label.
+                    ProfileAvatarButton()
+                }
             }
             BigNumber(
                 value: Self.todayPart("dd"),

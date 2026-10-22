@@ -50,6 +50,7 @@ struct TimelineView: View {
                         BrutIconButton(systemImage: "calendar", label: "Key dates") { showKeyDates = true }
                         BrutIconButton(systemImage: "plus", label: "Pin a moment") { showAdd = true }
                             .disabled(store.state != .ready)
+                        if embedded { ProfileAvatarButton() }
                     }
                 }
             }

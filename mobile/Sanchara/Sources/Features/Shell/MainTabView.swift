@@ -104,6 +104,7 @@ struct MainTabView: View {
             // than set here as an inset: each page has its own navigation
             // stack, and an inset from outside one does not reach inside it.
             .environment(\.tabBarClearance, keyboardUp ? 0 : BrutTabBar.height)
+            .environment(\.accountDetails, profile.details)
             // Lets any page (or a sheet it opens) jump to another tab, or
             // carry a question over to Ask, without threading closures.
             .environment(\.navigator, SancharaNavigator(
