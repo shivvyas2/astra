@@ -115,6 +115,10 @@ struct ChatView: View {
                         }
                     }
                 }
+
+                if !chat.conversations.isEmpty {
+                    recentReadings
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 24)
@@ -124,6 +128,53 @@ struct ChatView: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .mask(EdgeFade())
+    }
+
+    /// The last three readings, newest first, so picking one back up is one
+    /// tap from the opening screen. The rest are behind See all.
+    private var recentReadings: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Recent").eyebrow()
+                Spacer(minLength: 8)
+                if chat.conversations.count > 3 {
+                    Button("See all") { showHistory = true }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.fg)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+            }
+            ForEach(Array(chat.conversations.prefix(3).enumerated()), id: \.element.id) { index, conversation in
+                if index > 0 { BrutDivider() }
+                Button {
+                    Task { await chat.open(conversation) }
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(conversation.title ?? "Reading")
+                                .font(.brutBody(16))
+                                .foregroundStyle(Theme.fg)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(conversation.createdAt.formatted(.relative(presentation: .named)))
+                                .font(.brutBody(12))
+                                .foregroundStyle(Theme.muted)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(Theme.muted)
+                            .accessibilityHidden(true)
+                    }
+                    .padding(.vertical, 12)
+                    .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Opens this reading")
+            }
+        }
     }
 
     /// One large phrase, a line saying what the screen is for, and an orbit
