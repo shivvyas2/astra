@@ -4,6 +4,7 @@ import type { Chart } from "@/lib/astrology/types";
 import type { Condition, Severity } from "@/lib/astrology/doshas";
 import { anthropic, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { NO_EM_DASH } from "@/lib/writing";
+import { languageRule, type ReadingLanguage } from "@/lib/astrology/language";
 import { trackUsage } from "@/lib/usage/record";
 
 export type AlertCopy = {
@@ -49,6 +50,7 @@ export async function composeAlert(args: {
   severity: Severity;
   /** For the usage ledger (model_usage). */
   userId?: string;
+  language?: ReadingLanguage;
 }): Promise<AlertCopy> {
   const system = `You are Astrya, a warm, precise Vedic astrologer writing a short alert for ${args.firstName}.
 
@@ -86,7 +88,7 @@ markdown, 120-200 words: short bold headings, what changed, what to watch over t
       messages: [
         {
           role: "user",
-          content: "Write the alert for the changes above.",
+          content: `Write the alert for the changes above.${languageRule(args.language ?? "english", { structured: true })}`,
         },
       ],
     });

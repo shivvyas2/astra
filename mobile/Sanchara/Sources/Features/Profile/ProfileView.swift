@@ -19,6 +19,9 @@ struct ProfileView: View {
     @State private var isPreparingKundli = false
     @State private var confirmDelete = false
     @State private var legalPage: LegalPage?
+    @AppStorage(ReadingLanguage.storageKey) private var language: ReadingLanguage = .english
+    @AppStorage(NameScript.storageKey) private var nameScript: NameScript = .sanskrit
+    @State private var languageError: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var isUploadingPhoto = false
     @State private var isDeleting = false
@@ -70,6 +73,7 @@ struct ProfileView: View {
                             BrutNotice(text: errorMessage)
                         }
 
+                        languageBlock
                         memoryBlock
                         if PlusStore.isEnabled { PlanRow() }
                         AppIconPicker()
@@ -195,6 +199,50 @@ struct ProfileView: View {
             DataRow(label: "Born", value: formattedBirth(details), valueSize: 20)
             DataRow(label: "Place", value: details.placeName, valueSize: 20)
             DataRow(label: "Timezone", value: details.timezone, valueSize: 20)
+        }
+    }
+
+    /// The language readings are written in. Saved on the server, since the
+    /// morning and evening readings and alerts are written there; the chart's
+    /// names follow it.
+    private var languageBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Reading language").eyebrow()
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(ReadingLanguage.allCases) { option in
+                        BrutChip(text: option.label, active: language == option) {
+                            choose(option)
+                        }
+                        .accessibilityAddTraits(language == option ? .isSelected : [])
+                    }
+                }
+            }
+            Text(languageError ?? "Readings, alerts and notifications are written in this language. Sanskrit terms keeps English but uses Surya, Mesha, bhava and so on.")
+                .font(.brutBody(13))
+                .foregroundStyle(languageError == nil ? Theme.muted : Theme.ember)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .task {
+            // The server's answer wins: it may have been changed on the web.
+            if let saved = try? await SancharaAPI.readingLanguage() { language = saved }
+        }
+    }
+
+    private func choose(_ option: ReadingLanguage) {
+        guard option != language else { return }
+        let previous = language
+        language = option
+        nameScript = option.nameScript
+        languageError = nil
+        Task {
+            do {
+                try await SancharaAPI.setReadingLanguage(option)
+            } catch {
+                language = previous
+                nameScript = previous.nameScript
+                languageError = "Couldn't save the language. Try again in a moment."
+            }
         }
     }
 

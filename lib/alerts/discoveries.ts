@@ -15,6 +15,7 @@ import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
 import { isWakingHour } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
+import { languageRule, loadReadingLanguages, type ReadingLanguage } from "@/lib/astrology/language";
 import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
 /**
@@ -146,6 +147,7 @@ export async function runDiscoveries(options: { limit?: number } = {}): Promise<
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
     const zones = await loadDeviceZones(admin);
+    const languages = await loadReadingLanguages(admin);
     // Nothing goes to the model for someone who has not agreed to the current AI notice.
     const consented = await loadConsentedUserIds(admin);
 
@@ -156,7 +158,7 @@ export async function runDiscoveries(options: { limit?: number } = {}): Promise<
         continue;
       }
       try {
-        const sent = await writeDueDiscovery(profile, admin, apns, zones);
+        const sent = await writeDueDiscovery(profile, admin, apns, zones, languages);
         if (sent === null) summary.skipped += 1;
         else {
           summary.written += 1;
@@ -180,6 +182,7 @@ async function writeDueDiscovery(
   admin: SupabaseClient,
   apns: ApnsClient,
   zones: Map<string, string>,
+  languages: Map<string, ReadingLanguage> = new Map(),
 ): Promise<number | null> {
   const chart = profile.chart?.vedic;
   if (!chart) return null;
@@ -210,6 +213,7 @@ async function writeDueDiscovery(
     fact,
     today: nowLocal.toFormat("cccc, LLLL d, yyyy"),
     userId: profile.user_id,
+    language: languages.get(profile.user_id),
   });
 
   const { data: row, error } = await admin
@@ -317,6 +321,7 @@ export async function composeDiscovery(args: {
   fact: DiscoveryFact;
   today: string;
   userId?: string;
+  language?: ReadingLanguage;
 }): Promise<AlertCopy> {
   const system = `You are Astrya, a warm, precise Vedic astrologer speaking with ${args.firstName}. Write one short "did you know" note about a single true thing. Plain words, second person, specific, never alarming, no jargon left unexplained. Say only what follows from the fact you are given; invent nothing. ${NO_EM_DASH}`;
   const task = `Today is ${args.today}. The one thing to share (${TOPIC_BRIEF[args.fact.topic]}):
@@ -327,7 +332,7 @@ Reply in exactly this shape, with nothing before or after it:
 TITLE: under 38 characters, the thing itself
 BODY: under 140 characters, one plain sentence for a lock screen
 DETAIL:
-three or four short sentences in markdown: what it is, what it tends to mean, one small thing to do with it, ending with **In simple words** and one line`;
+three or four short sentences in markdown: what it is, what it tends to mean, one small thing to do with it, ending with **In simple words** and one line${languageRule(args.language ?? "english", { structured: true })}`;
 
   try {
     const response = await anthropic().messages.create({

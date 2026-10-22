@@ -99,3 +99,17 @@ final class NotificationPromptTests: XCTestCase {
         XCTAssertEqual(NotificationPrompt.kind(for: .denied, lastShown: fifteenDays, now: now), .openSettings)
     }
 }
+
+final class ReadingLanguageSplitTests: XCTestCase {
+    func testRecognisesTheSimpleWordsHeadingInEveryLanguage() {
+        XCTAssertTrue(MarkdownBlock.isSimpleWordsHeading("**In simple words**"))
+        XCTAssertTrue(MarkdownBlock.isSimpleWordsHeading("**સરળ શબ્દોમાં**"))
+        XCTAssertTrue(MarkdownBlock.isSimpleWordsHeading("**सरल शब्दों में**"))
+        XCTAssertFalse(MarkdownBlock.isSimpleWordsHeading("**કારકિર્દી**"))
+    }
+
+    func testTheChartFollowsTheReadingLanguage() {
+        XCTAssertEqual(ReadingLanguage.gujarati.nameScript, .gujarati)
+        XCTAssertEqual(ReadingLanguage.sanskrit.nameScript, .sanskrit)
+    }
+}

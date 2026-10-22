@@ -1,3 +1,5 @@
+import { BASIS_TITLE, SIMPLE_TITLE } from "./language";
+
 /** The heading of a reading's last section; the prompt asks for it by this name. */
 export const CHART_BASIS_TITLE = "Chart basis";
 
@@ -10,8 +12,11 @@ export const CHART_BASIS_TITLE = "Chart basis";
  */
 export type ReadingParts = { main: string; simple: string | null; basis: string[] | null };
 
-const SIMPLE = /\*\*\s*in simple words\s*:?\s*\*\*/i;
-const BASIS = new RegExp(`\\*\\*\\s*${CHART_BASIS_TITLE}\\s*:?\\s*\\*\\*`, "i");
+// Every language's title is recognised, so a Gujarati or Hindi reading splits
+// the same way an English one does.
+const titles = (map: Record<string, string>) => [...new Set(Object.values(map))].join("|");
+const SIMPLE = new RegExp(`\\*\\*\\s*(?:${titles(SIMPLE_TITLE)})\\s*:?\\s*\\*\\*`, "i");
+const BASIS = new RegExp(`\\*\\*\\s*(?:${titles(BASIS_TITLE)})\\s*:?\\s*\\*\\*`, "i");
 
 export function splitReading(content: string): ReadingParts {
   let rest = content;

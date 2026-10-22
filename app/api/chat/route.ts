@@ -33,6 +33,7 @@ import { getOrCreateConversation, getConversationPerson, appendMessage, getMessa
 import { getPerson } from "@/lib/profiles/store";
 import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
 import { describeMatchForPrompt } from "@/lib/compat/prompt";
+import { isReadingLanguage, languageRule, loadReadingLanguage } from "@/lib/astrology/language";
 import { selectHistory, HISTORY_BUDGET_CHARS } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
 import type { Timeline } from "@/lib/timeline/build";
@@ -91,6 +92,8 @@ export async function POST(request: Request) {
      * for a new conversation; an existing one keeps the person it began with.
      */
     personId?: string;
+    /** Overrides the stored reading language for this turn. */
+    language?: string;
   };
   if (!body.message?.trim()) return new Response("Empty message", { status: 400 });
   const newPersonId = !body.conversationId && UUID.test(body.personId ?? "") ? body.personId! : null;
@@ -304,6 +307,11 @@ export async function POST(request: Request) {
 
       todaySystem = buildTodaySystem({ today, age, transits, upcoming, maxWords });
     }
+
+    // Last in the volatile block: changing language never invalidates the
+    // cached chart above it.
+    const language = isReadingLanguage(body.language) ? body.language : await loadReadingLanguage(supabase);
+    todaySystem += languageRule(language);
 
     const [{ facts }, { memories }, { predictions }] = await memoryLoad;
     const memory = selectMemory({

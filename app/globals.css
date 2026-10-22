@@ -26,7 +26,7 @@
   --card-radius: 24px;
   --line-w: 1px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", system-ui, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", var(--font-gujarati), var(--font-devanagari), system-ui, sans-serif;
 }
 
 @theme inline {

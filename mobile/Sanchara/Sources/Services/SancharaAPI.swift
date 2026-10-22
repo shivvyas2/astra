@@ -18,7 +18,7 @@ enum SancharaAPI {
         }
     }
 
-    private static func request(_ path: String, method: String) async throws -> URLRequest {
+    static func request(_ path: String, method: String) async throws -> URLRequest {
         var req = URLRequest(url: AppConfig.apiBaseURL.appendingPathComponent(path))
         req.httpMethod = method
         guard let token = await Supa.accessToken() else { throw APIError.unauthorized }
@@ -278,7 +278,7 @@ enum SancharaAPI {
         let personId: String?
     }
 
-    private static func check(_ response: URLResponse, _ data: Data) throws {
+    static func check(_ response: URLResponse, _ data: Data) throws {
         guard let http = response as? HTTPURLResponse else { return }
         switch http.statusCode {
         case 200..<300: return

@@ -10,6 +10,7 @@ import { ApnsClient, isPushConfigured } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { isWakingHour } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
+import { loadReadingLanguages, type ReadingLanguage } from "@/lib/astrology/language";
 import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
 /** Only these reach a lock screen; `info` conditions are recorded silently. */
@@ -126,13 +127,14 @@ export async function runDailyAlerts(options: { limit?: number } = {}): Promise<
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
     const zones = await loadDeviceZones(admin);
+    const languages = await loadReadingLanguages(admin);
     // Nothing goes to the model for someone who has not agreed to the current AI notice.
     const consented = await loadConsentedUserIds(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       if (!consentAllows(consented, profile.user_id)) continue;
       try {
-        const result = await runAlertsForUser(profile, admin, apns, zones);
+        const result = await runAlertsForUser(profile, admin, apns, zones, languages);
         summary.processed += 1;
         if (result?.alerted) summary.alerted += 1;
         summary.pushesSent += result?.pushesSent ?? 0;
@@ -153,6 +155,7 @@ export async function runAlertsForUser(
   admin: SupabaseClient,
   apns: ApnsClient,
   zones: Map<string, string> = new Map(),
+  languages: Map<string, ReadingLanguage> = new Map(),
 ): Promise<UserAlertResult | null> {
   const natal = profile.chart?.vedic;
   if (!natal) return null;
@@ -276,6 +279,7 @@ export async function runAlertsForUser(
     ended: endedWorth,
     severity,
     userId: profile.user_id,
+    language: languages.get(profile.user_id),
   });
 
   const { data: alertRow, error: alertError } = await admin

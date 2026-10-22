@@ -8,16 +8,19 @@ import { loadFacts } from "@/lib/facts/store";
 import { loadMemories, loadPredictions } from "@/lib/memory/store";
 import { saveIntake } from "../intake/actions";
 import { ScreenHeader } from "@/components/ScreenHeader";
+import { LanguagePicker } from "@/components/LanguagePicker";
+import { loadReadingLanguage } from "@/lib/astrology/language";
 
 export default async function ProfilePage() {
   const p = await getBirthProfile();
   if (!p) redirect("/app/intake");
   // None of these throw: no table yet, or a failed read, is an empty list.
   const db = await createServerSupabase();
-  const [{ facts }, { memories }, { predictions }] = await Promise.all([
+  const [{ facts }, { memories }, { predictions }, language] = await Promise.all([
     loadFacts(db, 100),
     loadMemories(db, 50),
     loadPredictions(db, 100),
+    loadReadingLanguage(db),
   ]);
 
   return (
@@ -34,6 +37,7 @@ export default async function ProfilePage() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Download kundli (PDF)
           </a>
+          <LanguagePicker initial={language} />
         </div>
         <div className="brut-card p-5 sm:p-6">
           <IntakeForm

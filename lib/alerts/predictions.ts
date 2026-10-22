@@ -12,6 +12,7 @@ import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
+import { languageRule, loadReadingLanguages, type ReadingLanguage } from "@/lib/astrology/language";
 import { ApnsClient } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
@@ -58,6 +59,7 @@ export async function runDuePredictions(options: { limit?: number } = {}): Promi
       .limit(options.limit ?? 500);
     if (error) throw new Error(error.message);
     const zones = await loadDeviceZones(admin);
+    const languages = await loadReadingLanguages(admin);
     // Nothing goes to the model for someone who has not agreed to the current AI notice.
     const consented = await loadConsentedUserIds(admin);
 
@@ -68,7 +70,7 @@ export async function runDuePredictions(options: { limit?: number } = {}): Promi
         continue;
       }
       try {
-        const result = await writeDueReading(profile, admin, apns, zones);
+        const result = await writeDueReading(profile, admin, apns, zones, languages);
         if (result === null) summary.skipped += 1;
         else {
           summary.written += 1;
@@ -92,6 +94,7 @@ async function writeDueReading(
   admin: SupabaseClient,
   apns: ApnsClient,
   zones: Map<string, string>,
+  languages: Map<string, ReadingLanguage> = new Map(),
 ): Promise<number | null> {
   const chart = profile.chart?.vedic;
   if (!chart) return null;
@@ -116,6 +119,7 @@ async function writeDueReading(
   const conditions = detectConditions(chart, transits);
 
   const copy = await composePrediction({
+    language: languages.get(profile.user_id),
     firstName: profile.first_name,
     chart,
     numerology: computeNumerology(profile.birth_date),
@@ -179,6 +183,7 @@ export async function composePrediction(args: {
   conditions: Condition[];
   /** For the usage ledger (model_usage). */
   userId?: string;
+  language?: ReadingLanguage;
 }): Promise<AlertCopy> {
   const flagged = args.conditions
     .filter((c) => c.severity !== "info" && c.scope !== "natal")
@@ -203,7 +208,7 @@ Reply in exactly this shape, with nothing before or after it:
 TITLE: under 38 characters, what today turns on
 BODY: under 140 characters, one plain sentence for a lock screen
 DETAIL:
-the reading itself in markdown, following the format rules above, ending with **In simple words**`;
+the reading itself in markdown, following the format rules above, ending with **In simple words**${languageRule(args.language ?? "english", { structured: true })}`;
 
   try {
     const response = await anthropic().messages.create({

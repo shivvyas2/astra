@@ -2,6 +2,7 @@ import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { NO_EM_DASH } from "@/lib/writing";
+import { languageRule, type ReadingLanguage } from "@/lib/astrology/language";
 import { eventsHashFor, NOW_LORD, type Timeline } from "./build";
 import { trackUsage } from "@/lib/usage/record";
 
@@ -113,6 +114,7 @@ export async function explainTimeline(args: {
   timeline: Timeline;
   /** For the usage ledger (model_usage). */
   userId?: string;
+  language?: ReadingLanguage;
 }): Promise<Explanation[]> {
   try {
     const response = await anthropic().messages.create({
@@ -129,7 +131,7 @@ export async function explainTimeline(args: {
           cache_control: { type: "ephemeral", ttl: "1h" },
         },
       ],
-      messages: [{ role: "user", content: buildExplainTask(args.timeline) }],
+      messages: [{ role: "user", content: buildExplainTask(args.timeline) + languageRule(args.language ?? "english", { structured: true }) }],
     });
     trackUsage({ userId: args.userId, kind: "extraction", model: READING_MODEL, usage: response.usage });
     const text = response.content

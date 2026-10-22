@@ -2,6 +2,7 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 import { loadBirthRow, loadTimeline, loadScanState } from "@/lib/timeline/load";
 import { explainTimeline, eventsHashFor, NOW_LORD } from "@/lib/timeline/explain";
 import { requireConsent } from "@/lib/billing/consent";
+import { loadReadingLanguage } from "@/lib/astrology/language";
 
 export const runtime = "nodejs";
 // One model call that covers the whole life; longer than a chat turn.
@@ -37,6 +38,7 @@ export async function POST(request: Request) {
       today: timeline.today,
       timeline,
       userId: user.id,
+      language: await loadReadingLanguage(supabase),
     });
 
     if (explanations.length > 0) {

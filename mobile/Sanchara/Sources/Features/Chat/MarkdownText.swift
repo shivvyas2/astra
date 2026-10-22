@@ -151,7 +151,7 @@ enum MarkdownBlock: Equatable {
     /// heading has not arrived. Mirrors `splitReading` in lib/astrology/reading.ts.
     static func splitChartBasis(_ blocks: [MarkdownBlock]) -> ([MarkdownBlock], [String]?) {
         guard let index = blocks.lastIndex(where: { block in
-            if case .heading(let text) = block { return normalized(text) == "chart basis" }
+            if case .heading(let text) = block { return ReadingLanguage.basisTitles.contains(normalized(text)) }
             return false
         }) else {
             return (blocks, nil)
@@ -172,9 +172,7 @@ enum MarkdownBlock: Equatable {
     }
 
     static func isSimpleWordsHeading(_ text: String) -> Bool {
-        text.replacingOccurrences(of: "*", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
-            .lowercased() == "in simple words"
+        ReadingLanguage.simpleTitles.contains(normalized(text))
     }
 
     /// `# Heading`, and also a line that is nothing but one bold run
