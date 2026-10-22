@@ -102,6 +102,10 @@ struct MainTabView: View {
             // carry a question over to Ask, without threading closures.
             .environment(\.navigator, SancharaNavigator(
                 ask: { question, send in ask(question, send: send) },
+                askAboutMatch: { personId, name, question in
+                    tab = .ask
+                    chat.startMatch(personId: personId, name: name, question: question)
+                },
                 open: { page in withAnimation(Theme.snap) { tab = page } }
             ))
 
@@ -282,6 +286,8 @@ struct SancharaNavigator {
     /// Opens Ask in a fresh reading with `question` — sent when `send` is
     /// true, otherwise waiting in the composer.
     var ask: (_ question: String, _ send: Bool) -> Void = { _, _ in }
+    /// Opens Ask in a match reading with a saved person and sends `question`.
+    var askAboutMatch: (_ personId: String, _ name: String, _ question: String) -> Void = { _, _, _ in }
     /// Switches to another tab.
     var open: (MainTabView.Tab) -> Void = { _ in }
 }

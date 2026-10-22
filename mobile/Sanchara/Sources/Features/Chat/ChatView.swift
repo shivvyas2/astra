@@ -453,7 +453,7 @@ struct ChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("", text: $chat.input, prompt: Text("Ask Astrya…").foregroundStyle(Theme.muted), axis: .vertical)
+                TextField("", text: $chat.input, prompt: Text(chat.match.map { "Ask about you and \($0.name)…" } ?? "Ask Astrya…").foregroundStyle(Theme.muted), axis: .vertical)
                     .lineLimit(1...5)
                     .font(.brutBody(15))
                     .foregroundStyle(Theme.fg)
@@ -564,7 +564,8 @@ struct ChatView: View {
                 }
                 .accessibilityHint("Leaves this reading. It stays in Past readings.")
                 HStack(spacing: 7) {
-                    Text(chat.mode.label)
+                    // A match reading names who it is about instead of the mode.
+                    Text(chat.match.map { "You & \($0.name)" } ?? chat.mode.label)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                     if chat.deep {

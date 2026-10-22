@@ -879,9 +879,7 @@ struct BigNumber: View {
             }
             if let caption, !caption.isEmpty {
                 Text(caption)
-                    .font(.system(size: 11, weight: .semibold))
-                    .textCase(.uppercase)
-                    .tracking(1.2)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
             }
         }

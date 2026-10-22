@@ -214,7 +214,8 @@ enum SancharaAPI {
         mode: ChatMode,
         message: String,
         deep: Bool,
-        memory: String? = nil
+        memory: String? = nil,
+        personId: String? = nil
     ) -> AsyncThrowingStream<ChatEvent, Error> {
         AsyncThrowingStream { continuation in
             let work = Task {
@@ -227,7 +228,8 @@ enum SancharaAPI {
                             tradition: mode.rawValue,
                             message: message,
                             deep: deep,
-                            memory: memory
+                            memory: memory,
+                            personId: personId
                         )
                     )
                     // Readings can think for a while before the first byte.
@@ -272,6 +274,8 @@ enum SancharaAPI {
         let deep: Bool
         /// Omitted from the JSON when nil.
         let memory: String?
+        /// A new match reading's saved person. Omitted when nil.
+        let personId: String?
     }
 
     private static func check(_ response: URLResponse, _ data: Data) throws {

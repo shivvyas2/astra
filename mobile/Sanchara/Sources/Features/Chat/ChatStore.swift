@@ -29,6 +29,15 @@ final class ChatStore {
     var conversations: [Conversation] = []
 
     private(set) var conversationId: String?
+    /// The saved person this reading is about, when it is a match reading.
+    /// The server keeps them on the conversation, so follow-ups need nothing
+    /// more than the conversation id.
+    private(set) var match: MatchContext?
+
+    struct MatchContext: Equatable {
+        let personId: String
+        let name: String
+    }
     private var streamTask: Task<Void, Never>?
 
     /// Text that has arrived but not yet been shown, and the timer that will
@@ -103,8 +112,18 @@ final class ChatStore {
     func newReading() {
         stopStreaming()
         conversationId = nil
+        match = nil
         messages = []
         errorMessage = nil
+    }
+
+    /// Starts a match reading about the user and a saved person and asks
+    /// `question` at once. Both charts and the gunas go with every turn.
+    func startMatch(personId: String, name: String, question: String) {
+        newReading()
+        mode = .vedic
+        match = MatchContext(personId: personId, name: name)
+        send(question, forceServer: true)
     }
 
     /// Sends the last locally-answered question to Claude after all, keeping the
@@ -126,6 +145,7 @@ final class ChatStore {
         stopStreaming()
         errorMessage = nil
         conversationId = conversation.id
+        match = nil
         mode = conversation.mode
         messages = []
         let opened = generation
@@ -183,7 +203,7 @@ final class ChatStore {
             // A lookup the phone can answer from the chart it already holds
             // never reaches the network. The opening reading and an explicit
             // "read this properly" always do.
-            if !silent, !forceServer, mode == .vedic, let reasoner {
+            if !silent, !forceServer, match == nil, mode == .vedic, let reasoner {
                 if case .answered(let local) = await reasoner.route(text) {
                     guard !Task.isCancelled, thisGeneration == generation else { return }
                     if let last = messages.indices.last, messages[last].role == .assistant {
@@ -205,7 +225,8 @@ final class ChatStore {
                     mode: mode,
                     message: text,
                     deep: deep,
-                    memory: rememberOnDevice ? "on-device" : nil
+                    memory: rememberOnDevice ? "on-device" : nil,
+                    personId: wasNewConversation ? match?.personId : nil
                 )
                 for try await event in stream {
                     guard thisGeneration == generation else { return }

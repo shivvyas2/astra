@@ -43,6 +43,9 @@ struct KundliView: View {
                         signRows
                         chartBlock
                         dashaBlock
+                        // Only as a tab: a match opens inside this stack, and its Ask
+                        // button needs the Ask tab behind it.
+                        if embedded { MatchSection() }
                         planetTable
                         footer
                     }
