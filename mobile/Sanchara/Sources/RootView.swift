@@ -2,6 +2,8 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AuthStore.self) private var auth
+    /// Read here so a change of language redraws the whole app at once.
+    private let language = AppLanguage.shared
 
     var body: some View {
         Group {
@@ -16,6 +18,9 @@ struct RootView: View {
                 SignedInView()
             }
         }
+        // Every `Text("…")` below looks its words up in this locale, so the
+        // Profile language chip switches the app without a relaunch.
+        .environment(\.locale, language.locale)
         .task { await auth.start() }
         .onOpenURL { url in
             // Two kinds of URL arrive here: Supabase's auth callback, and our
@@ -52,7 +57,7 @@ struct SignedInView: View {
                     Atmosphere(mood: .dusk)
                     VStack(spacing: 16) {
                         BrutNotice(text: message, tone: .info)
-                        SancharaSecondaryButton(title: "Try again") {
+                        SancharaSecondaryButton(title: L10n.string("Try again")) {
                             Task { await profile.load() }
                         }
                         Button("Sign out") { Task { await auth.signOut() } }

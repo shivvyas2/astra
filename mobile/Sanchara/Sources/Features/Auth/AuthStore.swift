@@ -67,9 +67,9 @@ final class AuthStore {
     }
 
     private func validate(email: String, password: String) -> String? {
-        if !Self.emailLooksValid(email) { return "That email doesn't look right." }
+        if !Self.emailLooksValid(email) { return L10n.string("That email doesn't look right.") }
         if password.count < Self.minimumPasswordLength {
-            return "Passwords need at least \(Self.minimumPasswordLength) characters."
+            return L10n.string("Passwords need at least \(Self.minimumPasswordLength) characters.")
         }
         return nil
     }
@@ -95,7 +95,7 @@ final class AuthStore {
             if message.contains("not confirmed") {
                 state = .awaitingCode(email: email, purpose: .confirmSignUp)
             } else if message.contains("invalid login") || message.contains("credentials") {
-                errorMessage = "Incorrect email or password. Try again, or use a magic link."
+                errorMessage = L10n.string("Incorrect email or password. Try again, or use a magic link.")
             } else {
                 errorMessage = error.localizedDescription
             }
@@ -131,7 +131,7 @@ final class AuthStore {
             if message.contains("already registered") || message.contains("already exists")
                 || message.contains("already been registered")
             {
-                errorMessage = "You already have an account with this email. Sign in instead."
+                errorMessage = L10n.string("You already have an account with this email. Sign in instead.")
                 shouldSwitchToSignIn = true
             } else {
                 errorMessage = error.localizedDescription
@@ -150,7 +150,7 @@ final class AuthStore {
         case .failure(let error):
             // Dismissing the sheet is a normal action, not an error to report.
             if (error as? ASAuthorizationError)?.code == .canceled { return }
-            errorMessage = "Apple sign-in didn't complete. Try again."
+            errorMessage = L10n.string("Apple sign-in didn't complete. Try again.")
 
         case .success(let authorization):
             guard
@@ -158,7 +158,7 @@ final class AuthStore {
                 let tokenData = credential.identityToken,
                 let idToken = String(data: tokenData, encoding: .utf8)
             else {
-                errorMessage = "Apple didn't return a sign-in token."
+                errorMessage = L10n.string("Apple didn't return a sign-in token.")
                 return
             }
 
@@ -188,7 +188,7 @@ final class AuthStore {
         let email = rawEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         clearMessages()
         guard Self.emailLooksValid(email) else {
-            errorMessage = "Enter your email first."
+            errorMessage = L10n.string("Enter your email first.")
             return
         }
         isWorking = true
@@ -217,7 +217,7 @@ final class AuthStore {
         let code = Self.normalizedCode(input)
         clearMessages()
         guard code.count == Self.codeLength else {
-            errorMessage = "Enter the \(Self.codeLength) digits from the email."
+            errorMessage = L10n.string("Enter the \(Self.codeLength) digits from the email.")
             return
         }
         isWorking = true
@@ -230,7 +230,7 @@ final class AuthStore {
             let message = error.localizedDescription.lowercased()
             errorMessage =
                 message.contains("expired") || message.contains("invalid")
-                ? "That code didn't work. It may have expired, so send a new one."
+                ? L10n.string("That code didn't work. It may have expired, so send a new one.")
                 : error.localizedDescription
         }
     }
@@ -255,7 +255,7 @@ final class AuthStore {
                     emailRedirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
                 )
             }
-            notice = "Sent again. It can take a minute to arrive."
+            notice = L10n.string("Sent again. It can take a minute to arrive.")
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -281,7 +281,7 @@ final class AuthStore {
             Self.rememberSignedInBefore()
             state = .signedIn
         } catch {
-            errorMessage = "That link has expired. Request a new one."
+            errorMessage = L10n.string("That link has expired. Request a new one.")
         }
     }
 

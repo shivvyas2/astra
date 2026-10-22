@@ -30,11 +30,11 @@ struct CompareDatesSection: View {
     @State private var busy = false
     @State private var error: String?
 
-    private static let topics: [(String, String)] = [
-        ("", "Anything"), ("career", "Career"), ("relationships", "Relationships"), ("money", "Money"),
-        ("health", "Health"), ("home", "Home"), ("family", "Family"), ("children", "Children"),
-        ("travel", "Travel"), ("education", "Study"),
-    ]
+    /// The tag the server takes, and the label for it in the app's language.
+    private static var topics: [(String, String)] {
+        [("", L10n.string("Anything"))] + ["career", "relationships", "money", "health", "home", "family", "children", "travel", "education"]
+            .map { ($0, KeyDates.topicLabel($0)) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -47,15 +47,15 @@ struct CompareDatesSection: View {
             DatePicker("First date", selection: $first, in: Date.now..., displayedComponents: .date)
             DatePicker("Second date", selection: $second, in: Date.now..., displayedComponents: .date)
             Picker("It's about", selection: $topic) {
-                ForEach(Self.topics, id: \.0) { Text($0.1).tag($0.0) }
+                ForEach(Self.topics, id: \.0) { Text(verbatim: $0.1).tag($0.0) }
             }
             .pickerStyle(.menu)
 
-            SancharaPrimaryButton(title: "Compare", isLoading: busy) { Task { await compare() } }
+            SancharaPrimaryButton(title: L10n.string("Compare"), isLoading: busy) { Task { await compare() } }
             if let error { BrutNotice(text: error) }
 
             if let result {
-                Text(result.winner.map { "\(Self.long($0.date)) reads better." } ?? "Neither date stands out: they read about the same.")
+                Text(result.winner.map { L10n.string("\(Self.long($0.date)) reads better.") } ?? L10n.string("Neither date stands out: they read about the same."))
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                 day(result.a, best: result.better == "a")
@@ -78,9 +78,9 @@ struct CompareDatesSection: View {
             HStack {
                 Text(Self.long(d.date)).font(.system(size: 14, weight: .semibold))
                 Spacer()
-                if best { BrutTag(text: "Better") }
+                if best { BrutTag(text: L10n.string("Better")) }
             }
-            Text(d.score > 0 ? "+\(d.score)" : "\(d.score)").font(.brutNumeral(36))
+            Text(verbatim: d.score > 0 ? "+\(d.score)" : "\(d.score)").font(.brutNumeral(36))
             ForEach(d.factors, id: \.self) { f in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Circle().fill(f.score > 0 ? Theme.accent : f.score < 0 ? Theme.ember : Theme.muted).frame(width: 6, height: 6)
@@ -102,6 +102,7 @@ struct CompareDatesSection: View {
         guard let d = KeyDates.isoDay.date(from: iso) else { return iso }
         let f = DateFormatter()
         f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = L10n.locale
         f.dateFormat = "EEE d MMMM yyyy"
         return f.string(from: d)
     }
@@ -121,7 +122,7 @@ struct CompareDatesSection: View {
         do {
             result = try await SancharaAPI.compareDates(Self.iso(first), Self.iso(second), topic: topic.isEmpty ? nil : topic)
         } catch {
-            self.error = "Those dates couldn't be read. Try again."
+            self.error = L10n.string("Those dates couldn't be read. Try again.")
         }
     }
 }

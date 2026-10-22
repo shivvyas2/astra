@@ -14,24 +14,27 @@ enum PlusCopy {
         var id: String { title }
     }
 
-    static let benefits: [Benefit] = [
-        Benefit(
-            title: "Keep Astrya independent",
-            detail: "Plus pays for the model calls and the ephemeris behind every reading. No ads, no data sales."
-        ),
-        Benefit(
-            title: "Three more app icons",
-            detail: "The Astrya mark in lime, violet or bone on your home screen. Change it any time under You → App icon."
-        ),
-        Benefit(
-            title: "A thank-you mark",
-            detail: "A Plus badge on your profile. Every reading stays free and unlimited for everyone."
-        ),
-    ]
+    /// Computed rather than stored, so the lines follow a change of language.
+    static var benefits: [Benefit] {
+        [
+            Benefit(
+                title: L10n.string("Keep Astrya independent"),
+                detail: L10n.string("Plus pays for the model calls and the ephemeris behind every reading. No ads, no data sales.")
+            ),
+            Benefit(
+                title: L10n.string("Three more app icons"),
+                detail: L10n.string("The Astrya mark in lime, violet or bone on your home screen. Change it any time under You → App icon.")
+            ),
+            Benefit(
+                title: L10n.string("A thank-you mark"),
+                detail: L10n.string("A Plus badge on your profile. Every reading stays free and unlimited for everyone.")
+            ),
+        ]
+    }
 
     static let eyebrow = "Astrya Plus"
-    static let title = "Support Astrya"
-    static let blurb = "Every reading is free and unlimited, Deep readings included. Plus is a way to keep it that way."
+    static var title: String { L10n.string("Support Astrya") }
+    static var blurb: String { L10n.string("Every reading is free and unlimited, Deep readings included. Plus is a way to keep it that way.") }
 
     /// Shown before StoreKit has answered, and in previews. The real prices
     /// come from the App Store in the buyer's currency.
@@ -43,7 +46,10 @@ enum PlusCopy {
     static let privacyURL = AppConfig.apiBaseURL.appendingPathComponent("privacy")
 
     /// The auto-renewal disclosure Apple requires next to the purchase button.
-    static func renewalDisclosure(period: String) -> String {
-        "Payment is charged to your Apple ID when you confirm. Plus renews automatically every \(period) at the same price unless you cancel at least 24 hours before the period ends. Cancel any time in Settings, under your name, then Subscriptions."
+    /// One whole sentence per period, so each language can word it naturally.
+    static func renewalDisclosure(yearly: Bool) -> String {
+        yearly
+            ? L10n.string("Payment is charged to your Apple ID when you confirm. Plus renews automatically every year at the same price unless you cancel at least 24 hours before the period ends. Cancel any time in Settings, under your name, then Subscriptions.")
+            : L10n.string("Payment is charged to your Apple ID when you confirm. Plus renews automatically every month at the same price unless you cancel at least 24 hours before the period ends. Cancel any time in Settings, under your name, then Subscriptions.")
     }
 }

@@ -9,16 +9,19 @@ import WidgetKit
 /// (`AlertPick.maxAge`). A tap opens that alert in the app.
 struct AlertsProvider: TimelineProvider {
     func placeholder(in context: Context) -> AlertsEntry {
-        AlertsEntry(date: Date(), snapshot: .preview)
+        AppLanguage.shared.reload()
+        return AlertsEntry(date: Date(), snapshot: .preview)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (AlertsEntry) -> Void) {
+        AppLanguage.shared.reload()
         let snapshot = WidgetSnapshot.load()
         let useful = snapshot.alert != nil || !context.isPreview
         completion(AlertsEntry(date: Date(), snapshot: useful ? snapshot : .preview))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<AlertsEntry>) -> Void) {
+        AppLanguage.shared.reload()
         Task {
             await WidgetTimeline.refresh(from: WidgetRefresh.Kind.alerts)
             let now = Date()
@@ -79,6 +82,8 @@ struct AlertsWidgetView: View {
             if let alert = snapshot.alert {
                 Text("ALERT · \(AlertTone.label(for: alert.severity).uppercased())")
                     .font(.system(size: 10, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .widgetAccentable()
                 Text(alert.title)
                     .font(.system(size: 13, weight: .medium))
@@ -89,6 +94,8 @@ struct AlertsWidgetView: View {
                     .widgetAccentable()
                 Text(snapshot.needsSignIn ? "Sign in again" : "All clear")
                     .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -105,16 +112,17 @@ struct AlertsWidgetView: View {
                 .font(.brutMono(10))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(AlertTone.label(for: alert.severity)) alert. \(alert.title)")
+        .accessibilityLabel(L10n.string("\(AlertTone.label(for: alert.severity)) alert. \(alert.title)"))
     }
 
     private func medium(_ alert: ChartCache.CachedAlert) -> some View {
         let tone = AlertTone.color(for: alert.severity)
         return VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(eyebrow: "Alert · \(AlertTone.label(for: alert.severity))", tint: tone)
+            WidgetHeader(eyebrow: L10n.string("Alert · \(AlertTone.label(for: alert.severity))"), tint: tone)
             WidgetDisplay(text: alert.title, size: 22, lines: 2)
                 .padding(.top, 2)
             Text(alert.body)
@@ -125,7 +133,7 @@ struct AlertsWidgetView: View {
             WidgetRule()
             HStack {
                 WidgetEyebrow(
-                    text: snapshot.unreadCount == 1 ? "1 unread" : "\(snapshot.unreadCount) unread",
+                    text: L10n.string("\(snapshot.unreadCount) unread"),
                     color: tone
                 )
                 Spacer(minLength: 4)
@@ -141,15 +149,15 @@ struct AlertsWidgetView: View {
     private var clear: some View {
         let message: String
         if snapshot.needsSignIn {
-            message = "Open Astrya to sign in again."
+            message = L10n.string("Open Astrya to sign in again.")
         } else if snapshot.alerts == nil {
-            message = "Alerts appear here once Astrya has loaded them."
+            message = L10n.string("Alerts appear here once Astrya has loaded them.")
         } else {
-            message = "No dosha or hard transit is starting or ending."
+            message = L10n.string("No dosha or hard transit is starting or ending.")
         }
         return WidgetEmpty(
-            eyebrow: "Alerts",
-            headline: snapshot.needsSignIn ? "Sign in again" : "All clear",
+            eyebrow: L10n.string("Alerts"),
+            headline: snapshot.needsSignIn ? L10n.string("Sign in again") : L10n.string("All clear"),
             message: message
         )
     }
@@ -164,6 +172,7 @@ struct AlertsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetRefresh.Kind.alerts, provider: AlertsProvider()) { entry in
             AlertsWidgetView(entry: entry)
+                .environment(\.locale, AppLanguage.shared.locale)
         }
         .configurationDisplayName("Alerts")
         .description("The newest dosha or hard transit starting or ending in your chart.")

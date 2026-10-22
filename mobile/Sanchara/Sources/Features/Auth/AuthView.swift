@@ -10,14 +10,14 @@ struct AuthView: View {
         case signUp
         case signIn
 
-        var label: String { self == .signUp ? "Create account" : "Sign in" }
-        var title: String { self == .signUp ? "Create your account" : "Welcome back" }
+        var label: String { self == .signUp ? L10n.string("Create account") : L10n.string("Sign in") }
+        var title: String { self == .signUp ? L10n.string("Create your account") : L10n.string("Welcome back") }
         var subtitle: String {
             self == .signUp
-                ? "One email, one password, and we'll build your real birth chart next."
-                : "Your real birth chart, read by the stars."
+                ? L10n.string("One email, one password, and we'll build your real birth chart next.")
+                : L10n.string("Your real birth chart, read by the stars.")
         }
-        var cta: String { self == .signUp ? "Create account" : "Sign in" }
+        var cta: String { self == .signUp ? L10n.string("Create account") : L10n.string("Sign in") }
     }
 
     @Environment(AuthStore.self) private var auth
@@ -88,16 +88,16 @@ struct AuthView: View {
                             text: $email,
                             keyboard: .emailAddress,
                             textContentType: .username,
-                            label: "Email"
+                            label: L10n.string("Email")
                         )
                         .focused($focus, equals: .email)
 
                         VStack(alignment: .leading, spacing: 8) {
                             SancharaSecureField(
-                                placeholder: "password",
+                                placeholder: L10n.string("password"),
                                 text: $password,
                                 textContentType: mode == .signUp ? .newPassword : .password,
-                                label: "Password"
+                                label: L10n.string("Password")
                             )
                             .focused($focus, equals: .password)
 
@@ -119,9 +119,9 @@ struct AuthView: View {
                     HStack(alignment: .center, spacing: 16) {
                         Button(action: switchMode) {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(mode == .signUp ? "Already have an account?" : "New to Astrya?")
+                                Text(mode == .signUp ? L10n.string("Already have an account?") : L10n.string("New to Astrya?"))
                                     .foregroundStyle(Theme.muted)
-                                Text(mode == .signUp ? "Sign in" : "Create one")
+                                Text(mode == .signUp ? L10n.string("Sign in") : L10n.string("Create one"))
                                     .foregroundStyle(Theme.fg)
                                     .underline()
                             }
@@ -194,20 +194,21 @@ struct AuthView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// One translatable sentence with the two documents as markdown links,
+    /// so each language can put them where its grammar wants them.
     private static var legalText: AttributedString {
-        func link(_ page: LegalPage) -> AttributedString {
-            var text = AttributedString(page.title)
-            text.link = page.url
-            text.foregroundColor = Theme.fg
-            text.underlineStyle = .single
-            return text
+        func link(_ page: LegalPage) -> String { "[\(page.title)](\(page.url.absoluteString))" }
+        let sentence = L10n.string("By continuing, you agree to the \(link(.terms)) and \(link(.privacy)).")
+        var text = (try? AttributedString(markdown: sentence)) ?? AttributedString(sentence)
+        for run in text.runs where run.link != nil {
+            text[run.range].foregroundColor = Theme.fg
+            text[run.range].underlineStyle = .single
         }
-        return AttributedString("By continuing, you agree to the ") + link(.terms)
-            + AttributedString(" and ") + link(.privacy) + AttributedString(".")
+        return text
     }
 
     private var codeLabel: String {
-        mode == .signUp ? "Or sign up with an email code" : "Forgot password? Email me a code"
+        mode == .signUp ? L10n.string("Or sign up with an email code") : L10n.string("Forgot password? Email me a code")
     }
 
     private var modePicker: some View {
@@ -253,7 +254,7 @@ struct VerifyCodeView: View {
                     }
                     .padding(.top, 24)
 
-                    Text(purpose == .signIn ? "Check your email" : "Confirm your email").eyebrow()
+                    Text(purpose == .signIn ? L10n.string("Check your email") : L10n.string("Confirm your email")).eyebrow()
 
                     Text("Enter your code")
                         .brutHeading(40)
@@ -322,7 +323,7 @@ struct VerifyCodeView: View {
                                 .background(Circle().fill(Theme.accent))
                                 .accessibilityLabel("Working")
                         } else {
-                            CircleButton(systemImage: "arrow.right", label: "Continue", fill: .accent, size: 60) {
+                            CircleButton(systemImage: "arrow.right", label: L10n.string("Continue"), fill: .accent, size: 60) {
                                 focused = false
                                 Task { await auth.verifyCode(code) }
                             }

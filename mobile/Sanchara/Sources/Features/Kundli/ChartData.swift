@@ -174,12 +174,12 @@ struct ChartPlanet: Codable, Equatable, Identifiable, Sendable {
         return "\(whole)°\(String(format: "%02d", minutes))'"
     }
 
-    /// What VoiceOver reads for this planet, and what the on-device model is
-    /// handed as a fact. One sentence, no abbreviations.
+    /// What VoiceOver reads for this planet, in the app's language. One
+    /// sentence, no abbreviations.
     var spokenDescription: String {
-        var parts = ["\(name) in \(sign) at \(degreeText), house \(house)"]
-        if let nakshatra { parts.append("nakshatra \(nakshatra)") }
-        if retrograde { parts.append("retrograde") }
+        var parts = [L10n.string("\(name) in \(sign) at \(degreeText), house \(house)")]
+        if let nakshatra { parts.append(L10n.string("nakshatra \(nakshatra)")) }
+        if retrograde { parts.append(L10n.string("retrograde")) }
         return parts.joined(separator: ", ")
     }
 }
@@ -280,24 +280,24 @@ struct KundliHouse: Identifiable, Sendable {
     /// concrete — this is a legend, not a reading.
     var domain: String {
         switch number {
-        case 1: "Self, body, how you begin"
-        case 2: "Money, speech, family"
-        case 3: "Courage, siblings, effort"
-        case 4: "Home, mother, peace of mind"
-        case 5: "Children, learning, creativity"
-        case 6: "Work, health, obstacles"
-        case 7: "Partnership, marriage, others"
-        case 8: "Change, inheritance, the hidden"
-        case 9: "Fortune, father, belief"
-        case 10: "Career, standing, action"
-        case 11: "Gains, networks, hopes"
-        default: "Loss, release, what is spent"
+        case 1: L10n.string("Self, body, how you begin")
+        case 2: L10n.string("Money, speech, family")
+        case 3: L10n.string("Courage, siblings, effort")
+        case 4: L10n.string("Home, mother, peace of mind")
+        case 5: L10n.string("Children, learning, creativity")
+        case 6: L10n.string("Work, health, obstacles")
+        case 7: L10n.string("Partnership, marriage, others")
+        case 8: L10n.string("Change, inheritance, the hidden")
+        case 9: L10n.string("Fortune, father, belief")
+        case 10: L10n.string("Career, standing, action")
+        case 11: L10n.string("Gains, networks, hopes")
+        default: L10n.string("Loss, release, what is spent")
         }
     }
 
     var accessibilityLabel: String {
-        let place = "House \(number), \(rashi.sanskrit), \(rashi.english)"
-        guard !planets.isEmpty else { return "\(place). Empty." }
+        let place = L10n.string("House \(number), \(rashi.sanskrit), \(rashi.english)")
+        guard !planets.isEmpty else { return L10n.string("\(place). Empty.") }
         return "\(place). \(planets.map(\.spokenDescription).joined(separator: ". "))"
     }
 }

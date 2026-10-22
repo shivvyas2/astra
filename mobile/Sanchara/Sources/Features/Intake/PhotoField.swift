@@ -21,12 +21,12 @@ struct SancharaPhotoField: View {
         PhotosPicker(selection: $selection, matching: .images, photoLibrary: .shared()) {
             VStack(alignment: .leading, spacing: 10) {
                 AvatarCircle(image: preview, url: existingURL, isLoading: isLoading)
-                Text(hasPhoto ? "Change photo" : "Add a photo").eyebrow()
+                Text(hasPhoto ? L10n.string("Change photo") : L10n.string("Add a photo")).eyebrow()
             }
             .contentShape(Rectangle())
         }
         .buttonStyle(DipButtonStyle())
-        .accessibilityLabel(hasPhoto ? "Change profile photo" : "Add a profile photo")
+        .accessibilityLabel(hasPhoto ? L10n.string("Change profile photo") : L10n.string("Add a profile photo"))
     }
 }
 

@@ -11,8 +11,8 @@ enum SancharaAPI {
 
         var errorDescription: String? {
             switch self {
-            case .unauthorized: "Your session expired. Please sign in again."
-            case .badURL: "That request could not be built."
+            case .unauthorized: L10n.string("Your session expired. Please sign in again.")
+            case .badURL: L10n.string("That request could not be built.")
             case .server(let message): message
             }
         }
@@ -242,7 +242,7 @@ enum SancharaAPI {
                         for try await chunk in chunks { body.append(chunk) }
                         let message = String(data: body, encoding: .utf8)?
                             .trimmingCharacters(in: .whitespacesAndNewlines)
-                        throw APIError.server(message?.isEmpty == false ? message! : "Something went wrong.")
+                        throw APIError.server(message?.isEmpty == false ? message! : L10n.string("Something went wrong."))
                     }
 
                     if let id = http.value(forHTTPHeaderField: "x-conversation-id") {
@@ -284,7 +284,7 @@ enum SancharaAPI {
         case 200..<300: return
         case 401: throw APIError.unauthorized
         default:
-            let message = String(data: data, encoding: .utf8) ?? "Something went wrong."
+            let message = String(data: data, encoding: .utf8) ?? L10n.string("Something went wrong.")
             throw APIError.server(message)
         }
     }
@@ -361,7 +361,7 @@ enum ChunkedResponse {
                 pending?.resume(returning: http)
                 completionHandler(.allow)
             } else {
-                pending?.resume(throwing: SancharaAPI.APIError.server("The stars are unreachable right now."))
+                pending?.resume(throwing: SancharaAPI.APIError.server(L10n.string("The stars are unreachable right now.")))
                 completionHandler(.cancel)
             }
         }
@@ -386,7 +386,7 @@ enum ChunkedResponse {
                     stream?.finish(throwing: (error as NSError).code == NSURLErrorCancelled ? CancellationError() : error)
                 }
             } else {
-                pending?.resume(throwing: SancharaAPI.APIError.server("The reading ended before it began."))
+                pending?.resume(throwing: SancharaAPI.APIError.server(L10n.string("The reading ended before it began.")))
                 stream?.finish()
             }
             session.finishTasksAndInvalidate()

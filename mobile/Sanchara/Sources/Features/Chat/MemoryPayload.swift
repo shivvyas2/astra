@@ -257,10 +257,10 @@ enum MemoryQuestion {
         var lines: [String]
         if facts.isEmpty {
             lines = [
-                "I don't know anything about your life yet. Tell me about your work, relationships or plans in a reading and I'll remember it.",
+                L10n.string("I don't know anything about your life yet. Tell me about your work, relationships or plans in a reading and I'll remember it."),
             ]
         } else {
-            lines = ["Here is what you've told me:"]
+            lines = [L10n.string("Here is what you've told me:")]
             for group in FactGrouping.groups(facts) {
                 lines.append("")
                 lines.append("**\(group.category.label)**")
@@ -268,14 +268,15 @@ enum MemoryQuestion {
             }
         }
         var extras: [String] = []
-        if conversations > 0 { extras.append(conversations == 1 ? "a note on one past conversation" : "notes on \(conversations) past conversations") }
-        if predictions > 0 { extras.append(predictions == 1 ? "one prediction to check back on" : "\(predictions) predictions to check back on") }
+        if conversations > 0 { extras.append(conversations == 1 ? L10n.string("a note on one past conversation") : L10n.string("notes on \(conversations) past conversations")) }
+        if predictions > 0 { extras.append(predictions == 1 ? L10n.string("one prediction to check back on") : L10n.string("\(predictions) predictions to check back on")) }
         if !extras.isEmpty {
+            let kept = extras.count == 2 ? L10n.string("\(extras[0]) and \(extras[1])") : extras[0]
             lines.append("")
-            lines.append("I also keep \(extras.joined(separator: " and ")).")
+            lines.append(L10n.string("I also keep \(kept)."))
         }
         lines.append("")
-        lines.append("You can see or delete any of it in Profile, under What Astrya knows.")
+        lines.append(L10n.string("You can see or delete any of it in Profile, under What Astrya knows."))
         return lines.joined(separator: "\n")
     }
 }

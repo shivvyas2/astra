@@ -9,15 +9,15 @@ enum Relationship: String, CaseIterable, Identifiable, Codable, Sendable {
 
     var label: String {
         switch self {
-        case .partner: "Partner"
-        case .spouse: "Spouse"
-        case .crush: "Crush"
-        case .friend: "Friend"
-        case .parent: "Parent"
-        case .child: "Child"
-        case .sibling: "Sibling"
-        case .colleague: "Colleague"
-        case .other: "Other"
+        case .partner: L10n.string("Partner")
+        case .spouse: L10n.string("Spouse")
+        case .crush: L10n.string("Crush")
+        case .friend: L10n.string("Friend")
+        case .parent: L10n.string("Parent")
+        case .child: L10n.string("Child")
+        case .sibling: L10n.string("Sibling")
+        case .colleague: L10n.string("Colleague")
+        case .other: L10n.string("Other")
         }
     }
 
@@ -213,6 +213,6 @@ enum PeopleAPI {
         struct Payload: Decodable { let error: String }
         if let message = try? JSONDecoder().decode(Payload.self, from: data).error, !message.isEmpty { return message }
         let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return text.isEmpty || text.hasPrefix("{") ? "Something went wrong. Please try again." : text
+        return text.isEmpty || text.hasPrefix("{") ? L10n.string("Something went wrong. Please try again.") : text
     }
 }

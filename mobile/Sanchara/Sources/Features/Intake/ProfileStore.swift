@@ -65,7 +65,7 @@ final class ProfileStore {
             if chart != nil, details != nil {
                 state = .ready
             } else {
-                state = .failed("Could not load your chart. Check your connection and try again.")
+                state = .failed(L10n.string("Could not load your chart. Check your connection and try again."))
             }
         }
     }

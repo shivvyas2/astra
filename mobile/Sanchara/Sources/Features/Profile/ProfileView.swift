@@ -19,7 +19,8 @@ struct ProfileView: View {
     @State private var isPreparingKundli = false
     @State private var confirmDelete = false
     @State private var legalPage: LegalPage?
-    @AppStorage(ReadingLanguage.storageKey) private var language: ReadingLanguage = .english
+    /// Nil until the person picks a chip; the app then follows iOS's language.
+    @AppStorage(ReadingLanguage.storageKey) private var chosenLanguage: ReadingLanguage?
     @AppStorage(NameScript.storageKey) private var nameScript: NameScript = .sanskrit
     @State private var languageError: String?
     @State private var photoItem: PhotosPickerItem?
@@ -47,20 +48,20 @@ struct ProfileView: View {
                                 // tab bar the Kundli tab is one tap away, so a
                                 // button here would only compete with it. The
                                 // PDF is still reachable from inside the chart.
-                                SancharaPrimaryButton(title: "View your kundli") {
+                                SancharaPrimaryButton(title: L10n.string("View your kundli")) {
                                     showKundli = true
                                 }
                                 .disabled(profile.chart == nil)
                                 .opacity(profile.chart == nil ? 0.5 : 1)
                             }
 
-                            SancharaPrimaryButton(title: "Edit birth details", kind: .secondary) {
+                            SancharaPrimaryButton(title: L10n.string("Edit birth details"), kind: .secondary) {
                                 isEditing = true
                             }
 
                             if profile.chart == nil {
                                 SancharaPrimaryButton(
-                                    title: "Download kundli (PDF)",
+                                    title: L10n.string("Download kundli (PDF)"),
                                     isLoading: isPreparingKundli,
                                     kind: .secondary
                                 ) {
@@ -88,7 +89,7 @@ struct ProfileView: View {
                 }
             }
             .clearsTabBar(active: embedded)
-            .navigationTitle(embedded ? "" : "Your profile")
+            .navigationTitle(embedded ? "" : L10n.string("Your profile"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !embedded {
@@ -121,11 +122,11 @@ struct ProfileView: View {
             Task { await uploadPickedPhoto() }
         }
         .legalSheet($legalPage)
-        .alert("Delete your account?", isPresented: $confirmDelete) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) { Task { await deleteAccount() } }
+        .alert(L10n.string("Delete your account?"), isPresented: $confirmDelete) {
+            Button(L10n.string("Cancel"), role: .cancel) {}
+            Button(L10n.string("Delete"), role: .destructive) { Task { await deleteAccount() } }
         } message: {
-            Text("This permanently removes your chart, readings, and alerts. It cannot be undone.")
+            Text(L10n.string("This permanently removes your chart, readings, and alerts. It cannot be undone."))
         }
     }
 
@@ -188,7 +189,7 @@ struct ProfileView: View {
         }
         .buttonStyle(DipButtonStyle())
         .disabled(isUploadingPhoto)
-        .accessibilityLabel(details.avatarUrl == nil ? "Add a profile photo" : "Change profile photo")
+        .accessibilityLabel(details.avatarUrl == nil ? L10n.string("Add a profile photo") : L10n.string("Change profile photo"))
     }
 
     private func detailTable(_ details: BirthProfileDetails) -> some View {
@@ -196,18 +197,18 @@ struct ProfileView: View {
             Text("Birth details").eyebrow()
                 .padding(.bottom, 4)
             BrutDivider()
-            DataRow(label: "Born", value: formattedBirth(details), valueSize: 20)
-            DataRow(label: "Place", value: details.placeName, valueSize: 20)
-            DataRow(label: "Timezone", value: details.timezone, valueSize: 20)
+            DataRow(label: L10n.string("Born"), value: formattedBirth(details), valueSize: 20)
+            DataRow(label: L10n.string("Place"), value: details.placeName, valueSize: 20)
+            DataRow(label: L10n.string("Timezone"), value: details.timezone, valueSize: 20)
         }
     }
 
-    /// The language readings are written in. Saved on the server, since the
-    /// morning and evening readings and alerts are written there; the chart's
-    /// names follow it.
+    /// The one language setting: the app's own words and the readings both
+    /// follow it. Saved on the server, since the morning and evening readings
+    /// and alerts are written there; the chart's names follow it too.
     private var languageBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Reading language").eyebrow()
+            Text("Language").eyebrow()
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(ReadingLanguage.allCases) { option in
@@ -218,32 +219,50 @@ struct ProfileView: View {
                     }
                 }
             }
-            Text(languageError ?? "Readings, alerts and notifications are written in this language. Sanskrit terms keeps English but uses Surya, Mesha, bhava and so on.")
+            Text(languageError ?? L10n.string("The app, your readings, alerts and notifications all use this language. Sanskrit terms keeps English but uses Surya, Mesha, bhava and so on."))
                 .font(.brutBody(13))
                 .foregroundStyle(languageError == nil ? Theme.muted : Theme.ember)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .task {
             // The server's answer wins: it may have been changed on the web.
-            if let saved = try? await SancharaAPI.readingLanguage() { language = saved }
+            // An English answer before anything was chosen here is only the
+            // server's default, so the app keeps following iOS's language.
+            if let saved = try? await SancharaAPI.readingLanguage(),
+               chosenLanguage != nil || saved != .english {
+                adopt(saved)
+            }
         }
     }
 
+    /// The chosen chip, or the one matching the language the app is showing.
+    private var language: ReadingLanguage {
+        chosenLanguage ?? ReadingLanguage(uiCode: AppLanguage.shared.code)
+    }
+
     private func choose(_ option: ReadingLanguage) {
-        guard option != language else { return }
-        let previous = language
-        language = option
-        nameScript = option.nameScript
+        guard option != chosenLanguage else { return }
+        let previous = chosenLanguage
+        adopt(option)
         languageError = nil
         Task {
             do {
                 try await SancharaAPI.setReadingLanguage(option)
             } catch {
-                language = previous
-                nameScript = previous.nameScript
-                languageError = "Couldn't save the language. Try again in a moment."
+                adopt(previous ?? .english)
+                if previous == nil { chosenLanguage = nil }
+                languageError = L10n.string("Couldn't save the language. Try again in a moment.")
             }
         }
+    }
+
+    /// Stores the language and switches the app, the kundli's names and the
+    /// widgets to it.
+    private func adopt(_ option: ReadingLanguage) {
+        chosenLanguage = option
+        nameScript = option.nameScript
+        AppLanguage.shared.apply(code: option.uiCode)
+        WidgetRefresh.reloadAll()
     }
 
     /// What readings remember about the person's life, and the way to
@@ -393,12 +412,13 @@ struct ProfileView: View {
         parser.locale = Locale(identifier: "en_US_POSIX")
         parser.dateFormat = "yyyy-MM-dd"
         guard let date = parser.date(from: details.birthDate) else {
-            return "\(details.birthDate) at \(details.birthTimeShort)"
+            return L10n.string("\(details.birthDate) at \(details.birthTimeShort)")
         }
         let pretty = DateFormatter()
+        pretty.locale = L10n.locale
         pretty.dateStyle = .long
         pretty.timeStyle = .none
-        return "\(pretty.string(from: date)) at \(details.birthTimeShort)"
+        return L10n.string("\(pretty.string(from: date)) at \(details.birthTimeShort)")
     }
 
     /// Sends the new photo with the birth details already on file, because the
@@ -418,7 +438,7 @@ struct ProfileView: View {
             let image = UIImage(data: data),
             let jpeg = image.avatarJPEG()
         else {
-            errorMessage = "That image could not be read. Try another."
+            errorMessage = L10n.string("That image could not be read. Try another.")
             return
         }
 

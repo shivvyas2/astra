@@ -94,10 +94,10 @@ struct WelcomeTourView: View {
             Spacer(minLength: 0)
 
             if isLast {
-                SancharaPrimaryButton(title: "Start exploring", kind: .accent) { finish() }
+                SancharaPrimaryButton(title: L10n.string("Start exploring"), kind: .accent) { finish() }
                     .frame(maxWidth: 230)
             } else {
-                CircleButton(systemImage: "arrow.right", label: "Next", fill: .accent, size: 60) {
+                CircleButton(systemImage: "arrow.right", label: L10n.string("Next"), fill: .accent, size: 60) {
                     withAnimation(Theme.ease) { page = min(page + 1, tabs.count - 1) }
                 }
             }

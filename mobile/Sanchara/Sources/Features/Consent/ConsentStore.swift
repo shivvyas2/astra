@@ -87,7 +87,7 @@ final class ConsentStore {
         do {
             try await BillingAPI.withdrawConsent()
         } catch {
-            errorMessage = "Could not withdraw that. Check your connection and try again."
+            errorMessage = L10n.string("Could not withdraw that. Check your connection and try again.")
             return false
         }
         defaults.removeObject(forKey: versionKey(uid))
@@ -125,6 +125,6 @@ final class ConsentStore {
             return nil
         }
         shared.requireAgain()
-        return "Readings need your OK to send your chart to Anthropic."
+        return L10n.string("Readings need your OK to send your chart to Anthropic.")
     }
 }

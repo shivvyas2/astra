@@ -59,7 +59,7 @@ struct KundliView: View {
                 }
             }
             .clearsTabBar(active: embedded)
-            .navigationTitle(embedded ? "" : "Your kundli")
+            .navigationTitle(embedded ? "" : L10n.string("Your kundli"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -177,8 +177,8 @@ struct KundliView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
                 chart.isTimeKnown
-                    ? "Lagna \(chart.ascendantRashi.sanskrit), \(chart.ascendantDegreeText). \(details.fullName), born \(birthLine), \(details.placeName)"
-                    : "Chandra lagna \(Rashi(english: chart.moonSign)?.sanskrit ?? chart.moonSign). Ascendant unknown. \(details.fullName), born \(birthLine), \(details.placeName)"
+                    ? L10n.string("Lagna \(chart.ascendantRashi.name(in: script)), \(chart.ascendantDegreeText). \(details.fullName), born \(birthLine), \(details.placeName)")
+                    : L10n.string("Chandra lagna \(rashiName(chart.moonSign)). Ascendant unknown. \(details.fullName), born \(birthLine), \(details.placeName)")
             )
         }
     }
@@ -189,12 +189,12 @@ struct KundliView: View {
     private var signRows: some View {
         VStack(alignment: .leading, spacing: 0) {
             DataRow(
-                label: "Chandra (Moon sign)",
+                label: L10n.string("Chandra (Moon sign)"),
                 value: rashiName(chart.moonSign),
                 detail: script == .english ? nil : chart.moonSign
             )
             DataRow(
-                label: "Surya (Sun sign)",
+                label: L10n.string("Surya (Sun sign)"),
                 value: rashiName(chart.sunSign),
                 detail: script == .english ? nil : chart.sunSign
             )
@@ -202,7 +202,9 @@ struct KundliView: View {
     }
 
     private var birthLine: String {
-        chart.isTimeKnown ? "\(formattedBirthDate) at \(details.birthTimeShort)" : "\(formattedBirthDate), time unknown"
+        chart.isTimeKnown
+            ? L10n.string("\(formattedBirthDate) at \(details.birthTimeShort)")
+            : L10n.string("\(formattedBirthDate), time unknown")
     }
 
     /// The chart the diagram and the table are drawn from: the birth chart,
@@ -231,7 +233,7 @@ struct KundliView: View {
                 .foregroundStyle(Theme.muted)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-            SancharaPrimaryButton(title: "Add birth time", kind: .accent) { showAddTime = true }
+            SancharaPrimaryButton(title: L10n.string("Add birth time"), kind: .accent) { showAddTime = true }
                 .accessibilityHint("Opens your birth details with the time picker")
         }
         .padding(18)
@@ -240,11 +242,11 @@ struct KundliView: View {
     }
 
     private var moonCaveat: String {
-        let base = "The chart below is counted from the Moon, so houses are “from the Moon” rather than from the ascendant."
+        let base = L10n.string("The chart below is counted from the Moon, so houses are “from the Moon” rather than from the ascendant.")
         if let day = chart.moonDay, day.changesSign {
-            return "\(base) The Moon moved from \(rashiName(day.startSign)) into \(rashiName(day.endSign)) that day, so even the Moon sign depends on the hour."
+            return base + " " + L10n.string("The Moon moved from \(rashiName(day.startSign)) into \(rashiName(day.endSign)) that day, so even the Moon sign depends on the hour.")
         }
-        return "\(base) The Moon stayed in \(rashiName(chart.moonSign)) all day, so the Moon sign is certain."
+        return base + " " + L10n.string("The Moon stayed in \(rashiName(chart.moonSign)) all day, so the Moon sign is certain.")
     }
 
     private var formattedBirthDate: String {
@@ -253,6 +255,7 @@ struct KundliView: View {
         parser.dateFormat = "yyyy-MM-dd"
         guard let day = parser.date(from: details.birthDate) else { return details.birthDate }
         let pretty = DateFormatter()
+        pretty.locale = L10n.locale
         pretty.dateStyle = .long
         pretty.timeStyle = .none
         return pretty.string(from: day)
@@ -266,7 +269,7 @@ struct KundliView: View {
     /// "until Apr 2032", with the English name first when the value is not
     /// in English: "Venus · until Apr 2032".
     private func dashaDetail(_ lord: String, until end: String) -> String {
-        let until = "until \(shortDate(end))"
+        let until = L10n.string("until \(shortDate(end))")
         return script == .english ? until : "\(lord) · \(until)"
     }
 
@@ -302,7 +305,7 @@ struct KundliView: View {
             }
             .contentShape(Capsule())
         }
-        .accessibilityLabel("Planet and sign names: \(script.label)")
+        .accessibilityLabel(L10n.string("Planet and sign names: \(script.label)"))
         .accessibilityHint("Choose Sanskrit, Hindi, Gujarati or English")
     }
 
@@ -338,19 +341,19 @@ struct KundliView: View {
                 Text("Vimshottari dasha").eyebrow()
                     .padding(.bottom, 2)
                 DataRow(
-                    label: "Mahadasha",
+                    label: L10n.string("Mahadasha"),
                     value: grahaName(dasha.mahadasha),
                     detail: dashaDetail(dasha.mahadasha, until: dasha.mahadashaEnd)
                 )
                 DataRow(
-                    label: "Antardasha",
+                    label: L10n.string("Antardasha"),
                     value: grahaName(dasha.antardasha),
                     detail: dashaDetail(dasha.antardasha, until: dasha.antardashaEnd),
                     showsRule: false
                 )
-                ViewMoreRow(title: "What the periods are") { showPeriods = true }
+                ViewMoreRow(title: L10n.string("What the periods are")) { showPeriods = true }
                 if embedded {
-                    ViewMoreRow(title: "See them on your life map", showsTopRule: false) {
+                    ViewMoreRow(title: L10n.string("See them on your life map"), showsTopRule: false) {
                         navigator.open(.life)
                     }
                 }
@@ -368,7 +371,7 @@ struct KundliView: View {
     /// through the chart and the one that survives the largest text sizes.
     private var planetTable: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TableBand(leading: "Graha", trailing: "Sign · House")
+            TableBand(leading: L10n.string("Graha"), trailing: L10n.string("Sign · House"))
 
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(drawnChart.planets.enumerated()), id: \.element.id) { index, planet in
@@ -419,7 +422,7 @@ struct KundliView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(planet.spokenDescription)
-                    .accessibilityHint("Opens house \(planet.house)")
+                    .accessibilityHint(L10n.string("Opens house \(planet.house)"))
                 }
             }
             .padding(.horizontal, 4)
@@ -432,7 +435,7 @@ struct KundliView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 12) {
             ViewMoreRow(
-                title: "Export as PDF",
+                title: L10n.string("Export as PDF"),
                 systemImage: "square.and.arrow.up",
                 isLoading: isPreparingPDF
             ) {
@@ -491,6 +494,7 @@ struct HouseDetailSheet: View {
     private var ordinal: String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .ordinal
+        formatter.locale = L10n.locale
         return formatter.string(from: NSNumber(value: house.number)) ?? "\(house.number)"
     }
 
@@ -538,7 +542,7 @@ struct HouseDetailSheet: View {
                                     HStack(spacing: 14) {
                                         GlyphCircle(glyph: planet.glyph)
                                         VStack(alignment: .leading, spacing: 3) {
-                                            Text(planet.name(in: script) + (script == .english ? "" : " · \(planet.name)") + (planet.retrograde ? " ℞ retrograde" : ""))
+                                            Text(planet.name(in: script) + (script == .english ? "" : " · \(planet.name)") + (planet.retrograde ? " ℞ " + L10n.string("retrograde") : ""))
                                                 .font(.system(size: 15, weight: .semibold))
                                                 .foregroundStyle(Theme.fg)
                                             Text(planet.nakshatra.map { "\(planet.degreeText) · \($0)" } ?? planet.degreeText)
@@ -557,11 +561,11 @@ struct HouseDetailSheet: View {
                         }
 
                         if let onAsk {
-                            SancharaPrimaryButton(title: fromMoon ? "Ask about the \(ordinal) from my Moon" : "Ask Astrya about my \(ordinal) house", kind: .accent) {
+                            SancharaPrimaryButton(title: fromMoon ? L10n.string("Ask about the \(ordinal) from my Moon") : L10n.string("Ask Astrya about my \(ordinal) house"), kind: .accent) {
                                 dismiss()
                                 onAsk(fromMoon
-                                      ? "Counting from my Moon, what does the \(ordinal) house (\(house.rashi.sanskrit)) say about \(house.domain.lowercased())?"
-                                      : "What does my \(ordinal) house (\(house.rashi.sanskrit)) say about \(house.domain.lowercased())?")
+                                      ? L10n.string("Counting from my Moon, what does the \(ordinal) house (\(house.rashi.name(in: script))) say about \(house.domain.lowercased(with: L10n.locale))?")
+                                      : L10n.string("What does my \(ordinal) house (\(house.rashi.name(in: script))) say about \(house.domain.lowercased(with: L10n.locale))?"))
                             }
                             .accessibilityHint("Opens Ask with this question ready to send")
                         }

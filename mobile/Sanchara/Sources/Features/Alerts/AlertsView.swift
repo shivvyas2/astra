@@ -13,8 +13,8 @@ struct AlertDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         HStack(spacing: 10) {
-                            BrutTag(text: alert.severity, fill: severityColor(alert.severity), textColor: Theme.ink)
-                            Text(alert.createdAt.formatted(date: .abbreviated, time: .shortened))
+                            BrutTag(text: severityLabel(alert.severity), fill: severityColor(alert.severity), textColor: Theme.ink)
+                            Text(alert.createdAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale)))
                                 .font(.brutMono(11))
                                 .foregroundStyle(Theme.muted)
                         }
@@ -27,11 +27,8 @@ struct AlertDetailView: View {
 
                         MarkdownText(markdown: alert.detail)
 
-                        SancharaPrimaryButton(title: "Ask Astrya about this", kind: .accent) {
-                            onAsk(
-                                "Tell me more about this: \(alert.title). \(alert.body) "
-                                    + "What should I watch for, and what can I do about it?"
-                            )
+                        SancharaPrimaryButton(title: L10n.string("Ask Astrya about this"), kind: .accent) {
+                            onAsk(L10n.string("Tell me more about this: \(alert.title). \(alert.body) What should I watch for, and what can I do about it?"))
                         }
                         .padding(.top, 8)
                     }
@@ -51,6 +48,16 @@ struct AlertDetailView: View {
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .presentationBackground(Theme.bg)
+    }
+}
+
+/// A severity as its tag reads. The raw value stays English: it is what the
+/// server writes and what `severityColor` switches on.
+func severityLabel(_ severity: String) -> String {
+    switch severity {
+    case "warning": L10n.string("Warning")
+    case "caution": L10n.string("Caution")
+    default: L10n.string("Note")
     }
 }
 

@@ -15,16 +15,19 @@ import WidgetKit
 /// alerts (`RefreshSchedule`).
 struct ReadingProvider: TimelineProvider {
     func placeholder(in context: Context) -> ReadingEntry {
-        ReadingEntry(date: Date(), snapshot: .preview)
+        AppLanguage.shared.reload()
+        return ReadingEntry(date: Date(), snapshot: .preview)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ReadingEntry) -> Void) {
+        AppLanguage.shared.reload()
         let snapshot = WidgetSnapshot.load()
         let useful = snapshot.reading != nil || !context.isPreview
         completion(ReadingEntry(date: Date(), snapshot: useful ? snapshot : .preview))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<ReadingEntry>) -> Void) {
+        AppLanguage.shared.reload()
         Task {
             await WidgetTimeline.refresh(from: WidgetRefresh.Kind.reading)
             let now = Date()
@@ -63,15 +66,17 @@ struct ReadingWidgetView: View {
                     Text("ASTRYA").font(.system(size: 10, weight: .semibold)).widgetAccentable()
                     Text(snapshot.needsSignIn ? "Sign in again" : "No reading yet")
                         .font(.system(size: 13, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 WidgetEmpty(
-                    eyebrow: "Today",
-                    headline: snapshot.needsSignIn ? "Sign in again" : "Your first reading",
+                    eyebrow: L10n.string("Today"),
+                    headline: snapshot.needsSignIn ? L10n.string("Sign in again") : L10n.string("Your first reading"),
                     message: snapshot.needsSignIn
-                        ? "Open Astrya to keep this widget current."
-                        : "It arrives with the next morning or night run."
+                        ? L10n.string("Open Astrya to keep this widget current.")
+                        : L10n.string("It arrives with the next morning or night run.")
                 )
             }
         }
@@ -91,8 +96,10 @@ struct ReadingWidgetView: View {
     /// this family can carry.
     private func lockScreen(_ reading: ChartCache.CachedReading) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(snapshot.alert == nil ? reading.slotLabel.uppercased() : "\(reading.slotLabel.uppercased()) · ALERT")
+            Text(snapshot.alert == nil ? reading.slotLabel.uppercased() : L10n.string("\(reading.slotLabel.uppercased()) · ALERT"))
                 .font(.system(size: 10, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .widgetAccentable()
             Text(reading.title)
                 .font(.system(size: 13, weight: .medium))
@@ -111,7 +118,7 @@ struct ReadingWidgetView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(reading.slotLabel) reading. \(reading.title)")
+        .accessibilityLabel(L10n.string("\(reading.slotLabel) reading. \(reading.title)"))
     }
 
     private func medium(_ reading: ChartCache.CachedReading) -> some View {
@@ -160,14 +167,15 @@ struct ReadingWidgetView: View {
     }
 
     private func footer(_ reading: ChartCache.CachedReading) -> some View {
-        Text(snapshot.needsSignIn ? "Open to refresh" : (snapshot.alert == nil ? "Tap to read" : alertCountLabel))
+        Text(snapshot.needsSignIn ? L10n.string("Open to refresh") : (snapshot.alert == nil ? L10n.string("Tap to read") : alertCountLabel))
             .font(.brutMono(10))
             .foregroundStyle(snapshot.alert.map { AlertTone.color(for: $0.severity) } ?? Theme.muted)
             .lineLimit(1)
+            .minimumScaleFactor(0.7)
     }
 
     private var alertCountLabel: String {
-        snapshot.unreadCount == 1 ? "1 alert" : "\(snapshot.unreadCount) alerts"
+        L10n.string("\(snapshot.unreadCount) alerts")
     }
 
     /// One line, linking straight to the alert.
@@ -185,7 +193,7 @@ struct ReadingWidgetView: View {
             WidgetEyebrow(text: AlertTone.label(for: alert.severity), color: AlertTone.color(for: alert.severity))
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(AlertTone.label(for: alert.severity)) alert: \(alert.title)")
+        .accessibilityLabel(L10n.string("\(AlertTone.label(for: alert.severity)) alert: \(alert.title)"))
 
         if let url = WidgetLink.alert(alert.id) {
             Link(destination: url) { line }
@@ -200,7 +208,7 @@ struct ReadingWidgetView: View {
             let tone = AlertTone.color(for: alert.severity)
             let section = VStack(alignment: .leading, spacing: 5) {
                 HStack(spacing: 6) {
-                    WidgetEyebrow(text: "Alert · \(AlertTone.label(for: alert.severity))", color: tone)
+                    WidgetEyebrow(text: L10n.string("Alert · \(AlertTone.label(for: alert.severity))"), color: tone)
                     Spacer(minLength: 4)
                     Text(WidgetTime.ago(alert.createdAt, now: entry.date))
                         .font(.brutMono(10))
@@ -223,10 +231,12 @@ struct ReadingWidgetView: View {
             }
         } else {
             HStack(spacing: 6) {
-                WidgetEyebrow(text: "Alerts")
+                WidgetEyebrow(text: L10n.string("Alerts"))
                 Spacer(minLength: 4)
                 Text(snapshot.alerts == nil ? "Not loaded yet" : "All clear")
                     .font(.system(size: 12, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                     .foregroundStyle(Theme.fg.opacity(0.8))
             }
         }
@@ -237,6 +247,7 @@ struct ReadingWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetRefresh.Kind.reading, provider: ReadingProvider()) { entry in
             ReadingWidgetView(entry: entry)
+                .environment(\.locale, AppLanguage.shared.locale)
         }
         .configurationDisplayName("Today's reading")
         .description("The reading Astrya wrote for you this morning or tonight, and any new alert.")

@@ -48,16 +48,17 @@ struct DailyReadingEntity: AppEntity, IndexedEntity, Identifiable {
         return set
     }
 
-    var slotLabel: String { slot == "morning" ? "Morning" : "Night" }
+    var slotLabel: String { slot == "morning" ? L10n.string("Morning") : L10n.string("Night") }
 
     var prettyDate: String {
         let parser = DateFormatter()
         parser.locale = Locale(identifier: "en_US_POSIX")
         parser.dateFormat = "yyyy-MM-dd"
         guard let day = parser.date(from: forDate) else { return forDate }
-        if Calendar.current.isDateInToday(day) { return "Today" }
-        if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
+        if Calendar.current.isDateInToday(day) { return L10n.string("Today") }
+        if Calendar.current.isDateInYesterday(day) { return L10n.string("Yesterday") }
         let pretty = DateFormatter()
+        pretty.locale = L10n.locale
         pretty.dateStyle = .medium
         return pretty.string(from: day)
     }
@@ -99,9 +100,12 @@ struct PlacementEntity: AppEntity, IndexedEntity, Identifiable {
     }
 
     var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(
-            title: "\(planet) in \(sanskritSign)",
-            subtitle: "\(degree) · house \(house)\(retrograde ? " · retrograde" : "")",
+        let subtitle: LocalizedStringResource = retrograde
+            ? "\(degree) · house \(house) · retrograde"
+            : "\(degree) · house \(house)"
+        return DisplayRepresentation(
+            title: "\(ChartPlanet.displayName(planet)) in \(Rashi.displayName(english: sign))",
+            subtitle: subtitle,
             image: .init(systemName: "circle.hexagongrid")
         )
     }
@@ -116,9 +120,12 @@ struct PlacementEntity: AppEntity, IndexedEntity, Identifiable {
 
     /// The sentence Siri reads back.
     var spoken: String {
-        var line = "\(planet) is in \(sanskritSign), \(sign), at \(degree), in house \(house)"
-        if let nakshatra { line += ", nakshatra \(nakshatra)" }
-        if retrograde { line += ". It is retrograde" }
+        let name = ChartPlanet.displayName(planet)
+        // English keeps both names, "Meena, Pisces"; Hindi and Gujarati have one.
+        let rashi = AppLanguage.shared.code == "en" ? "\(sanskritSign), \(sign)" : Rashi.displayName(english: sign)
+        var line = L10n.string("\(name) is in \(rashi), at \(degree), in house \(house)")
+        if let nakshatra { line += L10n.string(", nakshatra \(nakshatra)") }
+        if retrograde { line += L10n.string(". It is retrograde") }
         return line + "."
     }
 

@@ -5,6 +5,8 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
   groupSortPosition: top
+  # English is the source language; hi and gu come from the string catalog.
+  developmentLanguage: en
   # Marks the project as checked against this Xcode, so it stops offering
   # "Update to recommended settings". Raise it with each new Xcode.
   xcodeVersion: "27.1"
@@ -24,6 +26,9 @@ settings:
     DEAD_CODE_STRIPPING: YES
     LOCALIZATION_PREFERS_STRING_CATALOGS: YES
     STRING_CATALOG_GENERATE_SYMBOLS: YES
+    # The compiler writes every localizable literal it sees (Text, L10n.string,
+    # LocalizedStringResource) to .stringsdata, which keeps the catalog in sync.
+    SWIFT_EMIT_LOC_STRINGS: YES
     ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
     ENABLE_STRICT_OBJC_MSGSEND: YES
     GCC_NO_COMMON_BLOCKS: YES
@@ -42,6 +47,10 @@ targets:
         CFBundleDisplayName: Astrya
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        # English, Hindi and Gujarati (Resources/Localizable.xcstrings). Listing
+        # them is what puts the language choice in Settings › Astrya.
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, hi, gu]
         UILaunchScreen:
           UIColorName: LaunchBackground
         UISupportedInterfaceOrientations:
@@ -133,12 +142,20 @@ targets:
       - path: Sanchara/Sources/Features/Kundli/ChartData.swift
       - path: Sanchara/Sources/Features/Intake/BirthProfileDetails.swift
       - path: Sanchara/Sources/Intents/OpenKundliIntent.swift
+      # The app's language and its catalog. The widget reads the language the
+      # app mirrors into the App Group, and its strings live in the same
+      # catalog as the app's, so there is one place to translate.
+      - path: Sanchara/Sources/Services/AppLanguage.swift
+      - path: Sanchara/Resources/Localizable.xcstrings
+        buildPhase: resources
     info:
       path: SancharaWidgets/Info.plist
       properties:
         CFBundleDisplayName: Astrya
         CFBundleShortVersionString: "1.0"
         CFBundleVersion: "1"
+        CFBundleDevelopmentRegion: en
+        CFBundleLocalizations: [en, hi, gu]
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:

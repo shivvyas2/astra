@@ -8,7 +8,7 @@ enum BillingAPI {
         let status: Int
         let body: String
         var errorDescription: String? {
-            status == 401 ? "Your session expired. Please sign in again." : "Something went wrong. Please try again."
+            status == 401 ? L10n.string("Your session expired. Please sign in again.") : L10n.string("Something went wrong. Please try again.")
         }
     }
 

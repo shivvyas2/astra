@@ -8,7 +8,7 @@ struct InboxView: View {
         case alerts
 
         var id: String { rawValue }
-        var label: String { self == .daily ? "Daily" : "Alerts" }
+        var label: String { self == .daily ? L10n.string("Daily") : L10n.string("Alerts") }
     }
 
     let daily: DailyStore
@@ -54,7 +54,7 @@ struct InboxView: View {
                 }
             }
             .clearsTabBar(active: embedded)
-            .navigationTitle(embedded ? "" : (tab == .daily ? "Your readings" : "Alerts"))
+            .navigationTitle(embedded ? "" : (tab == .daily ? L10n.string("Your readings") : L10n.string("Alerts")))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !embedded {
@@ -94,12 +94,14 @@ struct InboxView: View {
     /// "Friday, 3 October".
     private static func todayTitle(_ date: Date = Date()) -> String {
         let formatter = DateFormatter()
+        formatter.locale = L10n.locale
         formatter.setLocalizedDateFormatFromTemplate("EEEEdMMMM")
         return formatter.string(from: date)
     }
 
     private static func todayPart(_ template: String, _ date: Date = Date()) -> String {
         let formatter = DateFormatter()
+        formatter.locale = L10n.locale
         formatter.setLocalizedDateFormatFromTemplate(template)
         return formatter.string(from: date)
     }
@@ -133,7 +135,7 @@ struct InboxView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Today, \(Self.todayTitle()). A reading every morning and night, written from today's sky and your chart. Alerts come only when a dosha or hard transit starts or ends.")
+        .accessibilityLabel(L10n.string("Today, \(Self.todayTitle()). A reading every morning and night, written from today's sky and your chart. Alerts come only when a dosha or hard transit starts or ends."))
         .accessibilityAddTraits(.isHeader)
     }
 
@@ -177,8 +179,8 @@ struct InboxView: View {
                     ForEach(Array(day.readings.enumerated()), id: \.element.id) { index, reading in
                         Button { daily.selected = reading } label: { row(for: reading) }
                             .buttonStyle(.plain)
-                            .accessibilityValue(reading.isUnread ? "Unread" : "")
-                            .accessibilityHint("Opens the full reading")
+                            .accessibilityValue(reading.isUnread ? L10n.string("Unread") : "")
+                            .accessibilityHint(L10n.string("Opens the full reading"))
                         if index < day.readings.count - 1 {
                             BrutDivider()
                         }
@@ -187,13 +189,13 @@ struct InboxView: View {
             }
         } else {
             BrutEmptyState(
-                title: "Your first reading is on its way",
-                message: "A reading arrives every morning and every night, written from that day's sky and your chart. The next one lands here at the start of your morning or evening, and they collect by date.",
+                title: L10n.string("Your first reading is on its way"),
+                message: L10n.string("A reading arrives every morning and every night, written from that day's sky and your chart. The next one lands here at the start of your morning or evening, and they collect by date."),
                 systemImage: "sun.max"
             )
             // No dead end: the chart can be read right now.
-            SancharaPrimaryButton(title: "Ask about today now", kind: .accent) {
-                askNow("What does today's sky mean for me? Read it from my chart.")
+            SancharaPrimaryButton(title: L10n.string("Ask about today now"), kind: .accent) {
+                askNow(L10n.string("What does today's sky mean for me? Read it from my chart."))
             }
             .padding(.top, 16)
         }
@@ -238,7 +240,7 @@ struct InboxView: View {
             BrutDivider()
                 .padding(.top, 4)
 
-            StepFooter(step: 1, label: "Read it") {
+            StepFooter(step: 1, label: L10n.string("Read it")) {
                 daily.selected = reading
             }
         }
@@ -248,12 +250,12 @@ struct InboxView: View {
         .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .onTapGesture { daily.selected = reading }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(reading.slotLabel) reading: \(reading.title). \(reading.body)")
-        .accessibilityValue(reading.isUnread ? "Unread" : "")
-        .accessibilityHint("Opens the full reading")
+        .accessibilityLabel(L10n.string("\(reading.slotLabel) reading: \(reading.title). \(reading.body)"))
+        .accessibilityValue(reading.isUnread ? L10n.string("Unread") : "")
+        .accessibilityHint(L10n.string("Opens the full reading"))
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { daily.selected = reading }
-        .accessibilityAction(named: "Ask Astrya about this") { onAsk(Self.askPrompt(for: reading)) }
+        .accessibilityAction(named: L10n.string("Ask Astrya about this")) { onAsk(Self.askPrompt(for: reading)) }
         .contextMenu {
             Button("Read it", systemImage: "book") { daily.selected = reading }
             Button("Ask Astrya about this", systemImage: "text.bubble") { onAsk(Self.askPrompt(for: reading)) }
@@ -262,7 +264,8 @@ struct InboxView: View {
 
     /// The question a reading carries over to Ask.
     static func askPrompt(for reading: DailyReading) -> String {
-        "About my \(reading.slotLabel.lowercased()) reading: \(reading.title). \(reading.body) Tell me more."
+        let slot = reading.slotLabel.lowercased(with: L10n.locale)
+        return L10n.string("About my \(slot) reading: \(reading.title). \(reading.body) Tell me more.")
     }
 
     private func row(for reading: DailyReading) -> some View {
@@ -306,20 +309,20 @@ struct InboxView: View {
     private var alertContent: some View {
         if alerts.alerts.isEmpty {
             BrutEmptyState(
-                title: "Nothing flagged",
-                message: "When a dosha or a hard transit starts or ends in your chart, an alert lands here the same day. Until then, quiet is good news.",
+                title: L10n.string("Nothing flagged"),
+                message: L10n.string("When a dosha or a hard transit starts or ends in your chart, an alert lands here the same day. Until then, quiet is good news."),
                 systemImage: "bell"
             )
-            ViewMoreRow(title: "Ask what's ahead this month") {
-                askNow("What transits are coming up for me this month, and what should I watch for?")
+            ViewMoreRow(title: L10n.string("Ask what's ahead this month")) {
+                askNow(L10n.string("What transits are coming up for me this month, and what should I watch for?"))
             }
             .padding(.top, 16)
         } else {
             ForEach(Array(alerts.alerts.enumerated()), id: \.element.id) { index, alert in
                 Button { alerts.selected = alert } label: { alertRow(alert) }
                     .buttonStyle(.plain)
-                    .accessibilityValue(alert.isUnread ? "Unread" : "")
-                    .accessibilityHint("Opens the alert")
+                    .accessibilityValue(alert.isUnread ? L10n.string("Unread") : "")
+                    .accessibilityHint(L10n.string("Opens the alert"))
                 if index < alerts.alerts.count - 1 {
                     BrutDivider()
                 }
@@ -331,8 +334,8 @@ struct InboxView: View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 8) {
-                    BrutTag(text: alert.severity, fill: severityColor(alert.severity), textColor: Theme.ink)
-                    Text(alert.createdAt.formatted(date: .abbreviated, time: .shortened))
+                    BrutTag(text: severityLabel(alert.severity), fill: severityColor(alert.severity), textColor: Theme.ink)
+                    Text(alert.createdAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale)))
                         .font(.brutMono(11, weight: .regular))
                         .foregroundStyle(Theme.muted)
                 }
@@ -411,7 +414,7 @@ struct DailyReadingView: View {
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(reading.isMorning ? Theme.accent : Theme.violet)
                                 .accessibilityHidden(true)
-                            Text("\(reading.slotLabel) · \(DailyReadingDay(date: reading.forDate, readings: []).label)")
+                            Text(verbatim: "\(reading.slotLabel) · \(DailyReadingDay(date: reading.forDate, readings: []).label)")
                                 .eyebrow()
                         }
 
@@ -423,7 +426,7 @@ struct DailyReadingView: View {
 
                         MarkdownText(markdown: reading.detail)
 
-                        SancharaPrimaryButton(title: "Ask Astrya about this", kind: .accent) {
+                        SancharaPrimaryButton(title: L10n.string("Ask Astrya about this"), kind: .accent) {
                             onAsk(InboxView.askPrompt(for: reading))
                         }
                         .padding(.top, 8)

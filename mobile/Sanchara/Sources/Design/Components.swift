@@ -360,7 +360,9 @@ struct SancharaPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Text(title).opacity(isLoading ? 0 : 1)
+                Text(title)
+                    .multilineTextAlignment(.center)
+                    .opacity(isLoading ? 0 : 1)
                 if isLoading {
                     ProgressView().tint(kind == .secondary || kind == .quiet ? Theme.fg : Theme.ink)
                 }
@@ -424,7 +426,7 @@ struct CircleButton: View {
                 .contentShape(Circle())
         }
         .buttonStyle(DipButtonStyle())
-        .accessibilityLabel(badge > 0 ? "\(label), \(badge) unread" : label)
+        .accessibilityLabel(badge > 0 ? L10n.string("\(label), \(badge) unread") : label)
     }
 }
 
@@ -466,6 +468,7 @@ struct BrutChip: View {
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(active ? Theme.ink : Theme.fg)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
                 .background {
@@ -595,7 +598,7 @@ struct SancharaSecureField: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .accessibilityLabel(isRevealed ? "Hide password" : "Show password")
+                .accessibilityLabel(isRevealed ? L10n.string("Hide password") : L10n.string("Show password"))
             }
             .padding(.vertical, 4)
 
@@ -897,9 +900,9 @@ struct BigNumber: View {
 
     static func spokenUnit(_ unit: String) -> String {
         switch unit.trimmingCharacters(in: .whitespaces) {
-        case "%": "percent"
-        case "yrs", "y": "years"
-        case "°": "degrees"
+        case "%": L10n.string("percent")
+        case "yrs", "y": L10n.string("years")
+        case "°": L10n.string("degrees")
         default: unit
         }
     }
@@ -1116,7 +1119,7 @@ struct MonthScrubber<ID: Hashable>: View {
     @Binding var selection: ID
     var tint: Color = Theme.accent
     /// What VoiceOver calls the whole strip.
-    var accessibilityName: String = "Periods"
+    var accessibilityName: String = L10n.string("Periods")
 
     var body: some View {
         ScrollViewReader { proxy in

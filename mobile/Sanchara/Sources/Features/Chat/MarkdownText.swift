@@ -246,7 +246,7 @@ struct ChartBasisDisclosure: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityHint(open ? "Hides the chart facts" : "Shows the chart facts this reading rests on")
+            .accessibilityHint(open ? L10n.string("Hides the chart facts") : L10n.string("Shows the chart facts this reading rests on"))
 
             if open {
                 VStack(alignment: .leading, spacing: 0) {

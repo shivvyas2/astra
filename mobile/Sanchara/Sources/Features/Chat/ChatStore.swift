@@ -162,7 +162,7 @@ final class ChatStore {
             messages = rows.map(\.asChatMessage)
         } catch {
             guard opened == generation else { return }
-            errorMessage = "Could not load that reading."
+            errorMessage = L10n.string("Could not load that reading.")
         }
     }
 

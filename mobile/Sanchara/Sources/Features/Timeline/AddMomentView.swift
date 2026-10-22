@@ -35,7 +35,7 @@ struct AddMomentView: View {
                             .brutHeading(34)
                             .accessibilityAddTraits(.isHeader)
 
-                        SancharaField(placeholder: "What happened?", text: $title, label: "Moment")
+                        SancharaField(placeholder: L10n.string("What happened?"), text: $title, label: L10n.string("Moment"))
 
                         VStack(alignment: .leading, spacing: 8) {
                             Text("When").eyebrow()
@@ -62,7 +62,7 @@ struct AddMomentView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("How sure are you?").eyebrow()
                             BrutSegmented(
-                                options: [("day", "That day"), ("month", "That month"), ("year", "That year")],
+                                options: [("day", L10n.string("That day")), ("month", L10n.string("That month")), ("year", L10n.string("That year"))],
                                 selection: $precision
                             )
                         }
@@ -81,7 +81,7 @@ struct AddMomentView: View {
                                 .animation(Theme.snap, value: noteFocused)
                         }
 
-                        SancharaPrimaryButton(title: "Pin it", kind: .accent) { save() }
+                        SancharaPrimaryButton(title: L10n.string("Pin it"), kind: .accent) { save() }
                             .disabled(!canSave)
                             .opacity(canSave ? 1 : 0.5)
                     }

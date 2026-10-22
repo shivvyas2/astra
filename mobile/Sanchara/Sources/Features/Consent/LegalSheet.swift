@@ -17,8 +17,8 @@ enum LegalPage: String, Identifiable {
 
     var title: String {
         switch self {
-        case .terms: "Terms of use"
-        case .privacy: "Privacy policy"
+        case .terms: L10n.string("Terms of use")
+        case .privacy: L10n.string("Privacy policy")
         }
     }
 

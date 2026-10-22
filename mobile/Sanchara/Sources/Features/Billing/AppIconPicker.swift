@@ -20,10 +20,10 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .ember: "Ember"
-        case .lime: "Lime"
-        case .violet: "Violet"
-        case .bone: "Bone"
+        case .ember: L10n.string("Ember")
+        case .lime: L10n.string("Lime")
+        case .violet: L10n.string("Violet")
+        case .bone: L10n.string("Bone")
         }
     }
 
@@ -58,7 +58,7 @@ struct AppIconPicker: View {
             HStack(spacing: 8) {
                 Text("App icon").eyebrow()
                 if PlusStore.isEnabled && store.plan != .plus {
-                    BrutTag(text: "Plus", fill: Theme.fg.opacity(0.12), textColor: Theme.muted)
+                    BrutTag(text: L10n.string("Plus"), fill: Theme.fg.opacity(0.12), textColor: Theme.muted)
                 }
             }
             HStack(spacing: 14) {
@@ -107,11 +107,14 @@ struct AppIconPicker: View {
                 }
                 Text(choice.label)
                     .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(maxWidth: 56)
                     .foregroundStyle(selected ? Theme.fg : Theme.muted)
             }
         }
         .buttonStyle(DipButtonStyle())
-        .accessibilityLabel("\(choice.label) icon")
+        .accessibilityLabel(L10n.string("\(choice.label) icon"))
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityHint(locked ? "Comes with Astrya Plus" : "")
     }
@@ -123,13 +126,13 @@ struct AppIconPicker: View {
             return
         }
         guard UIApplication.shared.supportsAlternateIcons else {
-            errorMessage = "This device can't change the app icon."
+            errorMessage = L10n.string("This device can't change the app icon.")
             return
         }
         errorMessage = nil
         UIApplication.shared.setAlternateIconName(choice.iconName) { error in
             Task { @MainActor in
-                if error == nil { current = choice } else { errorMessage = "The icon didn't change. Try again." }
+                if error == nil { current = choice } else { errorMessage = L10n.string("The icon didn't change. Try again.") }
             }
         }
     }

@@ -32,24 +32,24 @@ struct CompatibilityView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("Remove \(person.label)", role: .destructive) { confirmDelete = true }
+                    Button(L10n.string("Remove \(person.label)"), role: .destructive) { confirmDelete = true }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                         .frame(width: 44, height: 44)
                 }
-                .accessibilityLabel("More")
+                .accessibilityLabel(L10n.string("More"))
             }
         }
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
-        .alert("Remove \(person.label)?", isPresented: $confirmDelete) {
-            Button("Cancel", role: .cancel) {}
-            Button("Remove", role: .destructive) {
+        .alert(L10n.string("Remove \(person.label)?"), isPresented: $confirmDelete) {
+            Button(L10n.string("Cancel"), role: .cancel) {}
+            Button(L10n.string("Remove"), role: .destructive) {
                 Task { if await people.remove(person.id) { dismiss() } }
             }
         } message: {
-            Text("Their birth details and chart are deleted. Readings about the two of you stay in your history.")
+            Text(L10n.string("Their birth details and chart are deleted. Readings about the two of you stay in your history."))
         }
         .task(id: groomIsThem) {
             if report == nil || groomIsThem { await load() }
@@ -74,7 +74,7 @@ struct CompatibilityView: View {
                 synastry(report)
             } else if let errorMessage {
                 BrutNotice(text: errorMessage)
-                SancharaSecondaryButton(title: "Try again") { Task { await load() } }
+                SancharaSecondaryButton(title: L10n.string("Try again")) { Task { await load() } }
             } else {
                 ProgressView()
                     .tint(Theme.accent)
@@ -101,13 +101,13 @@ struct CompatibilityView: View {
 
     private func summary(_ r: CompatibilityReport) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            BigNumber(value: GunaFormat.points(r.guna.total), unit: "of 36 gunas", caption: r.guna.verdict, color: Theme.accent)
+            BigNumber(value: GunaFormat.points(r.guna.total), unit: L10n.string("of 36 gunas"), caption: r.guna.verdict, color: Theme.accent)
             Text(r.summary)
                 .font(.brutBody(15))
                 .foregroundStyle(Theme.fg)
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-            SancharaPrimaryButton(title: "Ask about this match", kind: .accent) {
+            SancharaPrimaryButton(title: L10n.string("Ask about this match"), kind: .accent) {
                 navigator.askAboutMatch(person.id, person.label, r.askPrompt)
             }
             Text("Opens a reading with both charts. Every follow-up question keeps them.")
@@ -142,7 +142,7 @@ struct CompatibilityView: View {
                                     .frame(width: geo.size.width * (k.max > 0 ? k.score / k.max : 0))
                             }
                         }
-                    Text("You: \(k.you). \(person.label): \(k.them).")
+                    Text("You: \(GunaFormat.category(k.you, koota: k.key)). \(person.label): \(GunaFormat.category(k.them, koota: k.key)).")
                         .font(.brutBody(13))
                         .foregroundStyle(Theme.muted)
                     Text(k.note)
@@ -157,7 +157,7 @@ struct CompatibilityView: View {
             Button {
                 groomIsThem.toggle()
             } label: {
-                Text(groomIsThem ? "Read your chart as the groom's" : "Read \(person.label)'s chart as the groom's")
+                Text(groomIsThem ? L10n.string("Read your chart as the groom's") : L10n.string("Read \(person.label)'s chart as the groom's"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .underline()
@@ -184,7 +184,7 @@ struct CompatibilityView: View {
                             .foregroundStyle(Theme.fg)
                         Spacer(minLength: 8)
                         BrutTag(
-                            text: d.present ? "Present" : "Absent",
+                            text: d.present ? L10n.string("Present") : L10n.string("Absent"),
                             fill: d.present ? Theme.ember : Theme.fg.opacity(0.12),
                             textColor: d.present ? Theme.ink : Theme.muted
                         )
@@ -210,14 +210,14 @@ struct CompatibilityView: View {
         VStack(alignment: .leading, spacing: 0) {
             Text("How your charts meet").eyebrow()
                 .padding(.bottom, 4)
-            DataRow(label: "Western synastry", value: "\(r.synastry.score0to100)", detail: "out of 100")
+            DataRow(label: L10n.string("Western synastry"), value: "\(r.synastry.score0to100)", detail: L10n.string("out of 100"))
             ForEach(r.synastry.aspects.prefix(6)) { a in
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Your \(a.a) \(a.aspect) \(person.label)'s \(a.b)")
+                    Text("Your \(GunaFormat.planet(a.a)) \(GunaFormat.aspect(a.aspect)) \(person.label)'s \(GunaFormat.planet(a.b))")
                         .font(.brutBody(14))
                         .foregroundStyle(Theme.fg)
                     Spacer(minLength: 8)
-                    Text(a.tone.capitalized)
+                    Text(GunaFormat.tone(a.tone))
                         .font(.brutBody(13))
                         .foregroundStyle(a.tone == "harmonious" ? Theme.accent : a.tone == "challenging" ? Theme.ember : Theme.muted)
                 }

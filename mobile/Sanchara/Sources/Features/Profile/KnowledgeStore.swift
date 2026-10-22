@@ -8,15 +8,15 @@ enum FactCategory: String, CaseIterable, Decodable, Hashable {
 
     var label: String {
         switch self {
-        case .work: "Work"
-        case .relationships: "Relationships"
-        case .family: "Family"
-        case .health: "Health"
-        case .money: "Money"
-        case .home: "Home"
-        case .goals: "Plans and goals"
-        case .worries: "On your mind"
-        case .other: "Other"
+        case .work: L10n.string("Work")
+        case .relationships: L10n.string("Relationships")
+        case .family: L10n.string("Family")
+        case .health: L10n.string("Health")
+        case .money: L10n.string("Money")
+        case .home: L10n.string("Home")
+        case .goals: L10n.string("Plans and goals")
+        case .worries: L10n.string("On your mind")
+        case .other: L10n.string("Other")
         }
     }
 }
@@ -106,10 +106,10 @@ enum PredictionStatus: String, Hashable, CaseIterable {
 
     var label: String {
         switch self {
-        case .open: "Open"
-        case .happened: "Happened"
-        case .didnt: "Didn't happen"
-        case .unsure: "Not sure"
+        case .open: L10n.string("Open")
+        case .happened: L10n.string("Happened")
+        case .didnt: L10n.string("Didn't happen")
+        case .unsure: L10n.string("Not sure")
         }
     }
 }
@@ -166,14 +166,27 @@ struct PredictionItem: Identifiable, Hashable, Decodable {
     /// "Mar–Jun 2027", "Dec 2026 – Feb 2027", "Mar 2027". Matches `windowLabel` in lib/memory/types.ts.
     var windowLabel: String { PredictionWindow.label(start: windowStart, end: windowEnd) }
 
+    /// "likely" or "possible" as shown beside the window. The raw value is
+    /// what the scorecard counts by, so it stays as the server sent it.
+    var confidenceLabel: String {
+        switch confidence {
+        case "likely": L10n.string("likely")
+        case "possible": L10n.string("possible")
+        default: confidence
+        }
+    }
+
     /// Ask "Did this happen?" once the window has begun.
     func canCheck(today: String) -> Bool { status == .open && windowStart <= today }
 }
 
 enum PredictionWindow {
-    private static let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
     static func label(start: String, end: String) -> String {
+        // Month names in the app's language, so a Hindi window reads in Hindi.
+        let formatter = DateFormatter()
+        formatter.locale = L10n.locale
+        let months = formatter.shortStandaloneMonthSymbols ?? []
+        guard months.count == 12 else { return "" }
         func parts(_ iso: String) -> (Int, Int)? {
             let p = iso.split(separator: "-")
             guard p.count >= 2, let y = Int(p[0]), let m = Int(p[1]), (1...12).contains(m) else { return nil }
@@ -292,7 +305,7 @@ enum KnowledgeAPI {
         default:
             struct ErrorBody: Decodable { let error: String }
             let message = (try? JSONDecoder().decode(ErrorBody.self, from: data))?.error
-                ?? "Something went wrong. Please try again."
+                ?? L10n.string("Something went wrong. Please try again.")
             throw SancharaAPI.APIError.server(message)
         }
     }
@@ -358,19 +371,19 @@ final class KnowledgeStore {
     func delete(_ fact: UserFact) async {
         await optimistic({ facts.removeAll { $0.id == fact.id } },
                          request: { try await KnowledgeAPI.delete(id: fact.id) },
-                         failure: "Couldn't remove that.")
+                         failure: L10n.string("Couldn't remove that."))
     }
 
     func delete(_ summary: ConversationSummary) async {
         await optimistic({ summaries.removeAll { $0.id == summary.id } },
                          request: { try await KnowledgeAPI.deleteSummary(conversationId: summary.conversationId) },
-                         failure: "Couldn't remove that.")
+                         failure: L10n.string("Couldn't remove that."))
     }
 
     func delete(_ prediction: PredictionItem) async {
         await optimistic({ predictions.removeAll { $0.id == prediction.id } },
                          request: { try await KnowledgeAPI.deletePrediction(id: prediction.id) },
-                         failure: "Couldn't remove that.")
+                         failure: L10n.string("Couldn't remove that."))
     }
 
     /// "Did this happen?" — or `.open` to take the answer back.
@@ -380,7 +393,7 @@ final class KnowledgeStore {
             predictions[i].status = status
             predictions[i].checkedAt = status == .open ? nil : ISO8601DateFormatter().string(from: .now)
         }, request: { try await KnowledgeAPI.setStatus(id: prediction.id, status: status) },
-           failure: "Couldn't save that.")
+           failure: L10n.string("Couldn't save that."))
     }
 
     func deleteAll() async {
@@ -390,7 +403,7 @@ final class KnowledgeStore {
             facts = []
             summaries = []
             predictions = []
-        }, request: { try await KnowledgeAPI.deleteAll() }, failure: "Couldn't forget everything.")
+        }, request: { try await KnowledgeAPI.deleteAll() }, failure: L10n.string("Couldn't forget everything."))
     }
 }
 

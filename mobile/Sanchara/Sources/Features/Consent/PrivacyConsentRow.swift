@@ -57,7 +57,7 @@ struct ConsentReviewSheet: View {
             .safeAreaInset(edge: .top) {
                 HStack {
                     Spacer()
-                    CircleButton(systemImage: "xmark", label: "Close", size: 38) { dismiss() }
+                    CircleButton(systemImage: "xmark", label: L10n.string("Close"), size: 38) { dismiss() }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -65,7 +65,7 @@ struct ConsentReviewSheet: View {
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 10) {
                     if let error = consent.errorMessage { BrutNotice(text: error) }
-                    SancharaPrimaryButton(title: "Withdraw consent", isLoading: consent.isSaving, kind: .secondary) {
+                    SancharaPrimaryButton(title: L10n.string("Withdraw consent"), isLoading: consent.isSaving, kind: .secondary) {
                         confirmWithdraw = true
                     }
                 }
@@ -74,15 +74,15 @@ struct ConsentReviewSheet: View {
                 .background(Theme.bg.opacity(0.92).ignoresSafeArea())
             }
             .presentationBackground(Theme.bg)
-            .alert("Withdraw consent?", isPresented: $confirmWithdraw) {
-                Button("Cancel", role: .cancel) {}
-                Button("Withdraw", role: .destructive) {
+            .alert(L10n.string("Withdraw consent?"), isPresented: $confirmWithdraw) {
+                Button(L10n.string("Cancel"), role: .cancel) {}
+                Button(L10n.string("Withdraw"), role: .destructive) {
                     Task {
                         if await consent.withdraw() { dismiss() }
                     }
                 }
             } message: {
-                Text("Readings pause until you agree again. Nothing already stored is deleted; use What Astrya knows or Delete account for that.")
+                Text(L10n.string("Readings pause until you agree again. Nothing already stored is deleted; use What Astrya knows or Delete account for that."))
             }
     }
 }

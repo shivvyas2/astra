@@ -84,7 +84,7 @@ struct NotificationPromptView: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 8) {
-                SancharaPrimaryButton(title: kind == .ask ? "Turn on notifications" : "Open Settings", kind: .accent) {
+                SancharaPrimaryButton(title: kind == .ask ? L10n.string("Turn on notifications") : L10n.string("Open Settings"), kind: .accent) {
                     Task { await primary() }
                 }
                 Button("Not now") { onDone() }

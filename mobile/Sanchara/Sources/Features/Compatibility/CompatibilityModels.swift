@@ -40,9 +40,9 @@ struct CompatibilityReport: Decodable, Equatable, Sendable {
 
         var title: String {
             switch kind {
-            case "nadi": "Nadi dosha"
-            case "bhakoot": "Bhakoot dosha"
-            default: "Mangal dosha"
+            case "nadi": L10n.string("Nadi dosha")
+            case "bhakoot": L10n.string("Bhakoot dosha")
+            default: L10n.string("Mangal dosha")
             }
         }
     }
@@ -105,6 +105,56 @@ enum GunaFormat {
         case "maitri": ChartPlanet.name(english: value, in: script)
         case "bhakoot": Rashi(english: value)?.name(in: script) ?? value
         default: value
+        }
+    }
+
+    /// The script the server's English planet and sign names are shown in on
+    /// the match screens: the app's own language when it is Hindi or
+    /// Gujarati, so a Gujarati reader never meets "Moon in Taurus". Nil in
+    /// English, which keeps the names as the server wrote them.
+    static var script: NameScript? {
+        switch AppLanguage.shared.code {
+        case "hi": .hindi
+        case "gu": .gujarati
+        default: nil
+        }
+    }
+
+    /// `category(_:koota:script:)` in the app's language, unchanged in English.
+    static func category(_ value: String, koota: String) -> String {
+        guard let script else { return value }
+        return category(value, koota: koota, script: script)
+    }
+
+    static func planet(_ english: String) -> String {
+        guard let script else { return english }
+        return ChartPlanet.name(english: english, in: script)
+    }
+
+    static func sign(_ english: String) -> String {
+        guard let script, let rashi = Rashi(english: english) else { return english }
+        return rashi.name(in: script)
+    }
+
+    /// A synastry aspect's name (`AspectName` in lib/compat/synastry.ts).
+    static func aspect(_ name: String) -> String {
+        switch name {
+        case "conjunction": L10n.string("conjunct")
+        case "sextile": L10n.string("sextile")
+        case "square": L10n.string("square")
+        case "trine": L10n.string("trine")
+        case "opposition": L10n.string("opposite")
+        default: name
+        }
+    }
+
+    /// A synastry aspect's tone (`Tone` in lib/compat/synastry.ts).
+    static func tone(_ tone: String) -> String {
+        switch tone {
+        case "harmonious": L10n.string("Harmonious")
+        case "challenging": L10n.string("Challenging")
+        case "intense": L10n.string("Intense")
+        default: tone.capitalized
         }
     }
 }

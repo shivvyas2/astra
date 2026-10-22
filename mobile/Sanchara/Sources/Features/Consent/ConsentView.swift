@@ -86,7 +86,9 @@ struct ConsentView: View {
                 .textCase(.uppercase)
                 .tracking(1.3)
                 .foregroundStyle(Theme.accent)
-                .frame(width: 52, alignment: .leading)
+                .lineLimit(2)
+                .minimumScaleFactor(0.7)
+                .frame(width: 60, alignment: .leading)
             VStack(alignment: .leading, spacing: 10) {
                 Text(section.title)
                     .font(.brutTitle(18))
@@ -141,7 +143,7 @@ struct ConsentView: View {
         VStack(alignment: .leading, spacing: 28) {
             Spacer(minLength: 0)
             ScreenHeader(
-                eyebrow: "Nothing was sent",
+                eyebrow: L10n.string("Nothing was sent"),
                 title: ConsentCopy.declinedTitle,
                 blurb: ConsentCopy.declinedBody,
                 accent: Theme.ember,

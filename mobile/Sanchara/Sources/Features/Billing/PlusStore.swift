@@ -81,16 +81,16 @@ final class PlusStore {
             switch try await product.purchase(options: options) {
             case .success(let verification):
                 await handle(verification)
-                if plan == .plus { message = "Thank you. You're on Plus." }
+                if plan == .plus { message = L10n.string("Thank you. You're on Plus.") }
             case .pending:
-                message = "Waiting for approval. Plus starts once it's approved."
+                message = L10n.string("Waiting for approval. Plus starts once it's approved.")
             case .userCancelled:
                 break
             @unknown default:
                 break
             }
         } catch {
-            message = "The purchase didn't go through. You haven't been charged."
+            message = L10n.string("The purchase didn't go through. You haven't been charged.")
         }
     }
 
@@ -108,7 +108,7 @@ final class PlusStore {
             // already on the device.
         }
         await refreshEntitlements(post: true)
-        message = plan == .plus ? "Plus restored. Thank you." : "No Astrya Plus subscription was found for this Apple ID."
+        message = plan == .plus ? L10n.string("Plus restored. Thank you.") : L10n.string("No Astrya Plus subscription was found for this Apple ID.")
     }
 
     func refreshEntitlements(post: Bool = false) async {

@@ -29,13 +29,13 @@ struct IntakeView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     VStack(alignment: .leading, spacing: 10) {
                         Text("Birth details").eyebrow()
-                        Text(addingBirthTime ? "Add your birth time." : isEditing ? "Update your details." : "Let's build your chart.")
+                        Text(addingBirthTime ? L10n.string("Add your birth time.") : isEditing ? L10n.string("Update your details.") : L10n.string("Let's build your chart."))
                             .brutHeading(40)
                             .fixedSize(horizontal: false, vertical: true)
                         Text(
                             isEditing
-                                ? "Changing your birth data recomputes your chart."
-                                : "Your real chart comes from the date, time, and place you were born."
+                                ? L10n.string("Changing your birth data recomputes your chart.")
+                                : L10n.string("Your real chart comes from the date, time, and place you were born.")
                         )
                         .font(.brutBody(15))
                         .foregroundStyle(Theme.muted)
@@ -51,8 +51,8 @@ struct IntakeView: View {
                     )
 
                     HStack(alignment: .top, spacing: 16) {
-                        SancharaField(placeholder: "First", text: $form.firstName, label: "First name")
-                        SancharaField(placeholder: "Last", text: $form.lastName, label: "Last name")
+                        SancharaField(placeholder: L10n.string("First"), text: $form.firstName, label: L10n.string("First name"))
+                        SancharaField(placeholder: L10n.string("Last"), text: $form.lastName, label: L10n.string("Last name"))
                     }
 
                     BirthDetailsFields(form: form)
@@ -63,7 +63,7 @@ struct IntakeView: View {
 
                     VStack(spacing: 8) {
                         SancharaPrimaryButton(
-                            title: isEditing ? "Update my details" : "Save & build my chart",
+                            title: isEditing ? L10n.string("Update my details") : L10n.string("Save & build my chart"),
                             isLoading: form.isSaving
                         ) {
                             Task {
@@ -187,7 +187,7 @@ final class IntakeStore {
             let image = UIImage(data: data),
             let jpeg = image.avatarJPEG()
         else {
-            errorMessage = "That image could not be read. Try another."
+            errorMessage = L10n.string("That image could not be read. Try another.")
             return
         }
         photoPreview = UIImage(data: jpeg) ?? image

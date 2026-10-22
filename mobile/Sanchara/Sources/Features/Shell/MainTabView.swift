@@ -22,11 +22,11 @@ struct MainTabView: View {
 
         var title: String {
             switch self {
-            case .today: "Today"
-            case .ask: "Ask"
-            case .kundli: "Kundli"
-            case .life: "Life"
-            case .you: "You"
+            case .today: L10n.string("Today")
+            case .ask: L10n.string("Ask")
+            case .kundli: L10n.string("Kundli")
+            case .life: L10n.string("Life")
+            case .you: L10n.string("You")
             }
         }
 
@@ -55,11 +55,11 @@ struct MainTabView: View {
         /// What the tab is for, in the tour and for VoiceOver.
         var blurb: String {
             switch self {
-            case .today: "Your morning and night readings, and alerts when a dosha or hard transit starts."
-            case .ask: "Ask anything. Every answer is read from your real birth chart."
-            case .kundli: "Your birth chart: where every planet sat when you were born."
-            case .life: "Your life in dasha periods. Pin what happened and the readings sharpen."
-            case .you: "Tap your photo at the top of Ask: birth details, photo, and your account."
+            case .today: L10n.string("Your morning and night readings, and alerts when a dosha or hard transit starts.")
+            case .ask: L10n.string("Ask anything. Every answer is read from your real birth chart.")
+            case .kundli: L10n.string("Your birth chart: where every planet sat when you were born.")
+            case .life: L10n.string("Your life in dasha periods. Pin what happened and the readings sharpen.")
+            case .you: L10n.string("Tap your photo at the top of Ask: birth details, photo, and your account.")
             }
         }
     }
@@ -245,16 +245,16 @@ struct MainTabView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
                             ScreenHeader(
-                                eyebrow: "Birth chart",
-                                title: "Your kundli",
-                                blurb: "Where every planet sat the moment you were born."
+                                eyebrow: L10n.string("Birth chart"),
+                                title: L10n.string("Your kundli"),
+                                blurb: L10n.string("Where every planet sat the moment you were born.")
                             )
                             BrutEmptyState(
-                                title: "Loading your chart",
-                                message: "Your kundli draws from the chart we computed at sign-up. If this stays empty, check your connection and pull down or tap Try again.",
+                                title: L10n.string("Loading your chart"),
+                                message: L10n.string("Your kundli draws from the chart we computed at sign-up. If this stays empty, check your connection and pull down or tap Try again."),
                                 systemImage: "square.split.diagonal.2x2"
                             )
-                            SancharaSecondaryButton(title: "Try again") {
+                            SancharaSecondaryButton(title: L10n.string("Try again")) {
                                 Task { await profile.load() }
                             }
                         }
@@ -411,8 +411,9 @@ struct BrutTabBar: View {
                         Text(tab.title)
                             .font(.system(size: 11, weight: .semibold))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .minimumScaleFactor(0.7)
                     }
+                    .padding(.horizontal, 2)
                     .foregroundStyle(selected ? Theme.ink : Theme.muted)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
@@ -424,7 +425,7 @@ struct BrutTabBar: View {
                     .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(count > 0 ? "\(tab.title), \(count) unread" : tab.title)
+                .accessibilityLabel(count > 0 ? L10n.string("\(tab.title), \(count) unread") : tab.title)
                 .accessibilityHint(tab.blurb)
                 .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
             }

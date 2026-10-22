@@ -28,7 +28,18 @@ struct MoodCheckinCard: View {
     @State private var summary: MoodPayload.Summary?
     @State private var error: String?
 
-    private static let faces = [(1, "Rough"), (2, "Low"), (3, "Okay"), (4, "Good"), (5, "Great")]
+    private static let moods = [1, 2, 3, 4, 5]
+
+    /// Computed rather than stored, so the words follow a change of language.
+    private static func label(_ mood: Int) -> String {
+        switch mood {
+        case 1: L10n.string("Rough")
+        case 2: L10n.string("Low")
+        case 3: L10n.string("Okay")
+        case 4: L10n.string("Good")
+        default: L10n.string("Great")
+        }
+    }
 
     var body: some View {
         Group {
@@ -37,8 +48,8 @@ struct MoodCheckinCard: View {
                     Text("Check in").eyebrow()
                     Text("How was today?").font(.brutTitle(20)).foregroundStyle(Theme.fg)
                     HStack(spacing: 8) {
-                        ForEach(Self.faces, id: \.0) { mood, label in
-                            face(mood, label)
+                        ForEach(Self.moods, id: \.self) { mood in
+                            face(mood, Self.label(mood))
                         }
                     }
                     if let error { BrutNotice(text: error) }
@@ -68,9 +79,9 @@ struct MoodCheckinCard: View {
 
     private var waitingText: String {
         if let summary, summary.needed > 0 {
-            return "Check in for \(summary.needed) more \(summary.needed == 1 ? "day" : "days") and Astrya will compare your days with where the Moon was for you."
+            return L10n.string("Check in for \(summary.needed) more days and Astrya will compare your days with where the Moon was for you.")
         }
-        return "No clear pattern yet between your days and the Moon. That is an answer too; it keeps checking."
+        return L10n.string("No clear pattern yet between your days and the Moon. That is an answer too; it keeps checking.")
     }
 
     private func face(_ mood: Int, _ label: String) -> some View {
@@ -80,14 +91,17 @@ struct MoodCheckinCard: View {
         } label: {
             VStack(spacing: 4) {
                 Text("\(mood)").font(.brutNumeral(22))
+                // Five across: a longer Hindi or Gujarati word shrinks to fit.
                 Text(label).font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .foregroundStyle(on ? Theme.ink : Theme.fg)
             .frame(maxWidth: .infinity, minHeight: 58)
             .brutBordered(fill: on ? Theme.accent : Theme.fg.opacity(0.04), line: on ? Theme.accent : Theme.line)
         }
         .buttonStyle(DipButtonStyle())
-        .accessibilityLabel("\(label), \(mood) of 5")
+        .accessibilityLabel(L10n.string("\(label), \(mood) of 5"))
         .accessibilityAddTraits(on ? .isSelected : [])
     }
 
@@ -116,7 +130,7 @@ struct MoodCheckinCard: View {
             await load()
         } catch {
             today = before
-            self.error = "That didn't save. Try again."
+            self.error = L10n.string("That didn't save. Try again.")
         }
     }
 }

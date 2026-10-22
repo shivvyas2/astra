@@ -20,9 +20,9 @@ struct PaywallView: View {
                 VStack(alignment: .leading, spacing: 28) {
                     ScreenHeader(
                         eyebrow: PlusCopy.eyebrow,
-                        title: store.plan == .plus ? "Thank you" : PlusCopy.title,
+                        title: store.plan == .plus ? L10n.string("Thank you") : PlusCopy.title,
                         blurb: store.plan == .plus
-                            ? "You're on Plus. Every reading is the same for everyone; your support keeps it that way."
+                            ? L10n.string("You're on Plus. Every reading is the same for everyone; your support keeps it that way.")
                             : PlusCopy.blurb,
                         titleSize: 44
                     )
@@ -50,7 +50,7 @@ struct PaywallView: View {
 
             HStack {
                 Spacer()
-                CircleButton(systemImage: "xmark", label: "Close", size: 38) { dismiss() }
+                CircleButton(systemImage: "xmark", label: L10n.string("Close"), size: 38) { dismiss() }
             }
             .padding(.horizontal, 20)
             .padding(.top, 14)
@@ -108,13 +108,13 @@ struct PaywallView: View {
         if let yearly {
             let perMonth = PlusPricing.perMonth(yearly: yearly.price, format: yearly.priceFormatStyle)
             let saving = monthly.flatMap { PlusPricing.savingsPercent(monthly: $0.price, yearly: yearly.price) }
-            yearlyNote = "\(perMonth) a month" + (saving.map { " · save \($0)%" } ?? "")
+            yearlyNote = L10n.string("\(perMonth) a month") + (saving.map { " · " + L10n.string("save \($0)%") } ?? "")
         } else {
-            yearlyNote = "$4.17 a month · save 40%"
+            yearlyNote = L10n.string("\("$4.17") a month") + " · " + L10n.string("save \(40)%")
         }
         return [
-            Option(id: PlusProducts.yearly, label: "Yearly", price: yearly?.displayPrice ?? PlusCopy.fallbackYearly, per: "year", note: yearlyNote),
-            Option(id: PlusProducts.monthly, label: "Monthly", price: monthly?.displayPrice ?? PlusCopy.fallbackMonthly, per: "month", note: nil),
+            Option(id: PlusProducts.yearly, label: L10n.string("Yearly"), price: yearly?.displayPrice ?? PlusCopy.fallbackYearly, per: L10n.string("year"), note: yearlyNote),
+            Option(id: PlusProducts.monthly, label: L10n.string("Monthly"), price: monthly?.displayPrice ?? PlusCopy.fallbackMonthly, per: L10n.string("month"), note: nil),
         ]
     }
 
@@ -134,6 +134,8 @@ struct PaywallView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(option.label)
                                 .font(.system(size: 16, weight: .semibold))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
                                 .foregroundStyle(Theme.fg)
                             if let note = option.note {
                                 Text(note)
@@ -150,7 +152,7 @@ struct PaywallView: View {
                                 .foregroundStyle(Theme.fg)
                                 .lineLimit(1)
                                 .fixedSize()
-                            Text("/\(option.per)")
+                            Text(verbatim: "/\(option.per)")
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(Theme.muted)
                                 .fixedSize()
@@ -168,23 +170,26 @@ struct PaywallView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(DipButtonStyle())
-                .accessibilityLabel("\(option.label), \(option.price) per \(option.per)\(option.note.map { ", \($0)" } ?? "")")
+                .accessibilityLabel(L10n.string("\(option.label), \(option.price) per \(option.per)") + (option.note.map { ", \($0)" } ?? ""))
                 .accessibilityAddTraits(active ? .isSelected : [])
             }
             if store.loadState == .failed {
-                BrutNotice(text: "Prices couldn't be loaded from the App Store. Check your connection.", tone: .info)
+                BrutNotice(text: L10n.string("Prices couldn't be loaded from the App Store. Check your connection."), tone: .info)
             }
         }
     }
 
     private var selectedProduct: Product? { store.products.first { $0.id == selected } }
-    private var selectedPeriod: String { selected == PlusProducts.yearly ? "year" : "month" }
+    private var isYearlySelected: Bool { selected == PlusProducts.yearly }
 
     private var purchaseBar: some View {
         VStack(spacing: 10) {
             SancharaPrimaryButton(
-                title: selectedProduct.map { "Subscribe for \($0.displayPrice)/\(selectedPeriod)" }
-                    ?? (store.loadState == .failed ? "Prices unavailable" : "Loading prices…"),
+                title: selectedProduct.map {
+                    isYearlySelected
+                        ? L10n.string("Subscribe for \($0.displayPrice)/year")
+                        : L10n.string("Subscribe for \($0.displayPrice)/month")
+                } ?? (store.loadState == .failed ? L10n.string("Prices unavailable") : L10n.string("Loading prices…")),
                 isLoading: store.isPurchasing,
                 kind: .accent
             ) {
@@ -192,7 +197,7 @@ struct PaywallView: View {
             }
             .disabled(selectedProduct == nil)
             .opacity(selectedProduct == nil ? 0.6 : 1)
-            Text(PlusCopy.renewalDisclosure(period: selectedPeriod))
+            Text(PlusCopy.renewalDisclosure(yearly: isYearlySelected))
                 .font(.system(size: 11))
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
@@ -217,11 +222,11 @@ struct PaywallView: View {
 
     private var memberCard: some View {
         VStack(alignment: .leading, spacing: 0) {
-            DataRow(label: "Plan", value: store.current?.productID == PlusProducts.monthly ? "Monthly" : "Yearly", valueSize: 22)
+            DataRow(label: L10n.string("Plan"), value: store.current?.productID == PlusProducts.monthly ? L10n.string("Monthly") : L10n.string("Yearly"), valueSize: 22)
             if let date = store.current?.expirationDate {
-                DataRow(label: "Renews or ends", value: date.formatted(date: .abbreviated, time: .omitted), valueSize: 22)
+                DataRow(label: L10n.string("Renews or ends"), value: date.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted).locale(L10n.locale)), valueSize: 22)
             }
-            SancharaPrimaryButton(title: "Manage subscription", kind: .secondary) { showManage = true }
+            SancharaPrimaryButton(title: L10n.string("Manage subscription"), kind: .secondary) { showManage = true }
                 .padding(.top, 16)
         }
     }

@@ -21,7 +21,7 @@ struct MatchSection: View {
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.accent)
                 .padding(.bottom, 8)
-            Text(firstName.isEmpty ? "Match your stars" : "Match your stars, \(firstName)")
+            Text(firstName.isEmpty ? L10n.string("Match your stars") : L10n.string("Match your stars, \(firstName)"))
                 .headlineArrow()
                 .brutHeading(32)
                 .fixedSize(horizontal: false, vertical: true)
@@ -33,13 +33,13 @@ struct MatchSection: View {
                 .padding(.bottom, 16)
 
             if !people.available {
-                BrutNotice(text: "Matching isn't switched on for this account yet.")
+                BrutNotice(text: L10n.string("Matching isn't switched on for this account yet."))
             } else {
                 ForEach(people.people) { person in
                     BrutDivider()
                     Button { selected = person } label: { row(person) }
                         .buttonStyle(.plain)
-                        .accessibilityHint("Opens your match with \(person.label)")
+                        .accessibilityHint(L10n.string("Opens your match with \(person.label)"))
                 }
                 BrutDivider()
                 Button { adding = true } label: {
@@ -90,7 +90,7 @@ struct MatchSection: View {
                 Text(person.label)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.fg)
-                Text([person.relationship.label, person.moonSign.map { "Moon in \($0)" }].compactMap { $0 }.joined(separator: ", "))
+                Text([person.relationship.label, person.moonSign.map { L10n.string("Moon in \(GunaFormat.sign($0))") }].compactMap { $0 }.joined(separator: ", "))
                     .font(.brutBody(13))
                     .foregroundStyle(Theme.muted)
             }

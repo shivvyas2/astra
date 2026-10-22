@@ -112,13 +112,26 @@ struct CurrentPeriodIntent: AppIntent {
         guard let dasha = IntentData.chart()?.dasha else {
             throw SancharaIntentError.noChartYet
         }
-        let line = "You are in \(dasha.mahadasha) mahadasha until \(Self.spoken(dasha.mahadashaEnd)), "
-            + "and \(dasha.antardasha) antardasha until \(Self.spoken(dasha.antardashaEnd))."
+        let maha = ChartPlanet.displayName(dasha.mahadasha)
+        let antar = ChartPlanet.displayName(dasha.antardasha)
+        let mahaEnd = Self.spoken(dasha.mahadashaEnd)
+        let antarEnd = Self.spoken(dasha.antardashaEnd)
+        let line = L10n.string("You are in \(maha) mahadasha until \(mahaEnd), and \(antar) antardasha until \(antarEnd).")
         return .result(dialog: IntentDialog(stringLiteral: line))
     }
 
+    /// "March 2031", with the month in the app's language. ChartFacts'
+    /// version is pinned to English for the model; this one is said aloud.
     private static func spoken(_ iso: String) -> String {
-        ChartFacts.calendarDay(iso, format: "MMMM yyyy")
+        let parser = ISO8601DateFormatter()
+        parser.formatOptions = [.withFullDate]
+        parser.timeZone = TimeZone(secondsFromGMT: 0)
+        guard let date = parser.date(from: String(iso.prefix(10))) else { return iso }
+        let pretty = DateFormatter()
+        pretty.locale = L10n.locale
+        pretty.timeZone = TimeZone(secondsFromGMT: 0)
+        pretty.dateFormat = "MMMM yyyy"
+        return pretty.string(from: date)
     }
 }
 

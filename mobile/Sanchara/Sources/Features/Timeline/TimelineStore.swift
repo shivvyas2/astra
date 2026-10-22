@@ -93,6 +93,11 @@ struct NowPeriod: Decodable, Hashable {
     let meaning: String?
 
     var pairLabel: String { "\(lord) – \(antardasha)" }
+
+    /// The pair as it is read aloud and shown, in the app's language.
+    var displayPairLabel: String {
+        "\(ChartPlanet.displayName(lord)) – \(ChartPlanet.displayName(antardasha))"
+    }
 }
 
 /// A moment the user pinned, placed in the period it fell in.
@@ -108,9 +113,9 @@ struct LifeEvent: Decodable, Identifiable, Hashable {
 
     /// The dasha pair running when it happened — the line that does the work.
     var duringLabel: String? {
-        guard let maha = mahadasha else { return nil }
-        guard let antar = antardasha else { return "during \(maha)" }
-        return "during \(maha)–\(antar)"
+        guard let maha = mahadasha.map(ChartPlanet.displayName) else { return nil }
+        guard let antar = antardasha.map(ChartPlanet.displayName) else { return L10n.string("during \(maha)") }
+        return L10n.string("during \(maha)–\(antar)")
     }
 
     /// Rendered to the precision the user actually gave us, so a year-precision
@@ -252,16 +257,19 @@ enum TimelineDate {
     static func parse(_ value: String) -> Date? { iso.date(from: value) }
     static func format(_ date: Date) -> String { iso.string(from: date) }
 
+    /// Built on each use rather than kept, so month names follow the app's
+    /// language the moment it changes.
     private static func display(_ format: String) -> DateFormatter {
         let f = DateFormatter()
         f.timeZone = utc
+        f.locale = L10n.locale
         f.setLocalizedDateFormatFromTemplate(format)
         return f
     }
 
-    static let day = display("dMMMy")
-    static let month = display("MMMy")
-    static let year = display("y")
+    static var day: DateFormatter { display("dMMMy") }
+    static var month: DateFormatter { display("MMMy") }
+    static var year: DateFormatter { display("y") }
 }
 
 @Observable

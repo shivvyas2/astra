@@ -22,7 +22,7 @@ struct DailyReading: Decodable, Identifiable, Hashable {
 
     var isUnread: Bool { readAt == nil }
     var isMorning: Bool { slot == "morning" }
-    var slotLabel: String { isMorning ? "Morning" : "Night" }
+    var slotLabel: String { isMorning ? L10n.string("Morning") : L10n.string("Night") }
 }
 
 /// A day's readings, for the date-grouped list.
@@ -39,10 +39,11 @@ struct DailyReadingDay: Identifiable {
         guard let day = parser.date(from: date) else { return date }
 
         let calendar = Calendar.current
-        if calendar.isDateInToday(day) { return "Today" }
-        if calendar.isDateInYesterday(day) { return "Yesterday" }
+        if calendar.isDateInToday(day) { return L10n.string("Today") }
+        if calendar.isDateInYesterday(day) { return L10n.string("Yesterday") }
 
         let pretty = DateFormatter()
+        pretty.locale = L10n.locale
         pretty.dateStyle = .long
         pretty.timeStyle = .none
         return pretty.string(from: day)

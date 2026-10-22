@@ -35,7 +35,7 @@ struct TimelineView: View {
                 content
             }
             .clearsTabBar(active: embedded)
-            .navigationTitle(embedded ? "" : "Your life")
+            .navigationTitle(embedded ? "" : L10n.string("Your life"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 if !embedded {
@@ -47,8 +47,8 @@ struct TimelineView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     HStack(spacing: 8) {
-                        BrutIconButton(systemImage: "calendar", label: "Key dates") { showKeyDates = true }
-                        BrutIconButton(systemImage: "plus", label: "Pin a moment") { showAdd = true }
+                        BrutIconButton(systemImage: "calendar", label: L10n.string("Key dates")) { showKeyDates = true }
+                        BrutIconButton(systemImage: "plus", label: L10n.string("Pin a moment")) { showAdd = true }
                             .disabled(store.state != .ready)
                         if embedded { ProfileAvatarButton() }
                     }
@@ -85,8 +85,8 @@ struct TimelineView: View {
             ProgressView().tint(Theme.muted)
         case .needsProfile:
             VStack(spacing: 16) {
-                message("Add your birth details first. The timeline is computed from them.")
-                SancharaSecondaryButton(title: "Add birth details in You") {
+                message(L10n.string("Add your birth details first. The timeline is computed from them."))
+                SancharaSecondaryButton(title: L10n.string("Add birth details in You")) {
                     if !embedded { dismiss() }
                     navigator.open(.you)
                 }
@@ -95,7 +95,7 @@ struct TimelineView: View {
         case .failed(let text):
             VStack(spacing: 16) {
                 message(text)
-                SancharaSecondaryButton(title: "Try again") { Task { await store.load() } }
+                SancharaSecondaryButton(title: L10n.string("Try again")) { Task { await store.load() } }
                     .frame(maxWidth: 240)
             }
         case .ready:
@@ -109,9 +109,9 @@ struct TimelineView: View {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                     if embedded {
                         ScreenHeader(
-                            eyebrow: "Life map",
-                            title: "Your life in periods",
-                            blurb: "Vimshottari dasha periods from birth onward. Pin what really happened and the readings get sharper.",
+                            eyebrow: L10n.string("Life map"),
+                            title: L10n.string("Your life in periods"),
+                            blurb: L10n.string("Vimshottari dasha periods from birth onward. Pin what really happened and the readings get sharper."),
                             accent: Theme.violet,
                             titleSize: 36,
                             trailingArrow: true
@@ -180,15 +180,15 @@ struct TimelineView: View {
             }
         }
         .confirmationDialog(
-            pendingDelete.map { "Remove “\($0.title)”?" } ?? "",
+            pendingDelete.map { L10n.string("Remove “\($0.title)”?") } ?? "",
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
             titleVisibility: .visible
         ) {
-            Button("Remove", role: .destructive) {
+            Button(L10n.string("Remove"), role: .destructive) {
                 if let event = pendingDelete { Task { await store.remove(event) } }
                 pendingDelete = nil
             }
-            Button("Keep", role: .cancel) { pendingDelete = nil }
+            Button(L10n.string("Keep"), role: .cancel) { pendingDelete = nil }
         }
     }
 
@@ -208,7 +208,7 @@ struct TimelineView: View {
                 .font(.brutBody(14))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            SancharaPrimaryButton(title: "Pin a moment", kind: .accent) { showAdd = true }
+            SancharaPrimaryButton(title: L10n.string("Pin a moment"), kind: .accent) { showAdd = true }
                 .padding(.top, 4)
         }
         .padding(18)
@@ -223,7 +223,7 @@ struct TimelineView: View {
     /// it scrolls. Choosing one scrolls the list to it and opens it.
     private func periodScrubber(_ proxy: ScrollViewProxy) -> some View {
         MonthScrubber(
-            items: store.periods.map { (id: $0.id, label: "\($0.lord) \($0.startYear)") },
+            items: store.periods.map { (id: $0.id, label: "\(ChartPlanet.displayName($0.lord)) \($0.startYear)") },
             selection: Binding(
                 get: { scrubbed ?? store.currentBand?.id ?? store.periods.first?.id ?? "" },
                 set: { id in
@@ -235,7 +235,7 @@ struct TimelineView: View {
                 }
             ),
             tint: Theme.violet,
-            accessibilityName: "Jump to a period"
+            accessibilityName: L10n.string("Jump to a period")
         )
         .padding(.top, 6)
         .frame(height: Self.scrubberHeight, alignment: .bottom)
@@ -255,8 +255,11 @@ struct TimelineView: View {
     /// Carries the running period to Ask as a question, sent at once.
     private func askAbout(_ now: NowPeriod) {
         if !embedded { dismiss() }
+        // Sent as the person's own question, so it is in their language.
+        let lord = ChartPlanet.displayName(now.lord)
+        let sub = ChartPlanet.displayName(now.antardasha)
         navigator.ask(
-            "I'm in my \(now.lord) mahadasha, \(now.antardasha) sub-period. What does it mean for me right now, and what should I do with it?",
+            L10n.string("I'm in my \(lord) mahadasha, \(sub) sub-period. What does it mean for me right now, and what should I do with it?"),
             true
         )
     }
@@ -282,7 +285,7 @@ struct TimelineView: View {
                 .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            SancharaPrimaryButton(title: store.isRescan ? "Find new moments" : "Find my moments", isLoading: store.isScanning) {
+            SancharaPrimaryButton(title: store.isRescan ? L10n.string("Find new moments") : L10n.string("Find my moments"), isLoading: store.isScanning) {
                 Task { await store.scan() }
             }
         }
@@ -356,11 +359,11 @@ private struct NowCard: View {
             .padding(.top, 10)
             .padding(.bottom, 8)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel(now.pairLabel)
+            .accessibilityLabel(now.displayPairLabel)
 
-            DataRow(label: "Main period", value: "\(band.startYear) – \(band.endYear)", valueSize: 22)
+            DataRow(label: L10n.string("Main period"), value: "\(band.startYear) – \(band.endYear)", valueSize: 22)
             StatRow(
-                label: "Progress",
+                label: L10n.string("Progress"),
                 systemImage: "chart.line.uptrend.xyaxis",
                 value: "\(percent)",
                 unit: "%",
@@ -372,11 +375,11 @@ private struct NowCard: View {
                 .padding(.bottom, 4)
 
             StatRow(
-                label: "Years left",
+                label: L10n.string("Years left"),
                 systemImage: "hourglass",
                 value: yearsLeft,
-                unit: "years",
-                caption: "until \(band.endYear)"
+                unit: L10n.string("years"),
+                caption: L10n.string("until \(band.endYear)")
             )
             .padding(.bottom, 16)
 
@@ -393,9 +396,9 @@ private struct NowCard: View {
             }
 
             VStack(spacing: 0) {
-                ViewMoreRow(title: "Why this period matters", action: onExplain)
+                ViewMoreRow(title: L10n.string("Why this period matters"), action: onExplain)
                 ViewMoreRow(
-                    title: "Ask about \(now.lord)–\(now.antardasha)",
+                    title: L10n.string("Ask about \(ChartPlanet.displayName(now.lord))–\(ChartPlanet.displayName(now.antardasha))"),
                     systemImage: "arrow.up.right",
                     showsTopRule: false,
                     tint: Theme.accent,
@@ -419,7 +422,7 @@ private struct NowCard: View {
     }
 
     private var lordText: some View {
-        Text(now.lord)
+        Text(ChartPlanet.displayName(now.lord))
             .font(.brutDisplay(56))
             .tracking(-56 * 0.035)
             .foregroundStyle(Theme.accent)
@@ -428,7 +431,7 @@ private struct NowCard: View {
     }
 
     private var subText: some View {
-        Text("– \(now.antardasha)")
+        Text(verbatim: "– \(ChartPlanet.displayName(now.antardasha))")
             .font(.brutDisplay(24))
             .tracking(-24 * 0.03)
             .foregroundStyle(Theme.muted)
@@ -514,15 +517,15 @@ private struct BandRow: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(band.lord)
+                Text(ChartPlanet.displayName(band.lord))
                     .font(.brutDisplay(26))
                     .tracking(-26 * 0.03)
                     .foregroundStyle(tint)
                 if band.isCurrent {
-                    BrutTag(text: "Now")
+                    BrutTag(text: L10n.string("Now"))
                 }
                 Spacer(minLength: 8)
-                Text("\(band.startYear) – \(band.endYear)")
+                Text(verbatim: "\(band.startYear) – \(band.endYear)")
                     .font(.brutMono(13))
                     .foregroundStyle(Theme.muted)
             }
@@ -535,8 +538,8 @@ private struct BandRow: View {
             HStack(spacing: 6) {
                 Text("\(band.years) years")
                 if band.eventCount > 0 {
-                    Text("·")
-                    Text(band.eventCount == 1 ? "1 moment" : "\(band.eventCount) moments")
+                    Text(verbatim: "·")
+                    Text("\(band.eventCount) moments")
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.down")
@@ -554,7 +557,7 @@ private struct BandRow: View {
 
     private var progressBar: some View {
         BrutProgressBar(progress: band.progress(today: today))
-            .accessibilityLabel("\(Int(band.progress(today: today) * 100)) percent through this period")
+            .accessibilityLabel(L10n.string("\(Int(band.progress(today: today) * 100)) percent through this period"))
     }
 
     private var antardashaList: some View {
@@ -568,11 +571,11 @@ private struct BandRow: View {
                         Circle().fill(Theme.accent).frame(width: 6, height: 6)
                             .accessibilityHidden(true)
                     }
-                    Text("\(band.lord)–\(sub.lord)")
+                    Text(verbatim: "\(ChartPlanet.displayName(band.lord))–\(ChartPlanet.displayName(sub.lord))")
                         .font(.system(size: 14, weight: isNow ? .semibold : .regular))
                         .foregroundStyle(isNow ? Theme.accent : Theme.fg)
                     Spacer(minLength: 8)
-                    Text("\(String(sub.start.prefix(7))) – \(String(sub.end.prefix(7)))")
+                    Text(verbatim: "\(String(sub.start.prefix(7))) – \(String(sub.end.prefix(7)))")
                         .font(.brutMono(11, weight: .regular))
                         .foregroundStyle(isNow ? Theme.accent : Theme.muted)
                 }
@@ -612,7 +615,7 @@ private struct EventRow: View {
                 HStack(spacing: 6) {
                     Text(event.dateLabel)
                     if let during = event.duringLabel {
-                        Text("·")
+                        Text(verbatim: "·")
                         Text(during)
                     }
                 }

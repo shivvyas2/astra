@@ -11,9 +11,9 @@ enum ChatMode: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .vedic: "Vedic"
-        case .western: "Western"
-        case .numerology: "Numerology"
+        case .vedic: L10n.string("Vedic")
+        case .western: L10n.string("Western")
+        case .numerology: L10n.string("Numerology")
         }
     }
 
@@ -22,9 +22,9 @@ enum ChatMode: String, CaseIterable, Identifiable, Sendable {
     /// nobody knew what the three states were.
     var blurb: String {
         switch self {
-        case .vedic: "Sidereal chart, dashas and today's transits"
-        case .western: "Tropical chart with Placidus houses"
-        case .numerology: "Your numbers, from your name and birth date"
+        case .vedic: L10n.string("Sidereal chart, dashas and today's transits")
+        case .western: L10n.string("Tropical chart with Placidus houses")
+        case .numerology: L10n.string("Your numbers, from your name and birth date")
         }
     }
 

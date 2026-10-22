@@ -30,8 +30,8 @@ struct PersonFormView: View {
                         }
 
                         HStack(alignment: .top, spacing: 16) {
-                            SancharaField(placeholder: "First", text: $form.firstName, label: "First name")
-                            SancharaField(placeholder: "Optional", text: $form.lastName, label: "Last name")
+                            SancharaField(placeholder: L10n.string("First"), text: $form.firstName, label: L10n.string("First name"))
+                            SancharaField(placeholder: L10n.string("Optional"), text: $form.lastName, label: L10n.string("Last name"))
                         }
 
                         VStack(alignment: .leading, spacing: 10) {
@@ -53,7 +53,7 @@ struct PersonFormView: View {
                             BrutNotice(text: error)
                         }
 
-                        SancharaPrimaryButton(title: "Save and compare", isLoading: isSaving) {
+                        SancharaPrimaryButton(title: L10n.string("Save and compare"), isLoading: isSaving) {
                             Task { await save() }
                         }
                         .disabled(!form.isComplete || isSaving)

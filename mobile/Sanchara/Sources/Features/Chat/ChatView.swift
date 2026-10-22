@@ -83,7 +83,7 @@ struct ChatView: View {
                 composer
 
                 if suggestions.isThinking {
-                    ShimmerText("Thinking of what to ask…", active: !reduceMotion)
+                    ShimmerText(L10n.string("Thinking of what to ask…"), active: !reduceMotion)
                 } else if !suggestions.suggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 0) {
                         Text("Try asking").eyebrow()
@@ -152,12 +152,12 @@ struct ChatView: View {
                 } label: {
                     HStack(spacing: 12) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(conversation.title ?? "Reading")
+                            Text(conversation.title ?? L10n.string("Reading"))
                                 .font(.brutBody(16))
                                 .foregroundStyle(Theme.fg)
                                 .lineLimit(2)
                                 .multilineTextAlignment(.leading)
-                            Text(conversation.createdAt.formatted(.relative(presentation: .named)))
+                            Text(conversation.createdAt.formatted(.relative(presentation: .named).locale(L10n.locale)))
                                 .font(.brutBody(12))
                                 .foregroundStyle(Theme.muted)
                         }
@@ -205,8 +205,8 @@ struct ChatView: View {
 
     private var heroSpoken: String {
         let name = profile.details?.firstName ?? ""
-        let title = name.isEmpty ? "Read your stars." : "Read your stars, \(name)."
-        return "Ask. \(title) Ask about work, love, money, a decision, a year. Every answer is read from your real birth chart, not your Sun sign."
+        let title = name.isEmpty ? L10n.string("Read your stars.") : L10n.string("Read your stars, \(name).")
+        return L10n.string("Ask. \(title) Ask about work, love, money, a decision, a year. Every answer is read from your real birth chart, not your Sun sign.")
     }
 
     private var greeting: Text {
@@ -232,7 +232,10 @@ struct ChatView: View {
                     BrutChip(text: mode.label, active: chat.mode == mode, color: mode.dot) {
                         chat.mode = mode
                     }
-                    .accessibilityLabel("\(mode.label) mode. \(mode.blurb)")
+                    // Three across at 375 pt; "अंक ज्योतिष" and "અંકશાસ્ત્ર" run longer than "Vedic".
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .accessibilityLabel(L10n.string("\(mode.label) mode. \(mode.blurb)"))
                     .accessibilityAddTraits(chat.mode == mode ? .isSelected : [])
                 }
             }
@@ -356,7 +359,7 @@ struct ChatView: View {
                 .padding(.vertical, 12)
                 .brutCard(fill: Theme.fg.opacity(0.06), radius: 22)
                 .frame(maxWidth: 300, alignment: .trailing)
-                .accessibilityLabel("You asked: \(message.content)")
+                .accessibilityLabel(L10n.string("You asked: \(message.content)"))
         case .assistant:
             HStack(alignment: .top, spacing: 12) {
                 Capsule()
@@ -365,7 +368,7 @@ struct ChatView: View {
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 10) {
                     if message.content.isEmpty {
-                        ShimmerText("Reading your chart…", active: !reduceMotion)
+                        ShimmerText(L10n.string("Reading your chart…"), active: !reduceMotion)
                     } else {
                         MarkdownText(markdown: message.content)
                         if isLast && chat.isStreaming {
@@ -411,7 +414,7 @@ struct ChatView: View {
     private var suggestionChips: some View {
         if suggestions.isThinking {
             HStack {
-                ShimmerText("Thinking of what to ask next…", active: !reduceMotion)
+                ShimmerText(L10n.string("Thinking of what to ask next…"), active: !reduceMotion)
                 Spacer()
             }
             .padding(.horizontal, 20)
@@ -453,7 +456,7 @@ struct ChatView: View {
             }
 
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("", text: $chat.input, prompt: Text(chat.match.map { "Ask about you and \($0.name)…" } ?? "Ask Astrya…").foregroundStyle(Theme.muted), axis: .vertical)
+                TextField("", text: $chat.input, prompt: Text(chat.match.map { L10n.string("Ask about you and \($0.name)…") } ?? L10n.string("Ask Astrya…")).foregroundStyle(Theme.muted), axis: .vertical)
                     .lineLimit(1...5)
                     .font(.brutBody(15))
                     .foregroundStyle(Theme.fg)
@@ -465,7 +468,7 @@ struct ChatView: View {
                     // As tall as the button, so one line sits centred on it.
                     .frame(minHeight: 40)
 
-                CircleButton(systemImage: "arrow.up", label: "Send", fill: .accent, size: 40) {
+                CircleButton(systemImage: "arrow.up", label: L10n.string("Send"), fill: .accent, size: 40) {
                     inputFocused = false
                     chat.sendCurrentInput()
                 }
@@ -485,10 +488,11 @@ struct ChatView: View {
 
             HStack(spacing: 8) {
                 modeMenu
-                BrutChip(text: "Deep", active: chat.deep, color: Theme.fg) {
+                BrutChip(text: L10n.string("Deep"), active: chat.deep, color: Theme.fg) {
                     chat.deep.toggle()
                 }
-                .accessibilityLabel(chat.deep ? "Deep reading on" : "Deep reading off")
+                .lineLimit(1)
+                .accessibilityLabel(chat.deep ? L10n.string("Deep reading on") : L10n.string("Deep reading off"))
                 .accessibilityHint("A bigger model and a longer answer")
                 Spacer(minLength: 0)
                 // Always the same two lines, so the row looks the same in every
@@ -498,8 +502,12 @@ struct ChatView: View {
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.trailing)
                     .lineLimit(2)
-                    .fixedSize()
-                    .accessibilityLabel("Guidance, not professional advice.")
+                    // Its ideal width in English; Hindi and Gujarati run longer,
+                    // so there it shrinks a little rather than pushing the row
+                    // past the screen.
+                    .minimumScaleFactor(0.75)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(L10n.string("Guidance, not professional advice."))
             }
         }
     }
@@ -541,7 +549,7 @@ struct ChatView: View {
             .padding(.vertical, 4)
             .contentShape(Rectangle())
         }
-        .accessibilityLabel("Reading mode: \(chat.mode.label). \(chat.mode.blurb). Opens a list of modes.")
+        .accessibilityLabel(L10n.string("Reading mode: \(chat.mode.label). \(chat.mode.blurb). Opens a list of modes."))
     }
 
     // MARK: - Header
@@ -559,17 +567,17 @@ struct ChatView: View {
                 .accessibilityLabel("Astrya")
                 .accessibilityAddTraits(.isHeader)
             } else {
-                CircleButton(systemImage: "chevron.left", label: "Back to Ask", size: 40) {
+                CircleButton(systemImage: "chevron.left", label: L10n.string("Back to Ask"), size: 40) {
                     startNewReading()
                 }
                 .accessibilityHint("Leaves this reading. It stays in Past readings.")
                 HStack(spacing: 7) {
                     // A match reading names who it is about instead of the mode.
-                    Text(chat.match.map { "You & \($0.name)" } ?? chat.mode.label)
+                    Text(chat.match.map { L10n.string("You & \($0.name)") } ?? chat.mode.label)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                     if chat.deep {
-                        BrutTag(text: "Deep", fill: Theme.fg, textColor: Theme.ink)
+                        BrutTag(text: L10n.string("Deep"), fill: Theme.fg, textColor: Theme.ink)
                     }
                 }
                 .lineLimit(1)
@@ -689,9 +697,9 @@ private struct HeaderActions: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            button("clock.arrow.circlepath", label: "Past readings", action: onHistory)
+            button("clock.arrow.circlepath", label: L10n.string("Past readings"), action: onHistory)
             Rectangle().fill(Theme.line).frame(width: Theme.lineWidth, height: 20)
-            button("square.and.pencil", label: "New reading", action: onNew ?? {})
+            button("square.and.pencil", label: L10n.string("New reading"), action: onNew ?? {})
                 .disabled(onNew == nil)
                 .opacity(onNew == nil ? 0.35 : 1)
         }

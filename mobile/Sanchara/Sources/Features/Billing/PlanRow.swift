@@ -21,7 +21,7 @@ struct PlanRow: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {
-                            Text(store.plan == .plus ? "Plus member" : PlusCopy.title)
+                            Text(store.plan == .plus ? L10n.string("Plus member") : PlusCopy.title)
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundStyle(Theme.fg)
                             if store.plan == .plus { PlusBadge() }
@@ -57,7 +57,7 @@ struct PlanRow: View {
 /// You screen for subscribers (`if PlusStore.shared.plan == .plus { PlusBadge() }`).
 struct PlusBadge: View {
     var body: some View {
-        BrutTag(text: "Plus", fill: Theme.accent, textColor: Theme.ink)
+        BrutTag(text: L10n.string("Plus"), fill: Theme.accent, textColor: Theme.ink)
             .accessibilityLabel("Astrya Plus member")
     }
 }

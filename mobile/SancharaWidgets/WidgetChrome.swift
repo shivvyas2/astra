@@ -89,6 +89,8 @@ struct WidgetEyebrow: View {
             .tracking(1.4)
             .foregroundStyle(color)
             .lineLimit(1)
+            // Hindi and Gujarati eyebrows run longer than the English.
+            .minimumScaleFactor(0.7)
     }
 }
 
@@ -168,9 +170,9 @@ enum AlertTone {
 
     static func label(for severity: String) -> String {
         switch severity {
-        case "warning": "Warning"
-        case "caution": "Caution"
-        default: "Note"
+        case "warning": L10n.string("Warning")
+        case "caution": L10n.string("Caution")
+        default: L10n.string("Note")
         }
     }
 }
@@ -181,6 +183,7 @@ enum WidgetTime {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         formatter.dateTimeStyle = .named
+        formatter.locale = L10n.locale
         return formatter.localizedString(for: date, relativeTo: now)
     }
 }

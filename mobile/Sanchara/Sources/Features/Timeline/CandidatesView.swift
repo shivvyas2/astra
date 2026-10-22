@@ -40,7 +40,7 @@ struct CandidatesView: View {
                     actions
                 }
             }
-            .navigationTitle("Moments found")
+            .navigationTitle(L10n.string("Moments found"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -79,8 +79,8 @@ struct CandidatesView: View {
             VStack(spacing: 0) {
                 Spacer()
                 BrutEmptyState(
-                    title: "Nothing to add yet",
-                    message: "I couldn't find dated events in our conversations. You can pin moments yourself with the + button.",
+                    title: L10n.string("Nothing to add yet"),
+                    message: L10n.string("I couldn't find dated events in our conversations. You can pin moments yourself with the + button."),
                     systemImage: "magnifyingglass"
                 )
                 Spacer()
@@ -125,7 +125,7 @@ struct CandidatesView: View {
                                 .foregroundStyle(Theme.accent)
                         }
                         if !candidate.evidence.isEmpty {
-                            Text("“\(candidate.evidence)”")
+                            Text(verbatim: "“\(candidate.evidence)”")
                                 .font(.system(size: 12).italic())
                                 .foregroundStyle(Theme.muted)
                                 .multilineTextAlignment(.leading)
@@ -187,7 +187,7 @@ struct CandidatesView: View {
         ) {
             Text("Choose a year").tag(0)
             ForEach(Array(yearRange.reversed()), id: \.self) { year in
-                Text(String(year)).tag(year)
+                Text(verbatim: String(year)).tag(year)
             }
         }
         .pickerStyle(.menu)
@@ -198,10 +198,10 @@ struct CandidatesView: View {
     private var actions: some View {
         VStack(spacing: 10) {
             if store.candidates.isEmpty {
-                SancharaPrimaryButton(title: "Done") { store.candidates = []; dismiss() }
+                SancharaPrimaryButton(title: L10n.string("Done")) { store.candidates = []; dismiss() }
             } else {
                 SancharaPrimaryButton(
-                    title: chosen.isEmpty ? "Add none" : "Add \(chosen.count) to timeline",
+                    title: chosen.isEmpty ? L10n.string("Add none") : L10n.string("Add \(chosen.count) to timeline"),
                     isLoading: store.isSaving
                 ) {
                     let picked = chosenCandidates

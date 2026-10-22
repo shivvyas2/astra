@@ -14,14 +14,17 @@ import WidgetKit
 /// progress bar should move by a day when a day has passed.
 struct PeriodProvider: TimelineProvider {
     func placeholder(in context: Context) -> PeriodEntry {
-        PeriodEntry(date: Date(), period: .preview)
+        AppLanguage.shared.reload()
+        return PeriodEntry(date: Date(), period: .preview)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (PeriodEntry) -> Void) {
+        AppLanguage.shared.reload()
         completion(PeriodEntry(date: Date(), period: current()))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<PeriodEntry>) -> Void) {
+        AppLanguage.shared.reload()
         let entry = PeriodEntry(date: Date(), period: current())
         completion(Timeline(entries: [entry], policy: .after(Self.nextMidnight())))
     }
@@ -83,11 +86,12 @@ struct PeriodEntry: TimelineEntry {
         let yearsLeft: Int
         let theme: String?
 
-        var pairLabel: String { "\(lord) – \(antardasha)" }
+        /// The lords as the API names them, in the app's language.
+        var lordName: String { ChartPlanet.displayName(lord) }
+        var antardashaName: String { ChartPlanet.displayName(antardasha) }
+        var pairLabel: String { "\(lordName) – \(antardashaName)" }
         var yearsLabel: String { "\(startYear) – \(endYear)" }
-        var leftLabel: String {
-            yearsLeft == 1 ? "1 year left" : "\(yearsLeft) years left"
-        }
+        var leftLabel: String { L10n.string("\(yearsLeft) years left") }
 
         static let preview = Period(
             lord: "Saturn", antardasha: "Mercury",
@@ -112,11 +116,13 @@ struct PeriodWidgetView: View {
                 case .accessoryInline:
                     // One line, tinted by the system. The pair is the fact
                     // worth a glance at the top of the Lock Screen.
-                    Text("\(period.pairLabel) · \(period.leftLabel)")
+                    Text(verbatim: "\(period.pairLabel) · \(period.leftLabel)")
                 case .accessoryRectangular:
                     VStack(alignment: .leading, spacing: 2) {
                         Text("YOUR PERIOD")
                             .font(.system(size: 10, weight: .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                             .widgetAccentable()
                         Text(period.pairLabel)
                             .font(.system(size: 13, weight: .medium))
@@ -133,9 +139,9 @@ struct PeriodWidgetView: View {
                 Text("Astrya")
             } else {
                 WidgetEmpty(
-                    eyebrow: "Your period",
-                    headline: "Your periods",
-                    message: "Open Astrya to map the chapters of your life."
+                    eyebrow: L10n.string("Your period"),
+                    headline: L10n.string("Your periods"),
+                    message: L10n.string("Open Astrya to map the chapters of your life.")
                 )
             }
         }
@@ -152,19 +158,21 @@ struct PeriodWidgetView: View {
     /// The lord, very large; the sub-period beneath; how far through.
     private func small(_ period: PeriodEntry.Period) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(eyebrow: "Your period")
+            WidgetHeader(eyebrow: L10n.string("Your period"))
             Spacer(minLength: 0)
-            WidgetDisplay(text: period.lord, size: 32, lines: 1)
-            Text(period.antardasha.isEmpty ? period.yearsLabel : "with \(period.antardasha)")
+            WidgetDisplay(text: period.lordName, size: 32, lines: 1)
+            Text(period.antardasha.isEmpty ? period.yearsLabel : L10n.string("with \(period.antardashaName)"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
             WidgetProgress(value: period.progress)
                 .padding(.top, 4)
             Text(period.leftLabel)
                 .font(.brutMono(10))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
@@ -173,14 +181,14 @@ struct PeriodWidgetView: View {
 
     private func medium(_ period: PeriodEntry.Period) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            WidgetHeader(eyebrow: "Your period · \(period.yearsLabel)")
+            WidgetHeader(eyebrow: L10n.string("Your period · \(period.yearsLabel)"))
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(period.lord)
+                Text(period.lordName)
                     .font(.system(size: 30, weight: .medium))
                     .tracking(-30 * 0.035)
                     .foregroundStyle(Theme.fg)
                     .lineLimit(1)
-                Text(period.antardasha.isEmpty ? "" : "with \(period.antardasha)")
+                Text(period.antardasha.isEmpty ? "" : L10n.string("with \(period.antardashaName)"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(Theme.muted)
                     .lineLimit(1)
@@ -203,6 +211,7 @@ struct PeriodWidgetView: View {
             .font(.brutMono(10))
             .foregroundStyle(Theme.muted)
             .lineLimit(1)
+            .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .combine)
@@ -210,7 +219,7 @@ struct PeriodWidgetView: View {
     }
 
     private func accessibility(_ period: PeriodEntry.Period) -> String {
-        "\(period.pairLabel), \(period.yearsLabel), \(Int(period.progress * 100)) percent through. \(period.theme ?? "")"
+        L10n.string("\(period.pairLabel), \(period.yearsLabel), \(Int(period.progress * 100)) percent through. \(period.theme ?? "")")
     }
 }
 
@@ -218,6 +227,7 @@ struct PeriodWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: WidgetRefresh.Kind.period, provider: PeriodProvider()) { entry in
             PeriodWidgetView(entry: entry)
+                .environment(\.locale, AppLanguage.shared.locale)
         }
         .configurationDisplayName("Your period")
         .description("The chapter of your life you are in now, and how far through it you are.")

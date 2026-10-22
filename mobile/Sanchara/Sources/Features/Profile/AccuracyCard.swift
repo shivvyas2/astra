@@ -11,7 +11,7 @@ struct AccuracyCard: View {
             HStack {
                 Text("Astrya's record").eyebrow()
                 Spacer(minLength: 8)
-                BrutTag(text: "Your answers", fill: Theme.fg, textColor: Theme.ink)
+                BrutTag(text: L10n.string("Your answers"), fill: Theme.fg, textColor: Theme.ink)
             }
             .padding(.bottom, 12)
 
@@ -45,12 +45,12 @@ struct AccuracyCard: View {
 
             VStack(spacing: 0) {
                 if card.likelyChecked > 0 {
-                    row("When it said \u{201C}likely\u{201D}", "\(card.likelyHappened) of \(card.likelyChecked)")
+                    row(L10n.string("When it said \u{201C}likely\u{201D}"), L10n.string("\(card.likelyHappened) of \(card.likelyChecked)"))
                 }
-                row("Waiting for your answer", "\(card.awaiting)", accent: card.awaiting > 0)
-                row("Still ahead", "\(card.upcoming)", rule: card.unsure > 0)
+                row(L10n.string("Waiting for your answer"), "\(card.awaiting)", accent: card.awaiting > 0)
+                row(L10n.string("Still ahead"), "\(card.upcoming)", rule: card.unsure > 0)
                 if card.unsure > 0 {
-                    row("Not sure (not counted)", "\(card.unsure)", rule: false)
+                    row(L10n.string("Not sure (not counted)"), "\(card.unsure)", rule: false)
                 }
             }
             .padding(.top, 12)
@@ -62,8 +62,8 @@ struct AccuracyCard: View {
     }
 
     private var pendingText: String {
-        var text = "When a reading names a window, Astrya keeps it. Once the dates arrive, tell it what happened. After \(Scorecard.minCheckedForRate) answers, its score with you shows here."
-        if card.checked > 0 { text += " \(card.checked) answered so far." }
+        var text = L10n.string("When a reading names a window, Astrya keeps it. Once the dates arrive, tell it what happened. After \(Scorecard.minCheckedForRate) answers, its score with you shows here.")
+        if card.checked > 0 { text += " " + L10n.string("\(card.checked) answered so far.") }
         return text
     }
 

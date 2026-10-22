@@ -203,3 +203,32 @@ final class ChartCache: @unchecked Sendable {
         }
     }
 }
+
+extension ChartPlanet {
+    /// A graha the API names in English (a dasha lord, say) in the script of
+    /// the app's language: शनि in Hindi, શનિ in Gujarati, Saturn in English.
+    /// Lines like the timeline's and the period widget's are read by people
+    /// who may not read Latin letters at all, so they follow the app rather
+    /// than the kundli's own name setting.
+    static func displayName(_ english: String) -> String {
+        switch AppLanguage.shared.code {
+        case "hi": name(english: english, in: .hindi)
+        case "gu": name(english: english, in: .gujarati)
+        default: english
+        }
+    }
+}
+
+extension Rashi {
+    /// A sign the API names in English, in the app's language: the Sanskrit
+    /// name in English (what the app has always shown), the Hindi or Gujarati
+    /// name otherwise.
+    static func displayName(english: String) -> String {
+        guard let rashi = Rashi(english: english) else { return english }
+        switch AppLanguage.shared.code {
+        case "hi": return rashi.name(in: .hindi)
+        case "gu": return rashi.name(in: .gujarati)
+        default: return rashi.sanskrit
+        }
+    }
+}

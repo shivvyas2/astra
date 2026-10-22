@@ -63,7 +63,7 @@ enum WidgetTimeline {
 }
 
 extension ChartCache.CachedReading {
-    var slotLabel: String { slot == "morning" ? "Morning" : "Night" }
+    var slotLabel: String { slot == "morning" ? L10n.string("Morning") : L10n.string("Night") }
     var isMorning: Bool { slot == "morning" }
 
     /// "5 Oct", from the reading's own `yyyy-MM-dd`.
@@ -72,9 +72,10 @@ extension ChartCache.CachedReading {
         parser.locale = Locale(identifier: "en_US_POSIX")
         parser.dateFormat = "yyyy-MM-dd"
         guard let day = parser.date(from: forDate) else { return forDate }
-        if Calendar.current.isDateInToday(day) { return "Today" }
-        if Calendar.current.isDateInYesterday(day) { return "Yesterday" }
+        if Calendar.current.isDateInToday(day) { return L10n.string("Today") }
+        if Calendar.current.isDateInYesterday(day) { return L10n.string("Yesterday") }
         let pretty = DateFormatter()
+        pretty.locale = L10n.locale
         pretty.setLocalizedDateFormatFromTemplate("d MMM")
         return pretty.string(from: day)
     }

@@ -73,11 +73,30 @@ enum KeyDates {
         guard let d = isoDay.date(from: month + "-01") else { return month }
         let f = DateFormatter()
         f.timeZone = TimeZone(identifier: "UTC")
+        f.locale = L10n.locale
         f.dateFormat = "LLLL yyyy"
         return f.string(from: d)
     }
 
     static func dayNumber(_ iso: String) -> String { String(iso.suffix(2)) }
+
+    /// A life area the engine tags a date with ("career"), as it is shown.
+    /// The tag itself stays English: it is what the server and the compare
+    /// picker send.
+    static func topicLabel(_ topic: String) -> String {
+        switch topic {
+        case "career": L10n.string("Career")
+        case "relationships": L10n.string("Relationships")
+        case "money": L10n.string("Money")
+        case "health": L10n.string("Health")
+        case "home": L10n.string("Home")
+        case "family": L10n.string("Family")
+        case "children": L10n.string("Children")
+        case "travel": L10n.string("Travel")
+        case "education": L10n.string("Study")
+        default: topic.capitalized
+        }
+    }
 
     /// Writes the dates to the user's calendar as all-day events on the day
     /// each window opens. Write-only access: Astrya never reads the calendar.
@@ -91,7 +110,9 @@ enum KeyDates {
             guard let start = e.day else { continue }
             let event = EKEvent(eventStore: store)
             event.title = e.title
-            event.notes = e.detail + (e.end.map { " Window closes \($0)." } ?? "") + " Computed by Astrya from your chart."
+            event.notes = e.detail
+                + (e.end.map { " " + L10n.string("Window closes \($0).") } ?? "")
+                + " " + L10n.string("Computed by Astrya from your chart.")
             event.isAllDay = true
             event.startDate = start
             event.endDate = start
@@ -111,7 +132,7 @@ enum KeyDates {
 
     enum CalendarError: LocalizedError {
         case denied
-        var errorDescription: String? { "Astrya needs permission to add events. Turn it on in Settings, Astrya, Calendars." }
+        var errorDescription: String? { L10n.string("Astrya needs permission to add events. Turn it on in Settings, Astrya, Calendars.") }
     }
 }
 
@@ -133,9 +154,9 @@ struct KeyDatesView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 28) {
                         ScreenHeader(
-                            eyebrow: "Key dates",
-                            title: "The year ahead, to the day",
-                            blurb: "Every sign change, station and sub-period in the next twelve months, computed from the ephemeris and read against your chart. Readings quote these dates.",
+                            eyebrow: L10n.string("Key dates"),
+                            title: L10n.string("The year ahead, to the day"),
+                            blurb: L10n.string("Every sign change, station and sub-period in the next twelve months, computed from the ephemeris and read against your chart. Readings quote these dates."),
                             trailingArrow: true
                         )
                         content
@@ -165,13 +186,13 @@ struct KeyDatesView: View {
         case .failed(let message):
             VStack(alignment: .leading, spacing: 12) {
                 BrutNotice(text: message)
-                SancharaPrimaryButton(title: "Try again", kind: .secondary) { Task { await load() } }
+                SancharaPrimaryButton(title: L10n.string("Try again"), kind: .secondary) { Task { await load() } }
             }
         case .ready:
             if events.isEmpty {
-                BrutEmptyState(title: "A quiet year", message: "Nothing changes in your sky in the next twelve months.")
+                BrutEmptyState(title: L10n.string("A quiet year"), message: L10n.string("Nothing changes in your sky in the next twelve months."))
             } else {
-                SancharaPrimaryButton(title: "Add to calendar", isLoading: adding, kind: .accent) {
+                SancharaPrimaryButton(title: L10n.string("Add to calendar"), isLoading: adding, kind: .accent) {
                     Task { await addAll() }
                 }
                 if let notice { BrutNotice(text: notice, tone: .info) }
@@ -196,7 +217,7 @@ struct KeyDatesView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Next").eyebrow()
             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(KeyDates.dayNumber(e.date)).font(.brutNumeral(64)).foregroundStyle(Theme.accent)
+                Text(verbatim: KeyDates.dayNumber(e.date)).font(.brutNumeral(64)).foregroundStyle(Theme.accent)
                 Text(KeyDates.monthTitle(String(e.date.prefix(7)))).font(.brutTitle(18)).foregroundStyle(Theme.fg)
             }
             Text(e.title).font(.brutTitle(20)).foregroundStyle(Theme.fg).fixedSize(horizontal: false, vertical: true)
@@ -210,7 +231,7 @@ struct KeyDatesView: View {
     private func row(_ e: TimingEvent) -> some View {
         VStack(spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
-                Text(KeyDates.dayNumber(e.date))
+                Text(verbatim: KeyDates.dayNumber(e.date))
                     .font(.brutNumeral(30))
                     .foregroundStyle(Theme.fg)
                     .frame(width: 44, alignment: .leading)
@@ -224,7 +245,7 @@ struct KeyDatesView: View {
                     Text(e.detail).font(.brutBody(13)).foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                     if !e.topics.isEmpty {
-                        Text(e.topics.map { $0.capitalized }.joined(separator: " · "))
+                        Text(e.topics.map(KeyDates.topicLabel).joined(separator: " · "))
                             .font(.brutBody(12)).foregroundStyle(Theme.muted)
                     }
                 }
@@ -236,13 +257,13 @@ struct KeyDatesView: View {
     }
 
     private func toneLabel(_ t: TimingEvent.Tone) -> String {
-        switch t { case .supportive: "Supportive"; case .challenging: "Challenging"; case .mixed: "Mixed" }
+        switch t { case .supportive: L10n.string("Supportive"); case .challenging: L10n.string("Challenging"); case .mixed: L10n.string("Mixed") }
     }
     private func toneColor(_ t: TimingEvent.Tone) -> Color {
         switch t { case .supportive: Theme.accent; case .challenging: Theme.ember; case .mixed: Theme.fg.opacity(0.8) }
     }
     private func kindLabel(_ k: TimingEvent.Kind) -> String {
-        switch k { case .ingress: "Transit"; case .station: "Station"; case .dasha: "Period" }
+        switch k { case .ingress: L10n.string("Transit"); case .station: L10n.string("Station"); case .dasha: L10n.string("Period") }
     }
 
     private func load() async {
@@ -260,7 +281,7 @@ struct KeyDatesView: View {
         defer { adding = false }
         do {
             let n = try await KeyDates.addToCalendar(events)
-            notice = n == 0 ? "Your key dates are already in your calendar." : "Added \(n) dates to your calendar."
+            notice = n == 0 ? L10n.string("Your key dates are already in your calendar.") : L10n.string("Added \(n) dates to your calendar.")
         } catch {
             notice = error.localizedDescription
         }

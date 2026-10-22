@@ -21,6 +21,20 @@ enum ReadingLanguage: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
+    /// The language the app itself is shown in when this is chosen. Sanskrit
+    /// terms is English with Sanskrit words, so its UI is English.
+    var uiCode: String { AppLanguage.code(forReading: rawValue) ?? "en" }
+
+    /// The chip that matches a UI language, for when nothing has been chosen
+    /// and the app is following the language iOS gave it.
+    init(uiCode: String) {
+        switch uiCode {
+        case "hi": self = .hindi
+        case "gu": self = .gujarati
+        default: self = .english
+        }
+    }
+
     /// The kundli's names follow the reading language, so a Gujarati reading
     /// sits beside a chart in Gujarati script.
     var nameScript: NameScript {

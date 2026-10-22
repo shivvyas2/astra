@@ -19,9 +19,9 @@ struct KnowledgeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     ScreenHeader(
-                        eyebrow: "Memory",
-                        title: "What Astrya knows",
-                        blurb: "What you've told Astrya, what you talked about, and what it predicted. Every reading uses it.",
+                        eyebrow: L10n.string("Memory"),
+                        title: L10n.string("What Astrya knows"),
+                        blurb: L10n.string("What you've told Astrya, what you talked about, and what it predicted. Every reading uses it."),
                         titleSize: 34
                     )
 
@@ -43,13 +43,13 @@ struct KnowledgeView: View {
         .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .tint(Theme.fg)
         .task { await store.load() }
-        .alert("Forget everything?", isPresented: $confirmForgetAll) {
-            Button("Cancel", role: .cancel) {}
-            Button("Forget everything", role: .destructive) {
+        .alert(L10n.string("Forget everything?"), isPresented: $confirmForgetAll) {
+            Button(L10n.string("Cancel"), role: .cancel) {}
+            Button(L10n.string("Forget everything"), role: .destructive) {
                 Task { await store.deleteAll() }
             }
         } message: {
-            Text("Astrya will no longer know any of this in your readings. It can't be undone.")
+            Text(L10n.string("Astrya will no longer know any of this in your readings. It can't be undone."))
         }
     }
 
@@ -64,15 +64,15 @@ struct KnowledgeView: View {
         case .failed(let message):
             VStack(alignment: .leading, spacing: 12) {
                 BrutNotice(text: message)
-                SancharaPrimaryButton(title: "Try again", kind: .secondary) {
+                SancharaPrimaryButton(title: L10n.string("Try again"), kind: .secondary) {
                     Task { await store.load() }
                 }
             }
         case .ready:
             if store.isEmpty {
                 BrutEmptyState(
-                    title: "Nothing yet",
-                    message: "Tell Astrya about your life in a reading (your job, relationships, plans) and it'll remember here. You can delete anything.",
+                    title: L10n.string("Nothing yet"),
+                    message: L10n.string("Tell Astrya about your life in a reading (your job, relationships, plans) and it'll remember here. You can delete anything."),
                     systemImage: "brain"
                 )
             } else {
@@ -114,7 +114,7 @@ struct KnowledgeView: View {
                     .foregroundStyle(Theme.fg)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
-                CircleButton(systemImage: "xmark", label: "Forget: \(fact.fact)", size: 34) {
+                CircleButton(systemImage: "xmark", label: L10n.string("Forget: \(fact.fact)"), size: 34) {
                     Task { await store.delete(fact) }
                 }
             }
@@ -132,7 +132,7 @@ struct KnowledgeView: View {
 
     private var conversationsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            heading("Past conversations")
+            heading(L10n.string("Past conversations"))
             BrutDivider()
             ForEach(store.summaries) { memory in
                 VStack(spacing: 0) {
@@ -148,7 +148,7 @@ struct KnowledgeView: View {
                                 .foregroundStyle(Theme.muted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        CircleButton(systemImage: "xmark", label: "Forget this conversation", size: 34) {
+                        CircleButton(systemImage: "xmark", label: L10n.string("Forget this conversation"), size: 34) {
                             Task { await store.delete(memory) }
                         }
                     }
@@ -162,7 +162,7 @@ struct KnowledgeView: View {
 
     private var predictionsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            heading("Predictions")
+            heading(L10n.string("Predictions"))
             BrutDivider()
             ForEach(store.orderedPredictions) { prediction in
                 predictionRow(prediction)
@@ -179,7 +179,7 @@ struct KnowledgeView: View {
                         .foregroundStyle(Theme.fg)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
-                        Text([p.topic.label, p.windowLabel, p.confidence].joined(separator: " · "))
+                        Text([p.topic.label, p.windowLabel, p.confidenceLabel].joined(separator: " · "))
                             .font(.system(size: 12))
                             .foregroundStyle(Theme.muted)
                         if p.status != .open {
@@ -192,9 +192,9 @@ struct KnowledgeView: View {
                             .foregroundStyle(Theme.fg)
                             .padding(.top, 4)
                         HStack(spacing: 8) {
-                            BrutChip(text: "Yes") { Task { await store.mark(p, .happened) } }
-                            BrutChip(text: "No") { Task { await store.mark(p, .didnt) } }
-                            BrutChip(text: "Not sure") { Task { await store.mark(p, .unsure) } }
+                            BrutChip(text: L10n.string("Yes")) { Task { await store.mark(p, .happened) } }
+                            BrutChip(text: L10n.string("No")) { Task { await store.mark(p, .didnt) } }
+                            BrutChip(text: L10n.string("Not sure")) { Task { await store.mark(p, .unsure) } }
                         }
                     } else if p.status != .open {
                         Button("Undo") { Task { await store.mark(p, .open) } }
@@ -204,7 +204,7 @@ struct KnowledgeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                CircleButton(systemImage: "xmark", label: "Forget: \(p.claim)", size: 34) {
+                CircleButton(systemImage: "xmark", label: L10n.string("Forget: \(p.claim)"), size: 34) {
                     Task { await store.delete(p) }
                 }
             }
@@ -228,7 +228,7 @@ struct KnowledgeView: View {
         parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
         guard let date else { return "" }
-        return date.formatted(.dateTime.day().month(.abbreviated).year())
+        return date.formatted(.dateTime.day().month(.abbreviated).year().locale(L10n.locale))
     }
 
     private var forgetAllButton: some View {

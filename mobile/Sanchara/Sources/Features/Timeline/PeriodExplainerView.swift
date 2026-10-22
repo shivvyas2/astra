@@ -8,28 +8,29 @@ import SwiftUI
 struct PeriodExplainerView: View {
     @Environment(\.dismiss) private var dismiss
 
-    private let sections: [(String, String)] = [
+    /// Computed, so the copy follows a change of language while it is open.
+    private var sections: [(String, String)] { [
         (
-            "What these periods are",
-            "Vedic astrology divides a life into a fixed sequence of chapters, each ruled by one planet. The sequence is called Vimshottari dasha. Which chapter you were born into depends on where the Moon was at the moment of your birth, and everything after follows in order."
+            L10n.string("What these periods are"),
+            L10n.string("Vedic astrology divides a life into a fixed sequence of chapters, each ruled by one planet. The sequence is called Vimshottari dasha. Which chapter you were born into depends on where the Moon was at the moment of your birth, and everything after follows in order.")
         ),
         (
-            "Why they are different lengths",
-            "Each planet's chapter has a set length: Sun 6 years, Moon 10, Mars 7, Rahu 18, Jupiter 16, Saturn 19, Mercury 17, Ketu 7, Venus 20. The whole cycle is 120 years, so most people see eight or nine of them. The one you were born into was already running, which is why your first chapter is shorter than its full length."
+            L10n.string("Why they are different lengths"),
+            L10n.string("Each planet's chapter has a set length: Sun 6 years, Moon 10, Mars 7, Rahu 18, Jupiter 16, Saturn 19, Mercury 17, Ketu 7, Venus 20. The whole cycle is 120 years, so most people see eight or nine of them. The one you were born into was already running, which is why your first chapter is shorter than its full length.")
         ),
         (
-            "Sub-periods",
-            "Inside every chapter the same nine planets take turns again, in the same order, starting with the chapter's own planet. These sub-periods are where the texture of a chapter comes from: a Saturn chapter feels different in its Venus months than in its Mars months."
+            L10n.string("Sub-periods"),
+            L10n.string("Inside every chapter the same nine planets take turns again, in the same order, starting with the chapter's own planet. These sub-periods are where the texture of a chapter comes from: a Saturn chapter feels different in its Venus months than in its Mars months.")
         ),
         (
-            "What the meanings are",
-            "The line under each chapter is written for you from your own chart and from the moments you have pinned. It is a reading of what that chapter tends to ask of you, not a prediction of events. Past chapters are read in hindsight; future ones as tendencies."
+            L10n.string("What the meanings are"),
+            L10n.string("The line under each chapter is written for you from your own chart and from the moments you have pinned. It is a reading of what that chapter tends to ask of you, not a prediction of events. Past chapters are read in hindsight; future ones as tendencies.")
         ),
         (
-            "Why pin moments",
-            "A chapter is abstract until something real sits inside it. Pinning what actually happened (a move, a job, a loss) lets you see your own life against the pattern, and lets the readings speak to what you have lived rather than to a chart alone."
+            L10n.string("Why pin moments"),
+            L10n.string("A chapter is abstract until something real sits inside it. Pinning what actually happened (a move, a job, a loss) lets you see your own life against the pattern, and lets the readings speak to what you have lived rather than to a chart alone.")
         ),
-    ]
+    ] }
 
     var body: some View {
         NavigationStack {

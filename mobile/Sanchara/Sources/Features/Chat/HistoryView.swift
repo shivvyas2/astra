@@ -16,8 +16,8 @@ struct HistoryView: View {
 
                         if chat.conversations.isEmpty {
                             BrutEmptyState(
-                                title: "No readings yet",
-                                message: "Every reading you ask for is saved here the moment you send your first question, with its mode and date.",
+                                title: L10n.string("No readings yet"),
+                                message: L10n.string("Every reading you ask for is saved here the moment you send your first question, with its mode and date."),
                                 systemImage: "clock"
                             )
                         } else {
@@ -44,7 +44,7 @@ struct HistoryView: View {
                 }
             }
             .refreshable { await chat.loadConversations() }
-            .navigationTitle("Readings")
+            .navigationTitle(L10n.string("Readings"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -65,7 +65,7 @@ struct HistoryView: View {
             Text("Everything you've asked")
                 .brutHeading(34)
                 .fixedSize(horizontal: false, vertical: true)
-            SancharaPrimaryButton(title: "Start a new reading", kind: .accent) {
+            SancharaPrimaryButton(title: L10n.string("Start a new reading"), kind: .accent) {
                 chat.newReading()
                 dismiss()
             }
@@ -78,12 +78,12 @@ struct HistoryView: View {
         HStack(alignment: .center, spacing: 14) {
             VStack(alignment: .leading, spacing: 8) {
                 BrutTag(text: conversation.mode.label, fill: conversation.mode.dot)
-                Text(conversation.title ?? "Reading")
+                Text(conversation.title ?? L10n.string("Reading"))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
-                Text(conversation.createdAt.formatted(date: .abbreviated, time: .shortened))
+                Text(conversation.createdAt.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(L10n.locale)))
                     .font(.brutMono(11, weight: .regular))
                     .foregroundStyle(Theme.muted)
             }

@@ -10,10 +10,10 @@ enum ApproxTime: String, CaseIterable, Identifiable, Sendable {
 
     var label: String {
         switch self {
-        case .morning: "Morning"
-        case .afternoon: "Afternoon"
-        case .evening: "Evening"
-        case .night: "Night"
+        case .morning: L10n.string("Morning")
+        case .afternoon: L10n.string("Afternoon")
+        case .evening: L10n.string("Evening")
+        case .night: L10n.string("Night")
         }
     }
 
@@ -46,13 +46,11 @@ struct BirthDetailsFields: View {
     /// "Their" rather than "your" in the copy.
     var someoneElse = false
 
-    private var whose: String { someoneElse ? "their" : "your" }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .top, spacing: 16) {
-                    underlined("Birthday") {
+                    underlined(L10n.string("Birthday")) {
                         DatePicker(
                             "",
                             selection: $form.birthDate,
@@ -66,7 +64,7 @@ struct BirthDetailsFields: View {
                         .accessibilityLabel("Birthday")
                     }
                     if form.birthTimeKnown {
-                        underlined("Time of birth") {
+                        underlined(L10n.string("Time of birth")) {
                             DatePicker("", selection: $form.birthTime, displayedComponents: .hourAndMinute)
                                 .datePickerStyle(.compact)
                                 .labelsHidden()
@@ -75,8 +73,8 @@ struct BirthDetailsFields: View {
                                 .accessibilityLabel("Time of birth")
                         }
                     } else {
-                        underlined("Time of birth") {
-                            Text(form.approxTime.map { "Roughly \($0.label.lowercased())" } ?? "Unknown")
+                        underlined(L10n.string("Time of birth")) {
+                            Text(form.approxTime.map { L10n.string("Roughly \($0.label.lowercased())") } ?? L10n.string("Unknown"))
                                 .font(.system(size: 17))
                                 .foregroundStyle(Theme.muted)
                         }
@@ -87,7 +85,7 @@ struct BirthDetailsFields: View {
                     get: { !form.birthTimeKnown },
                     set: { unknown in withAnimation(Theme.snap) { form.birthTimeKnown = !unknown } }
                 )) {
-                    Text(someoneElse ? "I don't know their birth time" : "I don't know my birth time")
+                    Text(someoneElse ? L10n.string("I don't know their birth time") : L10n.string("I don't know my birth time"))
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Theme.fg)
                 }
@@ -111,7 +109,11 @@ struct BirthDetailsFields: View {
     /// What an unknown time means, and the optional rough part of day.
     private var unknownTimePanel: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("We'll use noon and avoid anything that depends on the exact hour: \(whose) ascendant, houses and the Moon's exact degree. You can add the time later.")
+            // Two whole sentences rather than "your"/"their" spliced into one,
+            // so each language can say it its own way.
+            Text(someoneElse
+                ? L10n.string("We'll use noon and avoid anything that depends on the exact hour: their ascendant, houses and the Moon's exact degree. You can add the time later.")
+                : L10n.string("We'll use noon and avoid anything that depends on the exact hour: your ascendant, houses and the Moon's exact degree. You can add the time later."))
                 .font(.brutBody(14))
                 .foregroundStyle(Theme.fg)
                 .lineSpacing(2)
@@ -164,7 +166,7 @@ struct BirthDetailsFields: View {
             }
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                SancharaField(placeholder: "City of birth", text: $form.placeQuery, label: "Place of birth")
+                SancharaField(placeholder: L10n.string("City of birth"), text: $form.placeQuery, label: L10n.string("Place of birth"))
 
                 if form.isSearching {
                     Text("Searching…")

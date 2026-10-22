@@ -52,19 +52,19 @@ final class SuggestionEngine {
         if #available(iOS 26.0, *) {
             switch SystemLanguageModel.default.availability {
             case .available:
-                return "On, generating suggestions on this device"
+                return L10n.string("On, generating suggestions on this device")
             case .unavailable(.appleIntelligenceNotEnabled):
-                return "Turn on Apple Intelligence in Settings to enable"
+                return L10n.string("Turn on Apple Intelligence in Settings to enable")
             case .unavailable(.modelNotReady):
-                return "Apple Intelligence is still downloading its model"
+                return L10n.string("Apple Intelligence is still downloading its model")
             case .unavailable(.deviceNotEligible):
-                return "This device doesn't support Apple Intelligence"
+                return L10n.string("This device doesn't support Apple Intelligence")
             case .unavailable:
-                return "Unavailable on this device"
+                return L10n.string("Unavailable on this device")
             }
         }
         #endif
-        return "Needs iOS 26 or later"
+        return L10n.string("Needs iOS 26 or later")
     }
 
     /// What to offer before there is a reading to build on.
@@ -144,27 +144,28 @@ final class SuggestionEngine {
     #endif
 
     /// Opening questions, written to invite the specific, dated answers the
-    /// prompt now gives. "How will the next few months go?" got a horoscope;
+    /// prompt now gives. In the app's language: a tap sends one as the
+    /// question, and the server answers in that language anyway. "How will the next few months go?" got a horoscope;
     /// "When does my current period end and what changes?" gets a date.
     static func starters(for mode: ChatMode) -> [String] {
         switch mode {
         case .vedic:
             [
-                "When does my current dasha period end, and what changes then?",
-                "Will my work situation change in the next six months?",
-                "What is the one thing in my chart I should act on this year?",
+                L10n.string("When does my current dasha period end, and what changes then?"),
+                L10n.string("Will my work situation change in the next six months?"),
+                L10n.string("What is the one thing in my chart I should act on this year?"),
             ]
         case .western:
             [
-                "Which transit is shaping the next three months for me?",
-                "What do my strongest placements say I should do with them?",
-                "When is a good window to make a big decision?",
+                L10n.string("Which transit is shaping the next three months for me?"),
+                L10n.string("What do my strongest placements say I should do with them?"),
+                L10n.string("When is a good window to make a big decision?"),
             ]
         case .numerology:
             [
-                "What does my personal year ask of me, month by month?",
-                "Which dates this month suit me best, and why?",
-                "Does my name number help or hold back my root number?",
+                L10n.string("What does my personal year ask of me, month by month?"),
+                L10n.string("Which dates this month suit me best, and why?"),
+                L10n.string("Does my name number help or hold back my root number?"),
             ]
         }
     }
