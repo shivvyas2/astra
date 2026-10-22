@@ -150,7 +150,7 @@ export function KnowledgeList({
       <div className="brut-card mt-4 p-5">
         {total === 0 ? (
           <p className="text-sm text-muted">
-            Tell Astrya about your life in a reading — your job, relationships, plans — and it&apos;ll remember
+            Tell Astrya about your life in a reading (your job, relationships, plans) and it&apos;ll remember
             here. You can delete anything.
           </p>
         ) : (

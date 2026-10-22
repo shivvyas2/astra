@@ -25,7 +25,7 @@ export function AskAboutUs({ prompt }: { prompt: string }) {
         Ask Astrya about us →
       </button>
       <p className="mt-2 text-xs text-muted">
-        {copied ? "Question copied — paste it into the new reading." : `Opens a new reading. Suggested question: “${prompt}”`}
+        {copied ? "Question copied. Paste it into the new reading." : `Opens a new reading. Suggested question: “${prompt}”`}
       </p>
     </div>
   );

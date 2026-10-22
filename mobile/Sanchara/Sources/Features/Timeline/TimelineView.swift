@@ -84,7 +84,7 @@ struct TimelineView: View {
             ProgressView().tint(Theme.muted)
         case .needsProfile:
             VStack(spacing: 16) {
-                message("Add your birth details first — the timeline is computed from them.")
+                message("Add your birth details first. The timeline is computed from them.")
                 SancharaSecondaryButton(title: "Add birth details in You") {
                     if !embedded { dismiss() }
                     navigator.open(.you)
@@ -275,8 +275,8 @@ struct TimelineView: View {
                 .foregroundStyle(Theme.fg)
                 .fixedSize(horizontal: false, vertical: true)
             Text(store.isRescan
-                 ? "I can look through the new conversations for moments to add — you decide what stays."
-                 : "You've mentioned things that happened to you. I can find them and place them against your chart — you decide what stays.")
+                 ? "I can look through the new conversations for moments to add. You decide what stays."
+                 : "You've mentioned things that happened to you. I can find them and place them against your chart. You decide what stays.")
                 .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)

@@ -7,6 +7,7 @@ import { STABLE_MAX_TOKENS, TURN_MAX_TOKENS, fitLines, type SelectedMemory } fro
 import { factsFor, type Derived, type Dignity, type PlanetFact } from "./derived";
 import type { LoShu } from "./numerology";
 import { CHART_BASIS_TITLE } from "./reading";
+import { NO_EM_DASH } from "@/lib/writing";
 
 /**
  * The last section of every reading: the computed facts it rests on, copied
@@ -48,7 +49,7 @@ function planetLine(f: PlanetFact): string {
   }
   if (f.conjunct.length > 0) bits.push(`with ${f.conjunct.join(" and ")}`);
   const nak = f.nakshatra ? `, ${f.nakshatra}` : "";
-  return `${f.name}: ${f.sign} ${f.degree}°, house ${f.house}${nak} — ${bits.join(" · ")}`;
+  return `${f.name}: ${f.sign} ${f.degree}°, house ${f.house}${nak}: ${bits.join(" · ")}`;
 }
 
 /**
@@ -101,7 +102,7 @@ function renderChartFacts(chart: Chart, d: Derived): string {
       h.lordHouse === 0
         ? `lord ${h.lord} (not a body in this chart)`
         : `lord ${h.lord} in house ${h.lordHouse} (${h.lordSign}, ${DIGNITY_WORD[h.lordDignity]})`;
-    out.push(`House ${h.number}: ${h.sign}, ${lordWhere} — ${who}${seen}`);
+    out.push(`House ${h.number}: ${h.sign}, ${lordWhere}: ${who}${seen}`);
   }
 
   if (d.dasha.length > 0) {
@@ -114,7 +115,7 @@ function renderChartFacts(chart: Chart, d: Derived): string {
             ? `, ruling house${houseSuffix(p.placement.rules.length)} ${p.placement.rules.join(", ")}`
             : ", ruling no house")
         : "not a body in this chart";
-      out.push(`${p.level}: ${p.lord}, ${p.start} to ${p.end} — ${where}.`);
+      out.push(`${p.level}: ${p.lord}, ${p.start} to ${p.end}: ${where}.`);
     }
   }
 
@@ -170,7 +171,7 @@ export function renderChartWithoutTime(chart: Chart, d?: Derived): string {
       if (f.aspectsPlanets.length > 0) bits.push(`aspects ${f.aspectsPlanets.join(", ")}`);
       const nak = isMoon ? moonNakshatra(chart) : f.nakshatra;
       const where = isMoon ? `${f.sign} (exact degree unknown)` : `${f.sign} ${f.degree}°`;
-      out.push(`${f.name}: ${where}${nak ? `, ${nak}` : ""} — ${bits.join(" · ")}`);
+      out.push(`${f.name}: ${where}${nak ? `, ${nak}` : ""}: ${bits.join(" · ")}`);
     }
   } else {
     for (const p of chart.planets) {
@@ -188,7 +189,7 @@ export function renderChartWithoutTime(chart: Chart, d?: Derived): string {
     );
     for (const p of periods) {
       const where = p.placement ? `natally in ${p.placement.sign}, ${DIGNITY_WORD[p.placement.dignity]}` : "not a body in this chart";
-      out.push(`${p.level}: ${p.lord}, about ${p.start} to ${p.end} — ${where}.`);
+      out.push(`${p.level}: ${p.lord}, about ${p.start} to ${p.end}: ${where}.`);
     }
   } else if (chart.dasha) {
     out.push(
@@ -209,7 +210,7 @@ export function renderChartWithoutTime(chart: Chart, d?: Derived): string {
 export const UNKNOWN_TIME_RULES = `Birth time unknown:
 - They do not know their birth time. The chart above was cast for the middle of the day, so there is no reliable ascendant, no houses, and no exact Moon degree.
 - Never name an ascendant or lagna, a house number, a house lord, or a planet "in the Nth house", and never cite a nakshatra pada or the Moon's exact degree. Do not use any technique that needs them.
-- Read from what holds all day: the Moon sign, the planets in their signs with their dignities and conjunctions, the dasha (with its dates treated as approximate — give wider windows), and transits counted from the natal Moon. If you need a house, count it from the Moon sign and say it is counted from the Moon.
+- Read from what holds all day: the Moon sign, the planets in their signs with their dignities and conjunctions, the dasha (with its dates treated as approximate, so give wider windows), and transits counted from the natal Moon. If you need a house, count it from the Moon sign and say it is counted from the Moon.
 - If they ask about something that needs the birth time (the ascendant, a house, the exact timing of a dasha change), say so in one sentence and suggest adding the birth time in their profile.`;
 
 /**
@@ -253,20 +254,20 @@ ${chartFacts}${numLine}${unknownTimeRules}
 
 Accuracy:
 - Never state a placement, lordship, aspect, dasha, condition or number that is not listed above. Interpret only this data.
-- ${timeUnknown ? "Every claim names the placement it reads from, the sign that placement is in, and the technique — dignity, conjunction, aspect, dasha, or transit." : "Every claim names the placement it reads from, the house that placement is in, and the technique — lordship, aspect, dignity, dasha, or transit."} A sentence with no placement behind it does not go in the answer.
+- ${timeUnknown ? "Every claim names the placement it reads from, the sign that placement is in, and the technique: dignity, conjunction, aspect, dasha, or transit." : "Every claim names the placement it reads from, the house that placement is in, and the technique: lordship, aspect, dignity, dasha, or transit."} A sentence with no placement behind it does not go in the answer.
 - A prediction is your best reading of the chart said plainly, not a guarantee. Say that at most once, and never as a way to avoid answering. No medical, legal, or financial guarantees.
 - If the chart does not show what they asked about, say what it does show. If one missing detail would change your answer, ask one short question instead of guessing.
 
 How to answer:
 - Answer the question ${args.firstName} actually asked, from this chart.
-- No sign-personality writing. A sentence that would be true of a twelfth of the population is not an answer — if what you have written would fit anyone with this Sun sign, delete it and ${timeUnknown ? "read a dignity, a conjunction, the dasha lord's sign, or a transit to the Moon instead." : "read a house lord, an aspect, or the dasha lord's placement instead."}
+- No sign-personality writing. A sentence that would be true of a twelfth of the population is not an answer. If what you have written would fit anyone with this Sun sign, delete it and ${timeUnknown ? "read a dignity, a conjunction, the dasha lord's sign, or a transit to the Moon instead." : "read a house lord, an aspect, or the dasha lord's placement instead."}
 - Name the placement you are reading from, then say what it means in plain terms. Do not list the chart back at them.
 - In a conversation, build on what you already said instead of repeating it.
 - For anything about work, money, love, health, or family, say what the chart indicates and what it asks of them.
 
 Be specific and personal:
 - Speak to ${args.firstName} about their life, not about "a person with this chart". Use what they have told you (the LIFE TIMELINE and earlier turns) and refer back to it by name: the job, the city, the relationship, the year.
-- Commit. Every prediction states three things: what (a concrete event or decision — a job offer, a move, a payment that lands late, a conversation about marriage — not "changes" or "energy"), when (a dated window taken from the dasha dates, today's sky, or UPCOMING below, written as months and years), and how sure you are, using exactly one of: likely, possible, unlikely.
+- Commit. Every prediction states three things: what (a concrete event or decision such as a job offer, a move, a payment that lands late, a conversation about marriage, never "changes" or "energy"), when (a dated window taken from the dasha dates, today's sky, or UPCOMING below, written as months and years), and how sure you are, using exactly one of: likely, possible, unlikely.
 - Pick the outcome the chart favours and say it. Never write both outcomes to be safe; never "may or may not"; never a list of things that "could" happen. If something would change your reading, say it in one clause at most.
 - A yes/no question gets a yes, a no, or a "most likely yes/no" in the first sentence, then the placement that says so.
 - Numbers are welcome when the chart gives them: the month a sub-period ends, the house a transit enters, how many years remain.
@@ -274,7 +275,8 @@ Be specific and personal:
 Format:
 - Two or three short sections. Each is a bold markdown heading (for example **Career**) followed by one or two sentences, or a few "- " bullets.
 - Plain text only: no emoji, no decorative symbols, no dashes as separators, no bold inside sentences.
-- After that, a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- ${NO_EM_DASH}
+- After that, a section titled **In simple words** with one or two everyday sentences, no jargon, answering ${args.firstName} directly.
 - ${CHART_BASIS_RULE}
 - This is guidance and reflection, not a substitute for professional advice. Say so only when it fits naturally.
 
@@ -534,7 +536,8 @@ Accuracy:
 Format:
 - Two or three short sections. Each is a bold markdown heading (for example **Your Mulank ${args.mulank}**) followed by one or two sentences, or a few "- " bullets.
 - Plain text only: no emoji, no decorative symbols, no dashes as separators.
-- After that, a section titled **In simple words** — one or two everyday sentences, no jargon, answering ${args.firstName} directly.
+- ${NO_EM_DASH}
+- After that, a section titled **In simple words** with one or two everyday sentences, no jargon, answering ${args.firstName} directly.
 - ${CHART_BASIS_RULE}
 - This is guidance and reflection, not a substitute for professional advice. Say so only when it fits naturally.`;
 }

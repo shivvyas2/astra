@@ -191,7 +191,7 @@ export function detectTransitAfflictions(natal: Chart, transit: Chart): Conditio
         label: `Sade Sati (${phase} phase)`,
         severity: phase === "peak" ? "warning" : "caution",
         scope: "transit",
-        detail: `Saturn is transiting ${tSaturn.sign}, the ${ORDINAL[h]} from the natal Moon in ${natalMoon.sign} — the ${phase} phase of Sade Sati.`,
+        detail: `Saturn is transiting ${tSaturn.sign}, the ${ORDINAL[h]} from the natal Moon in ${natalMoon.sign}: the ${phase} phase of Sade Sati.`,
       });
     } else if (h === 4 || h === 8) {
       found.push({
@@ -200,7 +200,7 @@ export function detectTransitAfflictions(natal: Chart, transit: Chart): Conditio
         label: "Shani Dhaiya",
         severity: "caution",
         scope: "transit",
-        detail: `Saturn is transiting ${tSaturn.sign}, the ${ORDINAL[h]} from the natal Moon — the two-and-a-half-year Dhaiya.`,
+        detail: `Saturn is transiting ${tSaturn.sign}, the ${ORDINAL[h]} from the natal Moon: the two-and-a-half-year Dhaiya.`,
       });
     }
   }

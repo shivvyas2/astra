@@ -28,7 +28,7 @@ struct WidgetSnapshot {
     static let preview = WidgetSnapshot(
         reading: ChartCache.CachedReading(
             id: "preview", slot: "morning", title: "A steady start",
-            body: "The Moon holds your fourth house today — the day rewards finishing what is already open rather than beginning something new.",
+            body: "The Moon holds your fourth house today. The day rewards finishing what is already open rather than beginning something new.",
             forDate: "2026-10-05", savedAt: Date()
         ),
         alerts: [previewAlert],
@@ -39,7 +39,7 @@ struct WidgetSnapshot {
 
     static let previewAlert = ChartCache.CachedAlert(
         id: "preview-alert", severity: "warning", kinds: ["sade_sati"],
-        title: "Sade Sati begins", body: "Saturn enters the sign before your Moon — a long, slow test of patience starts now.",
+        title: "Sade Sati begins", body: "Saturn enters the sign before your Moon: a long, slow test of patience starts now.",
         createdAt: Date().addingTimeInterval(-7200), readAt: nil
     )
 }

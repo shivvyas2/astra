@@ -3,6 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { Chart } from "@/lib/astrology/types";
 import type { Condition, Severity } from "@/lib/astrology/doshas";
 import { anthropic, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
+import { NO_EM_DASH } from "@/lib/writing";
 import { trackUsage } from "@/lib/usage/record";
 
 export type AlertCopy = {
@@ -28,7 +29,7 @@ function chartSummary(chart: Chart): string {
 
 function renderConditions(label: string, conditions: Condition[]): string {
   if (conditions.length === 0) return "";
-  return `\n${label}:\n` + conditions.map((c) => `- ${c.label} [${c.severity}] — ${c.detail}`).join("\n");
+  return `\n${label}:\n` + conditions.map((c) => `- ${c.label} [${c.severity}]: ${c.detail}`).join("\n");
 }
 
 /**
@@ -62,6 +63,7 @@ Write the alert. Rules:
 - Do not predict guaranteed outcomes, and never give medical, legal, or financial guarantees. Describe tendencies, timing, and what to watch.
 - Be calm and practical. This is a heads-up, not a warning about doom. If something eased, say so plainly.
 - The remedy advice should be traditional and harmless (charity, discipline, patience, routine, a mantra), never expensive or fear-driven.
+- ${NO_EM_DASH}
 
 Reply in exactly this shape, with nothing before or after it:
 

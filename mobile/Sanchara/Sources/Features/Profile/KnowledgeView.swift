@@ -72,7 +72,7 @@ struct KnowledgeView: View {
             if store.isEmpty {
                 BrutEmptyState(
                     title: "Nothing yet",
-                    message: "Tell Astrya about your life in a reading — your job, relationships, plans — and it'll remember here. You can delete anything.",
+                    message: "Tell Astrya about your life in a reading (your job, relationships, plans) and it'll remember here. You can delete anything.",
                     systemImage: "brain"
                 )
             } else {

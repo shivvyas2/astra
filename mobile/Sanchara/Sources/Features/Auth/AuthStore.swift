@@ -230,7 +230,7 @@ final class AuthStore {
             let message = error.localizedDescription.lowercased()
             errorMessage =
                 message.contains("expired") || message.contains("invalid")
-                ? "That code didn't work. It may have expired — send a new one."
+                ? "That code didn't work. It may have expired, so send a new one."
                 : error.localizedDescription
         }
     }

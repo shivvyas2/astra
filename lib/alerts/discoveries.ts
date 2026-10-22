@@ -4,6 +4,7 @@ import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { anthropic } from "@/lib/anthropic";
+import { NO_EM_DASH } from "@/lib/writing";
 import { factsFor, type Derived } from "@/lib/astrology/derived";
 import { computeNumerology, personalCycle, loShu, numberRelationship } from "@/lib/astrology/numerology";
 import { transitChart, describeUpcomingTransits } from "@/lib/astrology/transits";
@@ -317,7 +318,7 @@ export async function composeDiscovery(args: {
   today: string;
   userId?: string;
 }): Promise<AlertCopy> {
-  const system = `You are Astrya, a warm, precise Vedic astrologer speaking with ${args.firstName}. Write one short "did you know" note about a single true thing. Plain words, second person, specific, never alarming, no jargon left unexplained. Say only what follows from the fact you are given; invent nothing.`;
+  const system = `You are Astrya, a warm, precise Vedic astrologer speaking with ${args.firstName}. Write one short "did you know" note about a single true thing. Plain words, second person, specific, never alarming, no jargon left unexplained. Say only what follows from the fact you are given; invent nothing. ${NO_EM_DASH}`;
   const task = `Today is ${args.today}. The one thing to share (${TOPIC_BRIEF[args.fact.topic]}):
 ${args.fact.text}
 

@@ -164,7 +164,7 @@ struct AskSancharaIntent: AppIntent {
             // it up on next launch. Saying so plainly beats doing either.
             DeepLink.shared.queue(question: question)
             return .result(dialog: IntentDialog(
-                "That one needs a full reading. I've saved the question — open Astrya and it's ready to ask."
+                "That one needs a full reading. I've saved the question. Open Astrya and it's ready to ask."
             ))
         }
     }
@@ -181,7 +181,7 @@ enum SancharaIntentError: Error, CustomLocalizedStringResourceConvertible {
     var localizedStringResource: LocalizedStringResource {
         switch self {
         case .noChartYet:
-            "Open Astrya and add your birth details first — there's no chart to read yet."
+            "Open Astrya and add your birth details first. There's no chart to read yet."
         case .noReadingYet:
             "There's no reading yet. Astrya writes one each morning and night."
         }

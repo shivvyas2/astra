@@ -111,7 +111,7 @@ struct BirthDetailsFields: View {
     /// What an unknown time means, and the optional rough part of day.
     private var unknownTimePanel: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("We'll use noon and avoid anything that depends on the exact hour — \(whose) ascendant, houses and the Moon's exact degree. You can add the time later.")
+            Text("We'll use noon and avoid anything that depends on the exact hour: \(whose) ascendant, houses and the Moon's exact degree. You can add the time later.")
                 .font(.brutBody(14))
                 .foregroundStyle(Theme.fg)
                 .lineSpacing(2)

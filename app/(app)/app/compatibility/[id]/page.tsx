@@ -106,7 +106,7 @@ export default async function CompatibilityPage({
               <div key={d.kind} className={`brut-bordered p-3 text-sm ${d.present ? "border-ember/60 bg-ember/10" : ""}`}>
                 <p className="font-semibold">
                   {d.kind === "nadi" ? "Nadi dosha" : d.kind === "bhakoot" ? "Bhakoot dosha" : "Mangal dosha"}
-                  {d.present ? "" : " — none"}
+                  {d.present ? "" : ": none"}
                 </p>
                 <p className="mt-1 text-muted">{d.note}</p>
                 {d.exceptions.length > 0 && (

@@ -63,7 +63,7 @@ struct CandidatesView: View {
     }
 
     private var header: some View {
-        Text("From things you've told me. Untick anything that isn't right — nothing is saved until you tap add.")
+        Text("From things you've told me. Untick anything that isn't right. Nothing is saved until you tap add.")
             .font(.brutBody(13))
             .foregroundStyle(Theme.muted)
             .fixedSize(horizontal: false, vertical: true)

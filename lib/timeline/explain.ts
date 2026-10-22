@@ -1,6 +1,7 @@
 import "server-only";
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
+import { NO_EM_DASH } from "@/lib/writing";
 import { eventsHashFor, NOW_LORD, type Timeline } from "./build";
 import { trackUsage } from "@/lib/usage/record";
 
@@ -33,6 +34,7 @@ Rules:
 - When ${args.firstName} has pinned a moment inside a chapter, name it and say in one clause how it fits the chapter. Never invent a moment they did not give you.
 - No astrology jargon: no "malefic", "benefic", "exalted", "lord", "house", "transit", "dasha", "antardasha". Say "period" or "chapter", and "sub-period" only for the now line.
 - No promises, no medical, legal, or financial claims, no flattery.
+- ${NO_EM_DASH}
 
 THEME is under 8 words, a plain phrase for what the chapter is about. MEANING is two to four sentences.
 

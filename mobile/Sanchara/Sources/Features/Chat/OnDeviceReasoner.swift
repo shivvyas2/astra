@@ -93,7 +93,7 @@ final class OnDeviceReasoner {
         @Guide(
             description: """
                 True when the question only asks for a value that is already written in a reference \
-                table — a position, a number, a name, a date, a range. False when it asks what \
+                table: a position, a number, a name, a date, a range. False when it asks what \
                 something means, what to do, what will happen, or for any opinion or advice.
                 """
         )
@@ -136,7 +136,7 @@ final class OnDeviceReasoner {
                   does not record that, and stop.
                 - Never explain what an entry means, what it predicts, or what the person \
                   should do. You restate records; you do not interpret them.
-                - Two or three sentences. Plain language, no lists, no headings.
+                - Two or three sentences. Plain language, no lists, no headings, no em dashes.
                 """
         )
         do {

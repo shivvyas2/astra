@@ -142,7 +142,7 @@ function TodayCard() {
 
 const APP_FEATURES = [
   { label: "Today", text: "A reading every morning and night, written from today's sky and your chart." },
-  { label: "Ask", text: "Any question, answered from your real placements — Vedic, Western or numerology." },
+  { label: "Ask", text: "Any question, answered from your real placements: Vedic, Western or numerology." },
   { label: "Kundli", text: "Your full birth chart, dashas and nakshatras, drawn and explained." },
   { label: "Life", text: "Your periods laid out on a timeline, with alerts when a dosha or hard transit starts." },
 ];

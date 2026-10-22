@@ -46,7 +46,7 @@ Reply with one event per line and nothing else. Each line is four fields separat
 
 DATE | PRECISION | TITLE | EVIDENCE
 
-DATE is YYYY-MM-DD, YYYY-MM, YYYY, or ? — whichever precision they actually gave you.
+DATE is YYYY-MM-DD, YYYY-MM, YYYY, or ?, whichever precision they actually gave you.
 PRECISION is day, month, year, or unknown, matching DATE.
 TITLE is the short description. It must not contain a pipe.
 EVIDENCE is the quote. It must not contain a pipe.

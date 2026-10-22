@@ -37,7 +37,7 @@ export function AccuracyCard({ card, href }: { card: Scorecard; href?: string })
         <>
           <h3 className="headline mt-3 text-2xl">Every prediction is written down</h3>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            When a reading names a window — &ldquo;a new role between March and May&rdquo; — Astrya keeps it. Once the
+            When a reading names a window, like &ldquo;a new role between March and May&rdquo;, Astrya keeps it. Once the
             dates arrive, tell it what happened. After {MIN_CHECKED_FOR_RATE} answers, its score with you shows here.
             {card.checked > 0 && ` ${card.checked} answered so far.`}
           </p>

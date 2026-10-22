@@ -164,7 +164,7 @@ const SLOT_BRIEF: Record<Slot, string> = {
   morning:
     "It is morning where they are. Say what today holds, where their energy is best spent, one thing to watch for, and one small practical step. Look forward, not back.",
   night:
-    "It is evening where they are. Reflect on the day the sky just described, then say what tomorrow morning opens with. Close on something calm — this is the last thing they read today.",
+    "It is evening where they are. Reflect on the day the sky just described, then say what tomorrow morning opens with. Close on something calm. This is the last thing they read today.",
 };
 
 export async function composePrediction(args: {

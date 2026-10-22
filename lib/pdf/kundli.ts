@@ -328,7 +328,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
     sansBold: await doc.embedFont(StandardFonts.HelveticaBold),
   };
 
-  doc.setTitle(`${input.name} — Vedic kundli`);
+  doc.setTitle(`${input.name}: Vedic kundli`);
   doc.setAuthor("Astrya");
   doc.setSubject("Vedic birth chart");
 
@@ -358,7 +358,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
   const chartY = 168;
   drawChart(p1, fonts, input.chart, chartX, chartY, chartSize);
 
-  const caption = "Houses hold fixed positions — the top diamond is always the first.";
+  const caption = "Houses hold fixed positions. The top diamond is always the first.";
   const caption2 = "The numeral in each house is its rashi, 1 Mesha to 12 Meena. * marks a retrograde graha.";
   for (const [index, text] of [caption, caption2].entries()) {
     const width = fonts.sans.widthOfTextAtSize(text, 8.5);
@@ -406,7 +406,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
       [rashi.sanskrit, columns.rashi, fonts.serif, INK],
       [degreeText(planet.degree), columns.degree, fonts.serif, INK],
       [String(planet.house), columns.house, fonts.serif, INK],
-      [planet.nakshatra ?? "—", columns.nak, fonts.sans, MUTED],
+      [planet.nakshatra ?? "–", columns.nak, fonts.sans, MUTED],
     ];
     for (const [text, x, font, color] of cells) {
       p2.drawText(text, { x, y: baseline, size: 9, font, color });
@@ -454,7 +454,7 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
     const cells: [string, number, PDFFont, ReturnType<typeof rgb>][] = [
       [house === 1 ? "1 · Lagna" : String(house), bhavaColumns.number, fonts.serif, house === 1 ? ACCENT_TEXT : INK],
       [rashi, bhavaColumns.rashi, fonts.serif, INK],
-      [here || "—", bhavaColumns.grahas, fonts.sans, here ? INK : MUTED],
+      [here || "–", bhavaColumns.grahas, fonts.sans, here ? INK : MUTED],
       [BHAVA_MEANING[house - 1], bhavaColumns.means, fonts.sans, MUTED],
     ];
     for (const [text, x, font, color] of cells) {
@@ -468,8 +468,8 @@ export async function generateKundliPdf(input: KundliInput): Promise<Uint8Array>
     section(p2, fonts, "VIMSHOTTARI DASHA", y);
     y -= 24;
     const periods: [string, string, string][] = [
-      ["Mahadasha", input.chart.dasha.mahadasha, `${shortDate(input.chart.dasha.mahadashaStart)} — ${shortDate(input.chart.dasha.mahadashaEnd)}`],
-      ["Antardasha", input.chart.dasha.antardasha, `${shortDate(input.chart.dasha.antardashaStart)} — ${shortDate(input.chart.dasha.antardashaEnd)}`],
+      ["Mahadasha", input.chart.dasha.mahadasha, `${shortDate(input.chart.dasha.mahadashaStart)} to ${shortDate(input.chart.dasha.mahadashaEnd)}`],
+      ["Antardasha", input.chart.dasha.antardasha, `${shortDate(input.chart.dasha.antardashaStart)} to ${shortDate(input.chart.dasha.antardashaEnd)}`],
     ];
     for (const [label, lord, span] of periods) {
       p2.drawText(label, { x: M, y, size: 9, font: fonts.sans, color: MUTED });

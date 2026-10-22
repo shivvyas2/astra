@@ -213,7 +213,7 @@ struct KundliView: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .accessibilityHidden(true)
-                Text("Ascendant uncertain — birth time unknown")
+                Text("Ascendant uncertain: birth time unknown")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
@@ -313,7 +313,7 @@ struct KundliView: View {
             // learn how to interpret the chart." Most people meeting a North
             // Indian kundli for the first time assume the numbers are houses.
             Text(chart.isTimeKnown
-                 ? "Houses sit in fixed places — the top diamond is always the first. The numeral in each is its rashi, counted from Mesha. Tap a house to see what it holds."
+                 ? "Houses sit in fixed places. The top diamond is always the first. The numeral in each is its rashi, counted from Mesha. Tap a house to see what it holds."
                  : "The Moon's sign sits in the top diamond, and each house after it is counted from the Moon. The numeral in each is its rashi, counted from Mesha.")
                 .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
@@ -514,7 +514,7 @@ struct HouseDetailSheet: View {
                             .fixedSize(horizontal: false, vertical: true)
 
                         if house.planets.isEmpty {
-                            Text("No graha sits here. An empty house is read through its lord and the aspects reaching it — ask for a reading if you want that traced.")
+                            Text("No graha sits here. An empty house is read through its lord and the aspects reaching it. Ask for a reading if you want that traced.")
                                 .font(.brutBody(13))
                                 .foregroundStyle(Theme.muted)
                                 .fixedSize(horizontal: false, vertical: true)

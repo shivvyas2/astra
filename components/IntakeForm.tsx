@@ -194,7 +194,7 @@ export function BirthTimeField({
           <span className="eyebrow">Birth time</span>
           <div className="brut-bordered mt-1.5 p-3">
             <p className="text-sm">
-              We&apos;ll use noon and avoid anything that depends on the exact hour — {whose} ascendant, houses and the
+              We&apos;ll use noon and avoid anything that depends on the exact hour: {whose} ascendant, houses and the
               Moon&apos;s exact degree. You can add the time later.
             </p>
             <p className="eyebrow mt-3">Roughly (optional)</p>

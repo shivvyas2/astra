@@ -19,7 +19,7 @@ struct PeriodExplainerView: View {
         ),
         (
             "Sub-periods",
-            "Inside every chapter the same nine planets take turns again, in the same order, starting with the chapter's own planet. These sub-periods are where the texture of a chapter comes from — a Saturn chapter feels different in its Venus months than in its Mars months."
+            "Inside every chapter the same nine planets take turns again, in the same order, starting with the chapter's own planet. These sub-periods are where the texture of a chapter comes from: a Saturn chapter feels different in its Venus months than in its Mars months."
         ),
         (
             "What the meanings are",
@@ -27,7 +27,7 @@ struct PeriodExplainerView: View {
         ),
         (
             "Why pin moments",
-            "A chapter is abstract until something real sits inside it. Pinning what actually happened — a move, a job, a loss — lets you see your own life against the pattern, and lets the readings speak to what you have lived rather than to a chart alone."
+            "A chapter is abstract until something real sits inside it. Pinning what actually happened (a move, a job, a loss) lets you see your own life against the pattern, and lets the readings speak to what you have lived rather than to a chart alone."
         ),
     ]
 
