@@ -40,7 +40,7 @@ struct KnowledgeView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(Theme.bg, for: .navigationBar)
+        .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         .tint(Theme.fg)
         .task { await store.load() }
         .alert("Forget everything?", isPresented: $confirmForgetAll) {

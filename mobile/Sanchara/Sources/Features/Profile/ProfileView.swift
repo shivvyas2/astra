@@ -95,7 +95,7 @@ struct ProfileView: View {
                     }
                 }
             }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .presentationBackground(Theme.bg)
         .sheet(isPresented: $isEditing) {

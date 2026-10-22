@@ -49,7 +49,7 @@ struct CandidatesView: View {
                         .foregroundStyle(Theme.fg)
                 }
             }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .tint(Theme.fg)
         .presentationBackground(Theme.bg)

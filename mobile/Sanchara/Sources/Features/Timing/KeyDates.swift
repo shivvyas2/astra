@@ -152,7 +152,7 @@ struct KeyDatesView: View {
                         .foregroundStyle(Theme.fg)
                 }
             }
-            .toolbarBackground(Theme.bg, for: .navigationBar)
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .presentationBackground(Theme.bg)
         .task { await load() }
