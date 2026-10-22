@@ -1,14 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import type { MoodSummary } from "@/lib/mood/patterns";
+import { useI18n } from "@/lib/i18n/client";
+import { moodPatternText } from "@/lib/i18n/astro";
 
-const FACES = [
-  { mood: 1, label: "Rough" },
-  { mood: 2, label: "Low" },
-  { mood: 3, label: "Okay" },
-  { mood: 4, label: "Good" },
-  { mood: 5, label: "Great" },
-];
+const MOODS = [1, 2, 3, 4, 5];
 
 /** The person's own calendar date, yyyy-mm-dd. */
 function localDay() {
@@ -21,6 +17,8 @@ function localDay() {
  * Hides itself until the mood table exists (GET /api/mood says available).
  */
 export function MoodCheckin({ className = "" }: { className?: string }) {
+  const i18n = useI18n();
+  const { t, f } = i18n;
   const [available, setAvailable] = useState(false);
   const [today, setToday] = useState<number | null>(null);
   const [summary, setSummary] = useState<MoodSummary | null>(null);
@@ -56,7 +54,7 @@ export function MoodCheckin({ className = "" }: { className?: string }) {
       void load();
     } catch {
       setToday(before);
-      setError("That didn't save. Try again.");
+      setError(t.mood.saveError);
     }
   }
 
@@ -64,24 +62,25 @@ export function MoodCheckin({ className = "" }: { className?: string }) {
 
   return (
     <section className={`brut-card p-5 sm:p-6 ${className}`} aria-labelledby="mood-heading">
-      <p className="eyebrow">Check in</p>
-      <h2 id="mood-heading" className="headline mt-3 text-2xl">How was today?</h2>
-      <div className="mt-4 grid grid-cols-5 gap-2" role="radiogroup" aria-label="Today's mood">
-        {FACES.map((f) => {
-          const on = today === f.mood;
+      <p className="eyebrow">{t.mood.eyebrow}</p>
+      <h2 id="mood-heading" className="headline mt-3 text-2xl">{t.mood.title}</h2>
+      <div className="mt-4 grid grid-cols-5 gap-2" role="radiogroup" aria-label={t.mood.aria}>
+        {MOODS.map((mood) => {
+          const on = today === mood;
           return (
             <button
-              key={f.mood}
+              key={mood}
               type="button"
               role="radio"
               aria-checked={on}
-              onClick={() => pick(f.mood)}
-              className={`flex flex-col items-center gap-1 rounded-[14px] border py-3 transition-colors ${
+              onClick={() => pick(mood)}
+              className={`flex min-w-0 flex-col items-center gap-1 rounded-[14px] border px-1 py-3 transition-colors ${
                 on ? "border-accent bg-accent text-ink" : "border-line bg-fg/[0.04] hover:border-fg"
               }`}
             >
-              <span className="text-xl font-light tabular-nums">{f.mood}</span>
-              <span className="text-[11px] font-medium">{f.label}</span>
+              <span className="text-xl font-light tabular-nums">{mood}</span>
+              {/* Hindi and Gujarati labels run longer; they wrap inside the cell. */}
+              <span className="text-center text-[11px] font-medium leading-tight">{t.mood.faces[mood - 1]}</span>
             </button>
           );
         })}
@@ -89,20 +88,21 @@ export function MoodCheckin({ className = "" }: { className?: string }) {
       {error && <p role="alert" className="mt-3 text-sm text-ember">{error}</p>}
 
       <div className="mt-5 border-t border-rule pt-4">
-        <p className="eyebrow">Your pattern</p>
+        <p className="eyebrow">{t.mood.pattern}</p>
         {summary && summary.patterns.length > 0 ? (
           <ul className="mt-2 space-y-2">
-            {summary.patterns.map((p) => (
-              <li key={p.key} className="text-sm leading-relaxed">
-                <span className="font-semibold">{p.label}.</span> <span className="text-muted">{p.sentence}</span>
-              </li>
-            ))}
+            {summary.patterns.map((p) => {
+              const { label, sentence } = moodPatternText(i18n, p);
+              return (
+                <li key={p.key} className="text-sm leading-relaxed">
+                  <span className="font-semibold">{label}.</span> <span className="text-muted">{sentence}</span>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            {summary && summary.needed > 0
-              ? `Check in for ${summary.needed} more ${summary.needed === 1 ? "day" : "days"} and Astrya will compare your days with where the Moon was for you.`
-              : "No clear pattern yet between your days and the Moon. That is an answer too; it keeps checking."}
+            {summary && summary.needed > 0 ? f(t.mood.needMore, { count: summary.needed }) : t.mood.noPattern}
           </p>
         )}
       </div>

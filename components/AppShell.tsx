@@ -3,18 +3,20 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams, usePathname } from "next/navigation";
 import { signOut } from "@/app/(auth)/actions";
+import { useI18n } from "@/lib/i18n/client";
+import type { Messages } from "@/lib/i18n/en";
 
 type Conv = { id: string; tradition: string; title: string | null; created_at: string };
 
-const SECTION_NAMES: Record<string, string> = {
-  "/app": "Home",
-  "/app/chat": "Reading",
-  "/app/profile": "Profile",
-  "/app/intake": "Birth details",
-  "/app/profiles": "People",
-  "/app/timing": "Key dates",
-  "/app/today": "Today",
-  "/app/plus": "Astrya Plus",
+const SECTION_KEYS: Record<string, keyof Messages["shell"]["sectionNames"]> = {
+  "/app": "home",
+  "/app/chat": "chat",
+  "/app/profile": "profile",
+  "/app/intake": "intake",
+  "/app/profiles": "profiles",
+  "/app/timing": "timing",
+  "/app/today": "today",
+  "/app/plus": "plus",
 };
 
 // The colour field behind each section, as in the app: warm for a reading,
@@ -58,23 +60,26 @@ function CloseIcon(p: IconProps) {
   return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>;
 }
 
-const NAV: { href: string; label: string; blurb: string; icon: (p: IconProps) => React.JSX.Element; external?: boolean }[] = [
-  { href: "/app", label: "Home", blurb: "Your chart at a glance", icon: HomeIcon },
-  { href: "/app/chat", label: "New reading", blurb: "Ask anything, read from your chart", icon: ChatIcon },
-  { href: "/app/today", label: "Today", blurb: "Daily readings and alerts", icon: BellIcon },
-  { href: "/app/timing", label: "Key dates", blurb: "The year ahead, to the day", icon: CalendarIcon },
-  { href: "/api/kundli", label: "Kundli", blurb: "Your birth chart as a PDF", icon: FileIcon, external: true },
-  { href: "/app/profiles", label: "People", blurb: "Partners, family, compatibility", icon: PeopleIcon },
-  { href: "/app/profile", label: "Profile", blurb: "Birth details, photo, account", icon: UserIcon },
+const NAV: { href: string; key: keyof Messages["shell"]["nav"]; icon: (p: IconProps) => React.JSX.Element; external?: boolean }[] = [
+  { href: "/app", key: "home", icon: HomeIcon },
+  { href: "/app/chat", key: "chat", icon: ChatIcon },
+  { href: "/app/today", key: "today", icon: BellIcon },
+  { href: "/app/timing", key: "timing", icon: CalendarIcon },
+  { href: "/api/kundli", key: "kundli", icon: FileIcon, external: true },
+  { href: "/app/profiles", key: "profiles", icon: PeopleIcon },
+  { href: "/app/profile", key: "profile", icon: UserIcon },
 ];
 
 export function AppShell({ conversations, children }: { conversations: Conv[]; children: React.ReactNode }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const params = useSearchParams();
   const pathname = usePathname();
   const activeId = params.get("c");
   const close = () => setOpen(false);
-  const section = SECTION_NAMES[pathname] ?? "Astrya";
+  const sectionKey = SECTION_KEYS[pathname];
+  const section = sectionKey ? t.shell.sectionNames[sectionKey] : "Astrya";
+  const traditionLabel = (tr: string) => (t.traditions as Record<string, { label: string } | undefined>)[tr]?.label ?? tr;
 
   // "New reading" is only current on a fresh chat; a past reading is marked in its own list.
   const isCurrent = (href: string) =>
@@ -90,13 +95,14 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
         <Link href="/app" onClick={close} className="flex items-center gap-2.5 text-lg font-medium tracking-tight">
           Astrya
         </Link>
-        <button type="button" aria-label="Close menu" onClick={close} className="circle-btn h-9 w-9 md:hidden">
+        <button type="button" aria-label={t.shell.closeMenu} onClick={close} className="circle-btn h-9 w-9 md:hidden">
           <CloseIcon />
         </button>
       </div>
 
-      <nav aria-label="Sections" className="space-y-1">
-        {NAV.map(({ href, label, blurb, icon: Icon, external }) => {
+      <nav aria-label={t.shell.sections} className="space-y-1">
+        {NAV.map(({ href, key, icon: Icon, external }) => {
+          const { label, blurb } = t.shell.nav[key];
           const current = isCurrent(href);
           const cls = `flex items-start gap-3 rounded-[14px] border px-3 py-2.5 transition-colors ${
             current ? "border-line bg-fg/[0.06]" : "border-transparent hover:bg-fg/[0.04]"
@@ -118,9 +124,9 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
         })}
       </nav>
 
-      <p className="eyebrow mt-6 px-3 pb-2">Past readings</p>
-      <nav aria-label="Past readings" className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
-        {conversations.length === 0 && <p className="px-3 py-1 text-xs text-muted">No readings yet.</p>}
+      <p className="eyebrow mt-6 px-3 pb-2">{t.shell.pastReadings}</p>
+      <nav aria-label={t.shell.pastReadings} className="min-h-0 flex-1 space-y-0.5 overflow-y-auto">
+        {conversations.length === 0 && <p className="px-3 py-1 text-xs text-muted">{t.shell.noReadings}</p>}
         {conversations.map((c) => {
           const current = activeId === c.id && pathname === "/app/chat";
           return (
@@ -128,21 +134,21 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
               key={c.id}
               href={`/app/chat?c=${c.id}`}
               onClick={close}
-              title={c.title ?? "Reading"}
+              title={c.title ?? t.shell.reading}
               aria-current={current ? "page" : undefined}
               className={`flex items-center gap-2 rounded-[14px] border px-3 py-2 text-sm transition-colors ${
                 current ? "border-line bg-fg/[0.06] text-fg" : "border-transparent text-muted hover:bg-fg/[0.04] hover:text-fg"
               }`}
             >
-              <span className={`brut-tag shrink-0 ${TAG_FILL[c.tradition] ?? "bg-fg"}`}>{c.tradition}</span>
-              <span className="truncate">{c.title ?? "Reading"}</span>
+              <span className={`brut-tag shrink-0 ${TAG_FILL[c.tradition] ?? "bg-fg"}`}>{traditionLabel(c.tradition)}</span>
+              <span className="truncate">{c.title ?? t.shell.reading}</span>
             </Link>
           );
         })}
       </nav>
 
       <form action={signOut} className="mt-3 border-t border-rule pt-3">
-        <button className="brut-btn brut-btn-quiet w-full py-2 text-sm text-muted hover:text-fg">Sign out</button>
+        <button className="brut-btn brut-btn-quiet w-full py-2 text-sm text-muted hover:text-fg">{t.common.signOut}</button>
       </form>
     </div>
   );
@@ -160,7 +166,7 @@ export function AppShell({ conversations, children }: { conversations: Conv[]; c
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center gap-3 px-4 pb-1 pt-3 md:hidden">
-          <button type="button" aria-label="Open menu" onClick={() => setOpen(true)} className="circle-btn h-[38px] w-[38px]">
+          <button type="button" aria-label={t.shell.openMenu} onClick={() => setOpen(true)} className="circle-btn h-[38px] w-[38px]">
             <MenuIcon />
           </button>
           <span className="text-[15px] font-semibold tracking-tight">{section}</span>

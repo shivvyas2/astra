@@ -3,6 +3,7 @@ import { generateKundliPdf } from "@/lib/pdf/kundli";
 import { computeNumerology, computeNameNumber } from "@/lib/astrology/numerology";
 import { ensureCurrentChart, type BirthProfileRow } from "@/lib/data/birthProfile";
 import type { Chart } from "@/lib/astrology/types";
+import { routeI18n } from "@/lib/i18n/route";
 
 export const runtime = "nodejs";
 
@@ -14,9 +15,14 @@ export async function GET(request: Request) {
   const { data: loaded, error: profileError } = await supabase.from("birth_profiles").select("*").maybeSingle();
   if (profileError) {
     console.error("kundli profile read error", profileError);
-    return new Response("Something went wrong loading your profile. Please try again.", { status: 500 });
+    // Opened as a link, so the browser shows this text as the page.
+    const { t } = await routeI18n(request, supabase);
+    return new Response(t.errors.profileLoad, { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } });
   }
-  if (!loaded?.chart) return new Response("Complete your birth details first.", { status: 400 });
+  if (!loaded?.chart) {
+    const { t } = await routeI18n(request, supabase);
+    return new Response(t.errors.noChart, { status: 400, headers: { "content-type": "text/plain; charset=utf-8" } });
+  }
   const p = await ensureCurrentChart(loaded as BirthProfileRow, supabase);
 
   const chart = (p.chart as { vedic: Chart }).vedic;

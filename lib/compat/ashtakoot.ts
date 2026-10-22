@@ -71,7 +71,16 @@ export type DoshaNote = {
   /** Classical exceptions that apply to this pair. Reported, never applied to the score. */
   exceptions: string[];
   note: string;
+  /** The exceptions as codes, in the same order, so the site can say them in Hindi or Gujarati. */
+  exceptionCodes?: DoshaException[];
+  /** For Mangal dosha: each side's result, which the note is written from. */
+  mangal?: { a: MangalResult; b: MangalResult };
 };
+
+export type DoshaException =
+  | { code: "sameSignDiffNak" | "sameNakDiffSign" | "diffPadas" | "nadisDiffer" | "bothMangal" }
+  | { code: "sameLord"; lord: string }
+  | { code: "friendLords"; a: string; b: string };
 
 export type Ashtakoot = {
   total: number;
@@ -328,18 +337,30 @@ export function computeAshtakoot(args: { groom: MoonPoint; bride: MoonPoint }): 
   const doshas: DoshaNote[] = [];
   if (nadiDosha) {
     const exceptions: string[] = [];
-    if (gs === bs && gn !== bn) exceptions.push("Same Moon sign, different nakshatras.");
-    if (gn === bn && gs !== bs) exceptions.push("Same nakshatra falling in different Moon signs.");
+    const exceptionCodes: DoshaException[] = [];
+    if (gs === bs && gn !== bn) {
+      exceptions.push("Same Moon sign, different nakshatras.");
+      exceptionCodes.push({ code: "sameSignDiffNak" });
+    }
+    if (gn === bn && gs !== bs) {
+      exceptions.push("Same nakshatra falling in different Moon signs.");
+      exceptionCodes.push({ code: "sameNakDiffSign" });
+    }
     const gp = groom.degreeKnown === false ? undefined : padaOf(groom);
     const bp = bride.degreeKnown === false ? undefined : padaOf(bride);
     if (gn === bn && gs === bs && gp !== undefined && bp !== undefined && gp !== bp) {
       exceptions.push("Same nakshatra, different padas.");
+      exceptionCodes.push({ code: "diffPadas" });
     }
-    if (gLord === bLord) exceptions.push(`Both Moon signs ruled by ${gLord}.`);
+    if (gLord === bLord) {
+      exceptions.push(`Both Moon signs ruled by ${gLord}.`);
+      exceptionCodes.push({ code: "sameLord", lord: gLord });
+    }
     doshas.push({
       kind: "nadi",
       present: true,
       exceptions,
+      exceptionCodes,
       note:
         "Both Moons share a nadi, which the tradition reads as a concern for health and children." +
         (exceptions.length > 0 ? " Some texts lift it in this case; the score is shown without that relief." : ""),
@@ -347,15 +368,23 @@ export function computeAshtakoot(args: { groom: MoonPoint; bride: MoonPoint }): 
   }
   if (bhakootDosha) {
     const exceptions: string[] = [];
-    if (gLord === bLord) exceptions.push(`Both Moon signs ruled by ${gLord}.`);
-    else if (naturalRelation(gLord, bLord) === "friend" && naturalRelation(bLord, gLord) === "friend") {
+    const exceptionCodes: DoshaException[] = [];
+    if (gLord === bLord) {
+      exceptions.push(`Both Moon signs ruled by ${gLord}.`);
+      exceptionCodes.push({ code: "sameLord", lord: gLord });
+    } else if (naturalRelation(gLord, bLord) === "friend" && naturalRelation(bLord, gLord) === "friend") {
       exceptions.push(`${gLord} and ${bLord}, the Moon-sign lords, are natural friends.`);
+      exceptionCodes.push({ code: "friendLords", a: gLord, b: bLord });
     }
-    if (!nadiDosha) exceptions.push("The nadis differ.");
+    if (!nadiDosha) {
+      exceptions.push("The nadis differ.");
+      exceptionCodes.push({ code: "nadisDiffer" });
+    }
     doshas.push({
       kind: "bhakoot",
       present: true,
       exceptions,
+      exceptionCodes,
       note:
         `The Moon signs are ${pairName(pairing)} apart, which the tradition reads as friction over money or closeness.` +
         (exceptions.length > 0 ? " Some texts lift it in this case; the score is shown without that relief." : ""),
@@ -406,7 +435,9 @@ export function mangalNote(a: MangalResult, b: MangalResult, names: { a: string;
       kind: "mangal",
       present: true,
       exceptions: ["Both charts carry it, which most texts treat as cancelling out."],
+      exceptionCodes: [{ code: "bothMangal" }],
       note: `${names.a}: ${describe(a)}. ${names.b}: ${describe(b)}.${caveat}`,
+      mangal: { a, b },
     };
   }
   if (a.present || b.present) {
@@ -414,10 +445,11 @@ export function mangalNote(a: MangalResult, b: MangalResult, names: { a: string;
       kind: "mangal",
       present: true,
       exceptions: [],
+      mangal: { a, b },
       note: `${a.present ? names.a : names.b} has Mangal dosha (${describe(a.present ? a : b)}); ${a.present ? names.b : names.a} does not.${caveat}`,
     };
   }
-  return { kind: "mangal", present: false, exceptions: [], note: `Neither chart has Mangal dosha.${caveat}` };
+  return { kind: "mangal", present: false, exceptions: [], mangal: { a, b }, note: `Neither chart has Mangal dosha.${caveat}` };
 }
 
 /** The Moon of a Vedic chart as `computeAshtakoot` wants it. */

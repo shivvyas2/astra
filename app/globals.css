@@ -379,3 +379,23 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
 .prose-reading ul.basis-list { list-style: none; padding-left: 0; margin: 0.5rem 0 0; }
 .prose-reading ul.basis-list li { margin: 0; }
 .prose-reading p.basis-note { margin: 0; }
+
+/*
+ * Hindi and Gujarati. Their letters carry marks above and below the line, so
+ * the tight line heights set for Latin clip them, and any letter-spacing
+ * pulls a word's joined letters apart. Unlayered, so these win over the
+ * component and utility layers without !important.
+ */
+html:lang(hi) .headline,
+html:lang(gu) .headline { line-height: 1.22; letter-spacing: 0; }
+html:lang(hi) .brut-btn, html:lang(gu) .brut-btn,
+html:lang(hi) .brut-chip, html:lang(gu) .brut-chip { line-height: 1.3; }
+html:lang(hi) .brut-tag,
+html:lang(gu) .brut-tag { font-size: 11px; line-height: 1.25; letter-spacing: 0; padding-top: 3px; padding-bottom: 3px; }
+html:lang(hi) [class*="tracking-"],
+html:lang(gu) [class*="tracking-"] { letter-spacing: 0; }
+html:lang(hi) [class*="leading-[0."],
+html:lang(gu) [class*="leading-[0."] { line-height: 1.2; }
+/* The monospace stacks have no Indic letters; let those fall back to the sans fonts loaded for them. */
+html:lang(hi) .font-mono,
+html:lang(gu) .font-mono { font-family: var(--font-sans); }

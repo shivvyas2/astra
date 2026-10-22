@@ -1,12 +1,18 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { LANGUAGE_LABEL, READING_LANGUAGES, type ReadingLanguage } from "@/lib/astrology/language";
+import { useI18n } from "@/lib/i18n/client";
 
 /**
- * The language readings are written in: Ask, the morning and evening
- * readings, alerts and the life map. Saved at once; the next reading uses it.
+ * The one language setting: the site, the app and the readings (Ask, the
+ * morning and evening readings, alerts and the life map). Saved at once;
+ * the route sets the `astrya-lang` cookie and the refresh re-renders the
+ * server components in the new language.
  */
 export function LanguagePicker({ initial }: { initial: ReadingLanguage }) {
+  const router = useRouter();
+  const { t } = useI18n();
   const [language, setLanguage] = useState(initial);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -18,19 +24,22 @@ export function LanguagePicker({ initial }: { initial: ReadingLanguage }) {
       method: "PUT",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ language: next }),
-    });
-    if (!res.ok) {
+    }).catch(() => null);
+    if (!res?.ok) {
       setLanguage(previous);
-      setMessage(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not save the language.");
+      setMessage(t.language.saveError);
     } else {
-      setMessage("Saved. Your next reading uses it.");
+      setMessage(null);
+      router.refresh();
     }
   }
 
+  const label = (l: ReadingLanguage) => (l === "sanskrit" ? t.language.sanskrit : LANGUAGE_LABEL[l]);
+
   return (
     <section className="mt-6">
-      <p className="eyebrow">Reading language</p>
-      <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Reading language">
+      <p className="eyebrow">{t.language.label}</p>
+      <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label={t.language.label}>
         {READING_LANGUAGES.map((l) => (
           <button
             key={l}
@@ -40,12 +49,12 @@ export function LanguagePicker({ initial }: { initial: ReadingLanguage }) {
             onClick={() => language !== l && void choose(l)}
             className={`brut-chip${language === l ? " is-active" : ""}`}
           >
-            {LANGUAGE_LABEL[l]}
+            {label(l)}
           </button>
         ))}
       </div>
-      <p className="mt-2 text-xs text-muted">
-        {message ?? "Readings, alerts and notifications are written in this language. Sanskrit terms keeps English but uses Surya, Mesha, bhava and so on."}
+      <p className="mt-2 text-xs text-muted" role={message ? "alert" : undefined}>
+        {message ?? t.language.helper}
       </p>
     </section>
   );

@@ -33,7 +33,29 @@ export type TimingEvent = {
   houseFromMoon: number | null;
   topics: Topic[];
   tone: Tone;
+  /**
+   * What the title and detail were written from, so the site can say the
+   * same in Hindi or Gujarati. The English sentences above stay what the
+   * readings quote.
+   */
+  facts?: TimingFacts;
 };
+
+export type TimingFacts =
+  | {
+      kind: "ingress";
+      sign: string;
+      from: string;
+      retrograde: boolean;
+      /** Natal planets in the sign it enters. */
+      over: string[];
+      /** Ketu's new sign, said with Rahu's. */
+      ketuSign: string | null;
+      /** The house from the Moon a Saturn ingress starts a Sade Sati phase in. */
+      sadeSati: 12 | 1 | 2 | 3 | null;
+    }
+  | { kind: "station"; sign: string; retrograde: boolean }
+  | { kind: "dasha"; major: string; start: string; end: string; lordHouse: number | null; lordSign: string | null };
 
 /** Houses from the Moon where classical gochara reads each body as helpful. */
 const FAVOURABLE: Record<string, number[]> = {
@@ -106,11 +128,16 @@ export function personalTiming(args: {
       // "1st from your Moon" is said better by "over your natal Moon" below.
       if (fromAsc != null && fromMoon !== 1) parts.push(`${ORDINAL[fromMoon]} from your Moon.`);
       if (over.length) parts.push(`It passes over your natal ${over.join(" and ")}.`);
+      let ketuSign: string | null = null;
       if (e.body === "Rahu") {
         const ketu = sky.find((x) => x.kind === "ingress" && x.body === "Ketu" && x.date === e.date);
-        if (ketu && ketu.kind === "ingress") parts.push(`Ketu moves into ${ketu.sign} the same day.`);
+        if (ketu && ketu.kind === "ingress") {
+          ketuSign = ketu.sign;
+          parts.push(`Ketu moves into ${ketu.sign} the same day.`);
+        }
       }
-      if (e.body === "Saturn" && SADE_SATI[fromMoon]) parts.push(SADE_SATI[fromMoon]);
+      const sadeSati = e.body === "Saturn" && SADE_SATI[fromMoon] ? (fromMoon as 12 | 1 | 2 | 3) : null;
+      if (sadeSati) parts.push(SADE_SATI[sadeSati]);
       if (next) parts.push(`Until ${longDate(next.date)}.`);
       events.push({
         id: `${e.date}-${e.body}-ingress`,
@@ -124,6 +151,7 @@ export function personalTiming(args: {
         houseFromMoon: fromMoon,
         topics: topicsForHouse(house),
         tone: toneFor(e.body, fromMoon),
+        facts: { kind: "ingress", sign: e.sign, from: e.from, retrograde: e.retrograde && !node, over, ketuSign, sadeSati },
       });
     } else {
       events.push({
@@ -140,6 +168,7 @@ export function personalTiming(args: {
         houseFromMoon: fromMoon,
         topics: topicsForHouse(house),
         tone: "mixed",
+        facts: { kind: "station", sign: e.sign, retrograde: e.retrograde },
       });
     }
   }
@@ -162,6 +191,14 @@ export function personalTiming(args: {
         houseFromMoon: lord ? houseFrom(natal.moonSign, lord.sign) : null,
         topics: topicsForHouse(house),
         tone: "mixed",
+        facts: {
+          kind: "dasha",
+          major: period.lord,
+          start: sub.start,
+          end: sub.end,
+          lordHouse: lord && timeKnown ? lord.house : null,
+          lordSign: lord && !timeKnown ? lord.sign : null,
+        },
       });
     }
   }

@@ -183,10 +183,10 @@ export function cleanPrediction(raw: unknown, today: string): NewPrediction | nu
 }
 
 /** "Mar–Jun 2027", "Dec 2026 – Feb 2027", "Mar 2027" — for the lists and the prompt. */
-export function windowLabel(start: string, end: string): string {
+export function windowLabel(start: string, end: string, locale = "en-US"): string {
   const fmt = (iso: string, withYear: boolean) => {
     const d = new Date(`${iso}T00:00:00Z`);
-    const month = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+    const month = d.toLocaleString(locale, { month: "short", timeZone: "UTC" });
     return withYear ? `${month} ${d.getUTCFullYear()}` : month;
   };
   const s = new Date(`${start}T00:00:00Z`);

@@ -28,7 +28,16 @@ export type Stretch = {
   them: string;
   tone: StretchTone;
   reasons: string[];
+  /** The reasons as codes, in the same order, so the site can say them in Hindi or Gujarati. */
+  why?: StretchReason[];
 };
+
+export type StretchReason =
+  | { code: "seventh" | "rules" | "dusthana"; name: string; lord: string; house: number; timeKnown: boolean }
+  | { code: "venus"; name: string }
+  | { code: "node"; node: string }
+  | { code: "same"; lord: string }
+  | { code: "enemies" | "friends" | "neutral"; a: string; b: string };
 
 type Sub = { lord: string; start: string; end: string };
 
@@ -39,7 +48,11 @@ function subPeriods(side: Side): Sub[] {
 }
 
 /** +1 when the lord speaks for relationships, −1 from a dusthana, else 0; with the reason. */
-export function relationshipWeight(chart: Chart, lord: string, name: string): { weight: number; reason: string | null } {
+export function relationshipWeight(
+  chart: Chart,
+  lord: string,
+  name: string,
+): { weight: number; reason: string | null; code?: StretchReason } {
   const p = chart.planets.find((x) => x.name === lord);
   if (!p) return { weight: 0, reason: null };
   const timeKnown = chart.timeKnown !== false;
@@ -47,27 +60,49 @@ export function relationshipWeight(chart: Chart, lord: string, name: string): { 
   const house = houseFrom(from, p.sign);
   const ref = timeKnown ? "house" : "from the Moon";
   const seventh = signsRuledBy(lord).some((s) => houseFrom(from, s) === 7);
-  if (house === 7) return { weight: 1, reason: `${name}'s ${lord} period: ${lord} sits in their 7th ${ref}, the house of partnership.` };
-  if (seventh) return { weight: 1, reason: `${name}'s ${lord} period: ${lord} rules their 7th ${ref}.` };
-  if (lord === "Venus") return { weight: 1, reason: `${name}'s Venus period: Venus is the significator of love.` };
+  if (house === 7) {
+    return {
+      weight: 1,
+      reason: `${name}'s ${lord} period: ${lord} sits in their 7th ${ref}, the house of partnership.`,
+      code: { code: "seventh", name, lord, house, timeKnown },
+    };
+  }
+  if (seventh) {
+    return {
+      weight: 1,
+      reason: `${name}'s ${lord} period: ${lord} rules their 7th ${ref}.`,
+      code: { code: "rules", name, lord, house: 7, timeKnown },
+    };
+  }
+  if (lord === "Venus") {
+    return { weight: 1, reason: `${name}'s Venus period: Venus is the significator of love.`, code: { code: "venus", name } };
+  }
   if ([6, 8, 12].includes(house)) {
-    return { weight: -1, reason: `${name}'s ${lord} period: ${lord} sits in their ${ORDINAL[house]} ${ref}, a house of strain.` };
+    return {
+      weight: -1,
+      reason: `${name}'s ${lord} period: ${lord} sits in their ${ORDINAL[house]} ${ref}, a house of strain.`,
+      code: { code: "dusthana", name, lord, house, timeKnown },
+    };
   }
   return { weight: 0, reason: null };
 }
 
 const NODES = new Set(["Rahu", "Ketu"]);
 
-export function lordsRelation(a: string, b: string): { score: number; reason: string } {
+export function lordsRelation(a: string, b: string): { score: number; reason: string; code: StretchReason } {
   if (a !== b && (NODES.has(a) || NODES.has(b))) {
     const node = NODES.has(a) ? a : b;
-    return { score: 0, reason: `${node} keeps no natural friendships, so the pairing is neither eased nor strained.` };
+    return {
+      score: 0,
+      reason: `${node} keeps no natural friendships, so the pairing is neither eased nor strained.`,
+      code: { code: "node", node },
+    };
   }
   const ab = naturalRelation(a, b), ba = naturalRelation(b, a);
-  if (ab === "same") return { score: 1, reason: `You are both in ${a} periods.` };
-  if (ab === "enemy" || ba === "enemy") return { score: -1, reason: `${a} and ${b} are natural enemies.` };
-  if (ab === "friend" && ba === "friend") return { score: 1, reason: `${a} and ${b} are natural friends.` };
-  return { score: 0, reason: `${a} and ${b} are neutral to each other.` };
+  if (ab === "same") return { score: 1, reason: `You are both in ${a} periods.`, code: { code: "same", lord: a } };
+  if (ab === "enemy" || ba === "enemy") return { score: -1, reason: `${a} and ${b} are natural enemies.`, code: { code: "enemies", a, b } };
+  if (ab === "friend" && ba === "friend") return { score: 1, reason: `${a} and ${b} are natural friends.`, code: { code: "friends", a, b } };
+  return { score: 0, reason: `${a} and ${b} are neutral to each other.`, code: { code: "neutral", a, b } };
 }
 
 /** The birth moment in UT, which the dasha clock runs on. */
@@ -101,6 +136,7 @@ export function overTime(you: Side, them: Side, today: string, years = 3): Stret
       them: sb.lord,
       tone: score >= 2 ? "warm" : score <= -1 ? "strained" : "steady",
       reasons: [rel.reason, wa.reason, wb.reason].filter((r): r is string => r !== null),
+      why: [rel.code, wa.code, wb.code].filter((r): r is StretchReason => r !== undefined),
     });
   }
   // Neighbours with the same lords and tone read as one stretch.

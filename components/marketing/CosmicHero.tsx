@@ -4,6 +4,10 @@ import Link from "next/link";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { AppShowcase, ChartFactsVisual, ReadingVisual, TraditionsVisual } from "./Showcase";
+import { LocaleSwitcher } from "@/components/LocaleSwitcher";
+import { useI18n } from "@/lib/i18n/client";
+import { rich } from "@/lib/i18n/rich";
+import type { Messages } from "@/lib/i18n/en";
 
 type Section = {
   eyebrow: string;
@@ -13,48 +17,46 @@ type Section = {
   cta?: { primary: { label: string; href: string }; secondary?: { label: string; href: string } };
 };
 
-const HERO: Section = {
-  eyebrow: "Computed astrology, never guessed",
-  title: "Astrya",
-  lines: ["Your real birth chart, read by the stars."],
-  cta: {
-    primary: { label: "Get your reading", href: "/signup" },
-    secondary: { label: "Log in", href: "/login" },
-  },
-};
+function hero(t: Messages): Section {
+  return {
+    eyebrow: t.landing.heroEyebrow,
+    title: "Astrya",
+    lines: [t.landing.heroLine],
+    cta: {
+      primary: { label: t.landing.getReading, href: "/signup" },
+      secondary: { label: t.landing.logIn, href: "/login" },
+    },
+  };
+}
 
-const SECTIONS: Section[] = [
-  {
-    eyebrow: "A real engine",
-    title: "The science",
-    lines: [
-      "We compute your exact chart with the Swiss Ephemeris:",
-      "ascendant, houses, nakshatras, and your Vimshottari dasha.",
-    ],
-    visual: <ChartFactsVisual />,
-  },
-  {
-    eyebrow: "Vedic, Western & Numerology",
-    title: "Your chart",
-    lines: [
-      "Switch between sidereal Vedic, tropical Western, and numerology.",
-      "Every answer is grounded in your actual placements.",
-    ],
-    visual: <TraditionsVisual />,
-  },
-  {
-    eyebrow: "Ask anything",
-    title: "Your future",
-    lines: [
-      "Career, relationships, timing, a kundli reading,",
-      "explained in plain words anyone can understand.",
-    ],
-    visual: <ReadingVisual />,
-    cta: { primary: { label: "Create your free account", href: "/signup" } },
-  },
-];
+function sections(t: Messages): Section[] {
+  return [
+    {
+      eyebrow: t.landing.scienceEyebrow,
+      title: t.landing.scienceTitle,
+      lines: [...t.landing.scienceLines],
+      visual: <ChartFactsVisual />,
+    },
+    {
+      eyebrow: t.landing.chartEyebrow,
+      title: t.landing.chartTitle,
+      lines: [...t.landing.chartLines],
+      visual: <TraditionsVisual />,
+    },
+    {
+      eyebrow: t.landing.futureEyebrow,
+      title: t.landing.futureTitle,
+      lines: [...t.landing.futureLines],
+      visual: <ReadingVisual />,
+      cta: { primary: { label: t.landing.createAccount, href: "/signup" } },
+    },
+  ];
+}
 
 export default function CosmicHero() {
+  const { t } = useI18n();
+  const HERO = hero(t);
+  const SECTIONS = sections(t);
   const root = useRef<HTMLDivElement>(null);
   const titleRef = useRef<HTMLHeadingElement>(null);
 
@@ -157,20 +159,23 @@ export default function CosmicHero() {
       <section className="border-t border-rule px-5 py-20 sm:px-8 sm:py-28">
         <div className="reveal mx-auto flex max-w-6xl flex-col items-start gap-8 sm:flex-row sm:items-end sm:justify-between">
           <h2 className="headline max-w-3xl text-5xl sm:text-7xl">
-            Ask the sky your <span className="text-accent">first question.</span>
+            {rich(t.landing.askFirst, { accent: (s) => <span className="text-accent">{s}</span> })}
           </h2>
           <Link href="/signup" className="brut-btn brut-btn-accent brut-btn-arrow min-h-[54px] shrink-0 px-6">
-            Get your reading
+            {t.landing.getReading}
           </Link>
         </div>
       </section>
 
       <footer className="border-t border-rule px-5 py-8 text-xs text-muted sm:px-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
-          <span>For guidance and reflection. Not a substitute for professional advice.</span>
-          <span className="flex gap-4">
-            <Link href="/privacy" className="underline underline-offset-4 hover:text-fg">Privacy</Link>
-            <Link href="/terms" className="underline underline-offset-4 hover:text-fg">Terms</Link>
+          <span>{t.common.disclaimer}</span>
+          <span className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <LocaleSwitcher />
+            <span className="flex gap-4">
+              <Link href="/privacy" className="underline underline-offset-4 hover:text-fg">{t.common.privacy}</Link>
+              <Link href="/terms" className="underline underline-offset-4 hover:text-fg">{t.common.terms}</Link>
+            </span>
           </span>
         </div>
       </footer>

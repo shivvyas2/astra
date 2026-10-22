@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { GeoResult } from "@/lib/geo";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { resolveTimezone } from "@/lib/geo";
+import { useI18n } from "@/lib/i18n/client";
 
 export type IntakeInitial = {
   firstName?: string;
@@ -48,6 +49,8 @@ export function IntakeForm({
   /** Words the time toggle about "their" birth time rather than "my". */
   someoneElse?: boolean;
 }) {
+  const i18n = useI18n();
+  const { t, f } = i18n;
   const editing = !!initial;
   const [geo, setGeo] = useState<GeoResult | null>(
     initial?.lat != null && initial?.lng != null && initial?.timezone
@@ -59,9 +62,7 @@ export function IntakeForm({
   const [preview, setPreview] = useState<string | null>(initial?.avatarUrl ?? null);
 
   const prettyDate = birthDate
-    ? new Date(`${birthDate}T00:00:00`).toLocaleDateString("en-US", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric",
-      })
+    ? i18n.date(new Date(`${birthDate}T00:00:00`), { weekday: "long", year: "numeric", month: "long", day: "numeric" })
     : "";
 
   // Manual mode: user types lat/lng; timezone is derived offline via tz-lookup.
@@ -81,37 +82,37 @@ export function IntakeForm({
           <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-dashed border-line bg-fg/[0.04] text-center text-[10px] font-semibold uppercase tracking-wide text-muted transition-colors hover:border-accent">
             {preview ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={preview} alt="Profile preview" className="h-full w-full object-cover" />
+              <img src={preview} alt={t.intake.photoPreview} className="h-full w-full object-cover" />
             ) : (
-              <span>Add photo</span>
+              <span>{t.intake.addPhoto}</span>
             )}
           </div>
           <input type="file" name="photo" accept="image/png,image/jpeg,image/webp" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; setPreview(f ? URL.createObjectURL(f) : null); }} />
         </label>
         <div>
-          <p className="eyebrow">Photo</p>
-          <p className="mt-1 text-xs text-muted">Optional. PNG, JPEG or WebP.</p>
+          <p className="eyebrow">{t.intake.photo}</p>
+          <p className="mt-1 text-xs text-muted">{t.intake.photoHint}</p>
         </div>
       </div>}
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="eyebrow block">First name</span>
-          <input name="first_name" required placeholder="First name" defaultValue={initial?.firstName ?? ""} className="brut-field" />
+          <span className="eyebrow block">{t.intake.firstName}</span>
+          <input name="first_name" required placeholder={t.intake.firstName} defaultValue={initial?.firstName ?? ""} className="brut-field" />
         </label>
         <label className="block">
-          <span className="eyebrow block">Last name</span>
-          <input name="last_name" required={!lastNameOptional} placeholder={lastNameOptional ? "Optional" : "Last name"} defaultValue={initial?.lastName ?? ""} className="brut-field" />
+          <span className="eyebrow block">{t.intake.lastName}</span>
+          <input name="last_name" required={!lastNameOptional} placeholder={lastNameOptional ? t.common.optional : t.intake.lastName} defaultValue={initial?.lastName ?? ""} className="brut-field" />
         </label>
       </div>
 
       <label className="block">
-        <span className="eyebrow block">Birth date</span>
+        <span className="eyebrow block">{t.intake.birthDate}</span>
         <input name="birth_date" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
           className="brut-field [color-scheme:dark]" />
         <span className={`mt-1.5 block text-xs ${birthDate ? "text-accent" : "text-muted"}`}>
-          {birthDate ? `Selected: ${prettyDate}` : "No date selected yet"}
+          {birthDate ? f(t.common.selected, { value: prettyDate }) : t.intake.noDate}
         </span>
       </label>
 
@@ -127,7 +128,7 @@ export function IntakeForm({
           <PlaceAutocomplete onPick={setGeo} />
           <button type="button" onClick={() => { setManual(true); setGeo(null); }}
             className="mt-2 text-xs text-muted underline underline-offset-2 transition-colors hover:text-fg">
-            Can&apos;t find your birthplace? Enter coordinates manually
+            {t.intake.findPlace}
           </button>
         </div>
       ) : (
@@ -139,7 +140,7 @@ export function IntakeForm({
       <input type="hidden" name="lng" value={geo?.lng ?? ""} />
       <input type="hidden" name="timezone" value={geo?.timezone ?? ""} />
       <button disabled={!geo} className="brut-btn brut-btn-primary brut-btn-arrow mt-2 min-h-[54px] w-full">
-        {submitLabel ?? (editing ? "Update my details" : "Save & build my chart")}
+        {submitLabel ?? (editing ? t.intake.update : t.intake.save)}
       </button>
       {geo && <p className="text-xs text-muted">{geo.name ? `${geo.name} · ` : ""}{geo.timezone}</p>}
     </form>
@@ -158,12 +159,7 @@ function parseTime(t?: string): { hour: number; minute: number; meridiem: "AM" |
   return { hour, minute, meridiem };
 }
 
-const APPROX_OPTIONS: { value: Approx; label: string }[] = [
-  { value: "morning", label: "Morning" },
-  { value: "afternoon", label: "Afternoon" },
-  { value: "evening", label: "Evening" },
-  { value: "night", label: "Night" },
-];
+const APPROX_OPTIONS: Approx[] = ["morning", "afternoon", "evening", "night"];
 
 /**
  * Time of birth, or "I don't know my birth time". When unknown, the picker is
@@ -181,7 +177,7 @@ export function BirthTimeField({
   initialApprox?: Approx | null;
   someoneElse?: boolean;
 }) {
-  const whose = someoneElse ? "their" : "your";
+  const { t } = useI18n();
   const [known, setKnown] = useState(initialKnown);
   const [approx, setApprox] = useState<Approx | null>(initialApprox);
 
@@ -191,26 +187,23 @@ export function BirthTimeField({
         <TimePicker initialTime={initialKnown ? initialTime : undefined} />
       ) : (
         <div>
-          <span className="eyebrow">Birth time</span>
+          <span className="eyebrow">{t.intake.birthTime}</span>
           <div className="brut-bordered mt-1.5 p-3">
-            <p className="text-sm">
-              We&apos;ll use noon and avoid anything that depends on the exact hour: {whose} ascendant, houses and the
-              Moon&apos;s exact degree. You can add the time later.
-            </p>
-            <p className="eyebrow mt-3">Roughly (optional)</p>
-            <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label="Rough time of day">
-              {APPROX_OPTIONS.map((o) => {
-                const on = approx === o.value;
+            <p className="text-sm">{someoneElse ? t.intake.unknownTheir : t.intake.unknownYour}</p>
+            <p className="eyebrow mt-3">{t.intake.roughly}</p>
+            <div className="mt-1.5 flex flex-wrap gap-2" role="radiogroup" aria-label={t.intake.roughAria}>
+              {APPROX_OPTIONS.map((value) => {
+                const on = approx === value;
                 return (
                   <button
-                    key={o.value}
+                    key={value}
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    onClick={() => setApprox(on ? null : o.value)}
+                    onClick={() => setApprox(on ? null : value)}
                     className={`brut-chip${on ? " is-active" : ""}`}
                   >
-                    {o.label}
+                    {t.intake.approx[value]}
                   </button>
                 );
               })}
@@ -226,7 +219,7 @@ export function BirthTimeField({
           onChange={(e) => setKnown(!e.target.checked)}
           className="h-4 w-4 accent-[var(--accent)]"
         />
-        {someoneElse ? "I don't know their birth time" : "I don't know my birth time"}
+        {someoneElse ? t.intake.dontKnowTheirs : t.intake.dontKnowMine}
       </label>
       <input type="hidden" name="birth_time_known" value={known ? "true" : "false"} />
     </div>
@@ -234,6 +227,7 @@ export function BirthTimeField({
 }
 
 function TimePicker({ initialTime }: { initialTime?: string }) {
+  const { t, f } = useI18n();
   const init = parseTime(initialTime);
   const [hour, setHour] = useState(init.hour); // 1-12
   const [minute, setMinute] = useState(init.minute); // 0-59
@@ -253,26 +247,28 @@ function TimePicker({ initialTime }: { initialTime?: string }) {
   return (
     <div>
       <div className="flex items-baseline gap-2">
-        <span className="eyebrow">Birth time</span>
-        <span className="text-xs text-muted">as exact as you know</span>
+        <span className="eyebrow">{t.intake.birthTime}</span>
+        <span className="text-xs text-muted">{t.intake.asExact}</span>
       </div>
       <div className="mt-1.5 grid grid-cols-3 gap-2">
-        <select aria-label="Hour" value={hour} onChange={(e) => setHour(Number(e.target.value))} className={selectCls} style={chevron}>
+        <select aria-label={t.intake.hour} value={hour} onChange={(e) => setHour(Number(e.target.value))} className={selectCls} style={chevron}>
           {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
             <option key={h} value={h}>{h}</option>
           ))}
         </select>
-        <select aria-label="Minute" value={minute} onChange={(e) => setMinute(Number(e.target.value))} className={selectCls} style={chevron}>
+        <select aria-label={t.intake.minute} value={minute} onChange={(e) => setMinute(Number(e.target.value))} className={selectCls} style={chevron}>
           {Array.from({ length: 60 }, (_, i) => i).map((m) => (
             <option key={m} value={m}>{String(m).padStart(2, "0")}</option>
           ))}
         </select>
-        <select aria-label="AM or PM" value={meridiem} onChange={(e) => setMeridiem(e.target.value as "AM" | "PM")} className={selectCls} style={chevron}>
-          <option value="AM">AM</option>
-          <option value="PM">PM</option>
+        <select aria-label={t.intake.meridiem} value={meridiem} onChange={(e) => setMeridiem(e.target.value as "AM" | "PM")} className={selectCls} style={chevron}>
+          <option value="AM">{t.intake.am}</option>
+          <option value="PM">{t.intake.pm}</option>
         </select>
       </div>
-      <span className="mt-1.5 block text-xs text-accent">Selected: {hour}:{String(minute).padStart(2, "0")} {meridiem}</span>
+      <span className="mt-1.5 block text-xs text-accent">
+        {f(t.common.selected, { value: `${hour}:${String(minute).padStart(2, "0")} ${meridiem === "AM" ? t.intake.am : t.intake.pm}` })}
+      </span>
       <input type="hidden" name="birth_time" value={value} />
     </div>
   );
@@ -281,6 +277,7 @@ function TimePicker({ initialTime }: { initialTime?: string }) {
 function ManualCoords({
   onChange, onBack,
 }: { onChange: (lat: number, lng: number, place: string) => void; onBack: () => void }) {
+  const { t } = useI18n();
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [place, setPlace] = useState("");
@@ -289,16 +286,16 @@ function ManualCoords({
   }
   return (
     <div className="brut-bordered w-full space-y-2 p-3">
-      <span className="eyebrow block">Coordinates</span>
+      <span className="eyebrow block">{t.intake.coordinates}</span>
       <input value={place} onChange={(e) => { setPlace(e.target.value); push(lat, lng, e.target.value); }}
-        placeholder="Place name (optional)" className="brut-field" />
+        placeholder={t.intake.placeName} className="brut-field" />
       <div className="grid grid-cols-2 gap-2">
         <input value={lat} onChange={(e) => { setLat(e.target.value); push(e.target.value, lng, place); }}
-          placeholder="Latitude" inputMode="decimal" className="brut-field" />
+          placeholder={t.intake.latitude} inputMode="decimal" className="brut-field" />
         <input value={lng} onChange={(e) => { setLng(e.target.value); push(lat, e.target.value, place); }}
-          placeholder="Longitude" inputMode="decimal" className="brut-field" />
+          placeholder={t.intake.longitude} inputMode="decimal" className="brut-field" />
       </div>
-      <button type="button" onClick={onBack} className="text-xs text-muted underline underline-offset-2 transition-colors hover:text-fg">Back to search</button>
+      <button type="button" onClick={onBack} className="text-xs text-muted underline underline-offset-2 transition-colors hover:text-fg">{t.intake.backToSearch}</button>
     </div>
   );
 }

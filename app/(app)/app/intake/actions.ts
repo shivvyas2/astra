@@ -4,6 +4,8 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { saveBirthProfile } from "@/lib/data/birthProfile";
 import { parseBirthFields } from "@/lib/profiles/birth";
+import { languageForLocale } from "@/lib/i18n/config";
+import { getLocale } from "@/lib/i18n/server";
 
 async function uploadAvatar(userId: string, file: File): Promise<string | null> {
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
@@ -35,6 +37,12 @@ export async function saveIntake(formData: FormData) {
     avatarUrl = await uploadAvatar(user.id, photo);
   }
 
+  // A first profile starts in English (the column's default). Someone who
+  // has been using the site in Hindi or Gujarati (their cookie, or their
+  // browser's language) keeps it. Read before saving, while nothing is stored.
+  const { data: existing } = await supabase.from("birth_profiles").select("user_id").maybeSingle();
+  const chosen = await getLocale();
+
   await saveBirthProfile({
     userId: user.id,
     firstName: birth.firstName,
@@ -48,5 +56,12 @@ export async function saveIntake(formData: FormData) {
     timezone: birth.timezone,
     avatarUrl,
   });
+  if (!existing && chosen !== "en") {
+    const { error } = await supabase
+      .from("birth_profiles")
+      .update({ reading_language: languageForLocale(chosen) })
+      .eq("user_id", user.id);
+    if (error) console.error("first profile language not saved", error);
+  }
   redirect("/app");
 }

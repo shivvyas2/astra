@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { listPeople } from "@/lib/profiles/store";
-import { RELATIONSHIP_LABEL } from "@/lib/profiles/types";
+import { getI18n } from "@/lib/i18n/server";
+import { sign } from "@/lib/i18n/astro";
 import { Initials } from "@/components/PersonFields";
 import { ScreenHeader } from "@/components/ScreenHeader";
 
@@ -10,33 +11,34 @@ export const dynamic = "force-dynamic";
 export default async function PeoplePage() {
   const db = await createServerSupabase();
   const { people, available } = await listPeople(db);
+  const i18n = await getI18n();
+  const { t, f } = i18n;
+  const relationship = (r: string) => (t.people.relationships as Record<string, string>)[r] ?? r;
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-md px-5 py-8">
         <ScreenHeader
-          eyebrow="People"
-          title="The people in your chart"
+          eyebrow={t.people.eyebrow}
+          title={t.people.title}
           arrow
-          blurb="Save a partner, a parent or a friend, and see how your charts meet: the 36-point Guna Milan and Western synastry."
+          blurb={t.people.blurb}
         />
 
         {!available ? (
           <div className="brut-card mt-6 p-5">
-            <h2 className="text-xl font-semibold tracking-tight">Coming very soon</h2>
-            <p className="mt-1 text-sm text-muted">Saving other people isn&apos;t switched on yet. Check back shortly.</p>
+            <h2 className="text-xl font-semibold tracking-tight">{t.people.soonTitle}</h2>
+            <p className="mt-1 text-sm text-muted">{t.people.soonBody}</p>
           </div>
         ) : (
           <>
             <Link href="/app/profiles/new" className="brut-btn brut-btn-primary brut-btn-arrow mt-8 min-h-[54px] w-full">
-              Add someone
+              {t.people.add}
             </Link>
             {people.length === 0 ? (
               <div className="brut-card mt-6 p-5">
-                <h2 className="text-xl font-semibold tracking-tight">No one yet</h2>
-                <p className="mt-1 text-sm text-muted">
-                  Add someone with their birth date and place. The time helps, but you can leave it out.
-                </p>
+                <h2 className="text-xl font-semibold tracking-tight">{t.people.noneTitle}</h2>
+                <p className="mt-1 text-sm text-muted">{t.people.noneBody}</p>
               </div>
             ) : (
               <ul className="mt-6 space-y-3">
@@ -50,11 +52,16 @@ export default async function PeoplePage() {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[17px] font-semibold tracking-tight">{p.label}</span>
                         <span className="block truncate text-xs text-muted">
-                          {[p.moonSign && `Moon ${p.moonSign}`, p.sunSign && `Sun ${p.sunSign}`].filter(Boolean).join(" · ")}
-                          {p.birth_time_known === false ? " · time unknown" : ""}
+                          {[
+                            p.moonSign && f(t.people.moon, { sign: sign(i18n, p.moonSign) }),
+                            p.sunSign && f(t.people.sun, { sign: sign(i18n, p.sunSign) }),
+                            p.birth_time_known === false && t.people.timeUnknown,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </span>
                       </span>
-                      <span className="brut-tag">{RELATIONSHIP_LABEL[p.relationship] ?? p.relationship}</span>
+                      <span className="brut-tag">{relationship(p.relationship)}</span>
                     </Link>
                   </li>
                 ))}

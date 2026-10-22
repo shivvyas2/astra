@@ -1,8 +1,10 @@
 "use client";
 import { useState } from "react";
 import type { GeoResult } from "@/lib/geo";
+import { useI18n } from "@/lib/i18n/client";
 
 export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }) {
+  const { t, f } = useI18n();
   const [q, setQ] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
   const [picked, setPicked] = useState<string | null>(null);
@@ -18,15 +20,15 @@ export function PlaceAutocomplete({ onPick }: { onPick: (r: GeoResult) => void }
   return (
     <div className="relative w-full">
       <label className="block">
-        <span className="eyebrow block">Birthplace</span>
+        <span className="eyebrow block">{t.intake.birthplace}</span>
         <input
           value={q}
           onChange={(e) => search(e.target.value)}
-          placeholder="Birthplace (city)"
+          placeholder={t.intake.birthplacePlaceholder}
           className="brut-field"
         />
       </label>
-      {picked && <p className="mt-1.5 text-xs text-accent">Selected: {picked}</p>}
+      {picked && <p className="mt-1.5 text-xs text-accent">{f(t.common.selected, { value: picked })}</p>}
       {results.length > 0 && !picked && (
         <ul className="absolute z-10 mt-2 max-h-60 w-full overflow-y-auto rounded-[14px] border border-line bg-surface py-1 shadow-2xl shadow-black/60">
           {results.map((r, i) => (

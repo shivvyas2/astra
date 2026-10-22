@@ -6,13 +6,14 @@ import remarkGfm from "remark-gfm";
 import type { ChatMode } from "@/lib/astrology/types";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { splitReading } from "@/lib/astrology/reading";
+import { useI18n } from "@/lib/i18n/client";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-const MODES: { key: ChatMode; label: string; chip: string; blurb: string }[] = [
-  { key: "vedic", label: "Vedic", chip: "var(--ember)", blurb: "Sidereal chart, dashas and transits" },
-  { key: "western", label: "Western", chip: "var(--violet)", blurb: "Tropical chart, Placidus houses" },
-  { key: "numerology", label: "Numerology", chip: "var(--accent)", blurb: "Your numbers from your name and birth date" },
+const MODES: { key: ChatMode; chip: string }[] = [
+  { key: "vedic", chip: "var(--ember)" },
+  { key: "western", chip: "var(--violet)" },
+  { key: "numerology", chip: "var(--accent)" },
 ];
 
 // How close to the bottom (px) still counts as "following the stream".
@@ -38,6 +39,7 @@ export function Chat({
   initialQuestion?: string;
 }) {
   const router = useRouter();
+  const { t, f } = useI18n();
   const [tradition, setTradition] = useState<ChatMode>(initialTradition);
   const [deep, setDeep] = useState(false);
   const [messages, setMessages] = useState<Msg[]>(initialMessages);
@@ -83,7 +85,7 @@ export function Chat({
         }),
       });
       convId.current = res.headers.get("x-conversation-id") ?? convId.current;
-      if (!res.ok || !res.body) return setLast("Something went wrong. Please try again.");
+      if (!res.ok || !res.body) return setLast(t.chat.error);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -98,7 +100,7 @@ export function Chat({
         });
       }
     } catch {
-      setLast("Something went wrong. Please try again.");
+      setLast(t.chat.error);
     } finally {
       setBusy(false);
       if (wasNew && convId.current) router.refresh(); // update sidebar with the new reading
@@ -113,7 +115,7 @@ export function Chat({
       void send(initialQuestion);
     } else if (autostart) {
       started.current = true;
-      void send("Welcome me with a short reading for today based on my chart. Two or three short sections.", true);
+      void send(t.chat.welcome, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -157,7 +159,7 @@ export function Chat({
 
   const modeBar = (
     <div>
-      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Tradition">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t.chat.tradition}>
         {MODES.map((m) => {
           const on = tradition === m.key;
           return (
@@ -169,7 +171,7 @@ export function Chat({
               className={`brut-chip${on ? " is-active" : ""}`}
               style={{ "--chip": m.chip } as CSSProperties}
             >
-              {m.label}
+              {t.traditions[m.key].label}
             </button>
           );
         })}
@@ -177,14 +179,14 @@ export function Chat({
           type="button"
           onClick={() => setDeep((d) => !d)}
           aria-pressed={deep}
-          title="A bigger model and a longer answer"
+          title={t.chat.deepTitle}
           className={`brut-chip ml-auto${deep ? " is-active" : ""}`}
           style={{ "--chip": "var(--fg)" } as CSSProperties}
         >
-          Deep
+          {t.chat.deep}
         </button>
       </div>
-      <p className="mt-2 text-xs text-muted">{mode.blurb}</p>
+      <p className="mt-2 text-xs text-muted">{t.traditions[mode.key].blurb}</p>
     </div>
   );
 
@@ -193,7 +195,7 @@ export function Chat({
       {!empty && !atBottom && (
         <div className="pointer-events-none absolute inset-x-0 bottom-full z-10 mb-3 flex justify-center">
           <button type="button" onClick={jumpToLatest} className="brut-btn brut-btn-secondary pointer-events-auto px-3 py-2 text-xs">
-            Jump to latest ↓
+            {t.chat.jump}
           </button>
         </div>
       )}
@@ -202,16 +204,16 @@ export function Chat({
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder={matchWith ? `Ask about you and ${matchWith.name}…` : "Ask Astrya…"}
+          placeholder={matchWith ? f(t.chat.askAbout, { name: matchWith.name }) : t.chat.ask}
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-fg outline-none placeholder:text-muted"
         />
-        <button onClick={() => send()} disabled={busy || !input.trim()} aria-label="Send"
+        <button onClick={() => send()} disabled={busy || !input.trim()} aria-label={t.chat.send}
           className="circle-btn circle-btn-accent h-10 w-10">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
       </div>
       {!empty && <div className="mt-3">{modeBar}</div>}
-      <p className="mt-3 text-center text-[11px] text-muted">For guidance and reflection. Not a substitute for professional advice.</p>
+      <p className="mt-3 text-center text-[11px] text-muted">{t.common.disclaimer}</p>
     </div>
   );
 
@@ -222,11 +224,11 @@ export function Chat({
           <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center gap-8 px-4 py-8">
             <div className="w-full animate-fade-up">
               <ScreenHeader
-                eyebrow="New reading"
-                title={firstName ? `Let's read your stars, ${firstName}` : "Let's read your stars"}
+                eyebrow={t.chat.eyebrow}
+                title={firstName ? f(t.chat.titleNamed, { name: firstName }) : t.chat.title}
                 arrow
                 size="xl"
-                blurb="Pick a tradition, then ask anything. Every answer is read from your own birth chart."
+                blurb={t.chat.blurb}
               />
             </div>
             <div className="w-full animate-fade-up delay-1">
@@ -266,7 +268,8 @@ export function Chat({
 }
 
 function AssistantTurn({ content, streaming }: { content: string; streaming: boolean }) {
-  if (!content) return <span className="animate-shimmer text-sm text-muted">Reading your chart…</span>;
+  const { t } = useI18n();
+  if (!content) return <span className="animate-shimmer text-sm text-muted">{t.chat.reading}</span>;
   // The body, then the lime "In simple words" callout, then the chart facts
   // the reading rests on, folded into "Why Astrya said this".
   const { main, simple, basis } = splitReading(content);
@@ -288,17 +291,18 @@ function AssistantTurn({ content, streaming }: { content: string; streaming: boo
 
 /** The computed facts a reading rests on, behind a toggle, so it can be checked against the chart. */
 function ChartBasis({ facts, streaming }: { facts: string[]; streaming: boolean }) {
+  const { t } = useI18n();
   if (facts.length === 0 && !streaming) return null;
   return (
     <details className="group mt-3 rounded-[14px] border border-line bg-fg/[0.03]">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden">
         <span className="flex items-center gap-2">
-          Why Astrya said this
+          {t.chat.why}
         </span>
         <span aria-hidden className="text-muted transition-transform group-open:rotate-45">+</span>
       </summary>
       <div className="px-4 pb-3">
-        <p className="basis-note text-xs text-muted">The facts from your computed chart this reading rests on.</p>
+        <p className="basis-note text-xs text-muted">{t.chat.basisNote}</p>
         <ul className="basis-list">
           {facts.map((f, i) => (
             <li key={i} className="m-0 border-t border-rule py-2 text-sm text-fg">{f}</li>

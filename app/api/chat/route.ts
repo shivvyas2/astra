@@ -34,6 +34,8 @@ import { getPerson } from "@/lib/profiles/store";
 import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
 import { describeMatchForPrompt } from "@/lib/compat/prompt";
 import { isReadingLanguage, languageRule, loadReadingLanguage } from "@/lib/astrology/language";
+import { localeForLanguage } from "@/lib/i18n/config";
+import { messagesFor } from "@/lib/i18n/dictionaries";
 import { selectHistory, HISTORY_BUDGET_CHARS } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
 import type { Timeline } from "@/lib/timeline/build";
@@ -139,6 +141,8 @@ export async function POST(request: Request) {
   // memory tables yet — which leaves the request exactly as it was before.
   let memorySystem = "";
   let memoryNote = "";
+  // Appended to a reading the stream drops, in the reader's language.
+  let streamError = messagesFor("en").chat.streamError;
   // For the learn-from-chats pass after the reading: their local date, and
   // the reply their new message is answering.
   let localDate = "";
@@ -312,6 +316,7 @@ export async function POST(request: Request) {
     // cached chart above it.
     const language = isReadingLanguage(body.language) ? body.language : await loadReadingLanguage(supabase);
     todaySystem += languageRule(language);
+    streamError = messagesFor(localeForLanguage(language)).chat.streamError;
 
     const [{ facts }, { memories }, { predictions }] = await memoryLoad;
     const memory = selectMemory({
@@ -434,7 +439,7 @@ export async function POST(request: Request) {
         );
       } catch (err) {
         console.error("chat stream error", err);
-        controller.enqueue(encoder.encode("\n\n[The stars are momentarily clouded. Please try again.]"));
+        controller.enqueue(encoder.encode(`\n\n${streamError}`));
       } finally {
         try {
           if (full.trim()) await appendMessage(conversationId, "assistant", full, supabase);

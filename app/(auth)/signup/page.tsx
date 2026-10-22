@@ -1,4 +1,6 @@
 import { AuthForm } from "@/components/AuthForm";
+import { getI18n } from "@/lib/i18n/server";
+import { authErrorMessage } from "@/lib/i18n/errors";
 import { authenticate, sendMagicLink } from "../actions";
 
 export default async function SignupPage({
@@ -7,15 +9,17 @@ export default async function SignupPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const sp = await searchParams;
+  const i18n = await getI18n();
+  const { t } = i18n;
   return (
     <AuthForm
-      title="Create your account"
-      subtitle="Enter your email and password to begin. Already have an account? This logs you in."
-      primaryLabel="Continue"
+      title={t.auth.signupTitle}
+      subtitle={t.auth.signupSubtitle}
+      primaryLabel={t.auth.continue}
       primaryAction={authenticate}
       magicAction={sendMagicLink}
-      error={sp.error}
-      footer={<>For guidance and reflection. Not a substitute for professional advice.</>}
+      error={sp.error ? authErrorMessage(i18n, sp.error) : undefined}
+      footer={t.common.disclaimer}
     />
   );
 }

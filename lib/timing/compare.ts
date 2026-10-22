@@ -15,7 +15,13 @@ import { TOPIC_LABEL, type Topic } from "@/lib/memory/types";
  * The Moon is read at local noon, so a day whose Moon changes nakshatra in
  * the morning or evening is read for the middle of it; the result says so.
  */
-export type Factor = { label: string; detail: string; score: -1 | 0 | 1 };
+export type Factor = { label: string; detail: string; score: -1 | 0 | 1; facts?: FactorFacts };
+/** What a factor's English was written from, so the site can say it in Hindi or Gujarati. */
+export type FactorFacts =
+  | { kind: "chandra"; sign: string; house: number; good: boolean }
+  | { kind: "tara"; nakshatra: string; tara: string; natal: string }
+  | { kind: "gochara"; body: string; sign: string; house: number }
+  | { kind: "topic"; topic: Topic; body: string; house: number };
 export type DayReading = { date: string; score: number; factors: Factor[]; moonSign: string; nakshatra: string };
 export type Comparison = { a: DayReading; b: DayReading; better: "a" | "b" | "even"; topic: Topic | null };
 
@@ -46,6 +52,7 @@ export function readDay(natal: Chart, sky: Chart, date: string, topic: Topic | n
       label: "Chandra bala",
       detail: `Moon in ${moon.sign}, the ${ORDINAL[h]} from your Moon: ${good ? "favourable" : "not favourable"}.`,
       score: good ? 1 : -1,
+      facts: { kind: "chandra", sign: moon.sign, house: h, good },
     });
     const tara = natalMoon?.nakshatra && moon.nakshatra ? taraOf(natalMoon.nakshatra, moon.nakshatra) : null;
     if (tara) {
@@ -53,6 +60,7 @@ export function readDay(natal: Chart, sky: Chart, date: string, topic: Topic | n
         label: "Tara bala",
         detail: `Moon in ${moon.nakshatra}, ${tara} tara from your ${natalMoon!.nakshatra}.`,
         score: GOOD_TARA.has(tara) ? 1 : BAD_TARA.has(tara) ? -1 : 0,
+        facts: { kind: "tara", nakshatra: moon.nakshatra!, tara, natal: natalMoon!.nakshatra! },
       });
     }
   }
@@ -63,7 +71,12 @@ export function readDay(natal: Chart, sky: Chart, date: string, topic: Topic | n
     const h = houseFrom(natal.moonSign, p.sign);
     const score = GOCHARA_GOOD[body].includes(h) ? 1 : GOCHARA_HARD[body].includes(h) ? -1 : 0;
     if (score !== 0) {
-      factors.push({ label: `${body} gochara`, detail: `${body} in ${p.sign}, the ${ORDINAL[h]} from your Moon.`, score });
+      factors.push({
+        label: `${body} gochara`,
+        detail: `${body} in ${p.sign}, the ${ORDINAL[h]} from your Moon.`,
+        score,
+        facts: { kind: "gochara", body, sign: p.sign, house: h },
+      });
     }
   }
 
@@ -78,6 +91,7 @@ export function readDay(natal: Chart, sky: Chart, date: string, topic: Topic | n
         label: `${TOPIC_LABEL[topic]} houses`,
         detail: `${p.name} is in your ${ORDINAL[h]} house, which ${TOPIC_LABEL[topic].toLowerCase()} is read from.`,
         score,
+        facts: { kind: "topic", topic, body: p.name, house: h },
       });
     }
   }

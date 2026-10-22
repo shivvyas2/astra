@@ -1,18 +1,20 @@
-import { RELATIONSHIPS, RELATIONSHIP_LABEL, type Relationship } from "@/lib/profiles/types";
+import { RELATIONSHIPS, type Relationship } from "@/lib/profiles/types";
+import { getI18n } from "@/lib/i18n/server";
 
 /** The two fields a saved person has beyond birth details: what you call them, and who they are to you. */
-export function PersonFields({ label, relationship }: { label?: string; relationship?: Relationship }) {
+export async function PersonFields({ label, relationship }: { label?: string; relationship?: Relationship }) {
+  const { t } = await getI18n();
   return (
     <div className="grid grid-cols-2 gap-3">
       <label className="block">
-        <span className="eyebrow block">Call them</span>
-        <input name="label" maxLength={60} placeholder="Priya, Mom…" defaultValue={label ?? ""} className="brut-field" />
+        <span className="eyebrow block">{t.people.callThem}</span>
+        <input name="label" maxLength={60} placeholder={t.people.callPlaceholder} defaultValue={label ?? ""} className="brut-field" />
       </label>
       <label className="block">
-        <span className="eyebrow block">They are your</span>
+        <span className="eyebrow block">{t.people.theyAre}</span>
         <select name="relationship" defaultValue={relationship ?? "partner"} className="brut-field cursor-pointer [color-scheme:dark]">
           {RELATIONSHIPS.map((r) => (
-            <option key={r} value={r}>{RELATIONSHIP_LABEL[r]}</option>
+            <option key={r} value={r}>{t.people.relationships[r]}</option>
           ))}
         </select>
       </label>

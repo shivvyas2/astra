@@ -11,9 +11,11 @@ export async function authenticate(formData: FormData) {
   const email = String(formData.get("email")).trim();
   const password = String(formData.get("password"));
   const origin = (await headers()).get("origin") ?? "";
+  // A code the login page turns into a sentence in the reader's language
+  // (lib/i18n/errors.ts); Supabase's own messages pass through as they are.
   const back = (msg: string) => redirect(`/login?error=${encodeURIComponent(msg)}`);
 
-  if (!email || !password) return back("Enter your email and password.");
+  if (!email || !password) return back("missing");
 
   // 1) Try logging in first (the common case for returning users).
   const signIn = await supabase.auth.signInWithPassword({ email, password });
@@ -33,7 +35,7 @@ export async function authenticate(formData: FormData) {
   if (signUp.error) {
     const m = signUp.error.message.toLowerCase();
     if (m.includes("already registered") || m.includes("already exists") || m.includes("already been registered")) {
-      return back("Incorrect password for this account. Try again, or use a magic link.");
+      return back("password");
     }
     return back(signUp.error.message);
   }

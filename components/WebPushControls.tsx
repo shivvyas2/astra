@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 type State = "loading" | "unsupported" | "needs-home-screen" | "off" | "denied" | "on";
 
@@ -26,6 +27,8 @@ function isStandalone(): boolean {
  * the Home Screen, so it says that instead of offering a button that fails.
  */
 export function WebPushControls({ publicKey }: { publicKey: string | null }) {
+  const { t, f } = useI18n();
+  const p = t.push;
   const [state, setState] = useState<State>("loading");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -44,7 +47,7 @@ export function WebPushControls({ publicKey }: { publicKey: string | null }) {
   }, []);
 
   async function turnOn() {
-    if (!publicKey) return setMessage("Browser notifications aren't set up on the server yet.");
+    if (!publicKey) return setMessage(p.notConfigured);
     setBusy(true);
     setMessage(null);
     try {
@@ -63,10 +66,11 @@ export function WebPushControls({ publicKey }: { publicKey: string | null }) {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(sub.toJSON()),
       });
-      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? "Could not save this browser.");
+      // The route's own message is English, for the iPhone and the logs.
+      if (!res.ok) throw new Error(p.saveError);
       setState("on");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Could not turn notifications on.");
+      setMessage(err instanceof Error && err.message === p.saveError ? p.saveError : p.turnOnError);
     } finally {
       setBusy(false);
     }
@@ -97,48 +101,46 @@ export function WebPushControls({ publicKey }: { publicKey: string | null }) {
     try {
       const res = await fetch("/api/web-push/test", { method: "POST" });
       const body = (await res.json()) as { configured: boolean; results: { endpointHost: string; ok: boolean; status: number }[] };
-      if (!body.configured) setMessage("Browser notifications aren't set up on the server yet.");
-      else if (body.results.length === 0) setMessage("No browser is subscribed for this account yet.");
+      if (!body.configured) setMessage(p.notConfigured);
+      else if (body.results.length === 0) setMessage(p.noSubscription);
       else
         setMessage(
           body.results
-            .map((r) => `${r.endpointHost}: ${r.ok ? "sent" : `refused (${r.status})`}`)
-            .join(". ") + ". It should appear within a few seconds.",
+            .map((r) => (r.ok ? f(p.sent, { host: r.endpointHost }) : f(p.refused, { host: r.endpointHost, status: r.status })))
+            .join(". ") + `. ${p.arrives}`,
         );
     } catch {
-      setMessage("The test could not be sent.");
+      setMessage(p.testError);
     } finally {
       setBusy(false);
     }
   }
 
   const note: Partial<Record<State, string>> = {
-    unsupported: "This browser can't show notifications from websites.",
-    "needs-home-screen": "On iPhone, add Astrya to your Home Screen (Share, then Add to Home Screen), open it from there, and turn notifications on. Or use the iPhone app.",
-    denied: "Notifications are blocked for this site. Allow them in your browser's site settings, then reload.",
+    unsupported: p.unsupported,
+    "needs-home-screen": p.homeScreen,
+    denied: p.denied,
   };
 
   return (
     <section className="rounded-[20px] border border-line bg-fg/[0.04] p-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold">Notifications in this browser</p>
-          <p className="mt-1 text-sm text-muted">
-            {state === "on" ? "On. Your morning and evening readings and any alerts arrive here too." : note[state] ?? "Get your readings and alerts here, as well as on your phone."}
-          </p>
+          <p className="text-[15px] font-semibold">{p.title}</p>
+          <p className="mt-1 text-sm text-muted">{state === "on" ? p.on : note[state] ?? p.off}</p>
         </div>
         {state === "off" && (
           <button type="button" onClick={turnOn} disabled={busy} className="brut-btn brut-btn-primary px-4 py-2 text-sm">
-            Turn on
+            {p.turnOn}
           </button>
         )}
         {state === "on" && (
           <>
             <button type="button" onClick={sendTest} disabled={busy} className="brut-btn brut-btn-primary px-4 py-2 text-sm">
-              Send a test
+              {p.sendTest}
             </button>
             <button type="button" onClick={turnOff} disabled={busy} className="brut-btn brut-btn-secondary px-4 py-2 text-sm">
-              Turn off
+              {p.turnOff}
             </button>
           </>
         )}

@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "@/app/(auth)/actions";
-import { CONSENT_COPY, PRIVACY_PATH } from "@/lib/billing/copy";
+import { PRIVACY_PATH } from "@/lib/billing/copy";
+import { useI18n } from "@/lib/i18n/client";
+import { rich } from "@/lib/i18n/rich";
 
 /**
  * The AI consent screen, shown by the signed-in layout in place of the app
@@ -12,6 +14,8 @@ import { CONSENT_COPY, PRIVACY_PATH } from "@/lib/billing/copy";
  */
 export function AiConsentGate({ version }: { version: string }) {
   const router = useRouter();
+  const { t } = useI18n();
+  const CONSENT_COPY = t.consent;
   const [declined, setDeclined] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +37,7 @@ export function AiConsentGate({ version }: { version: string }) {
       if (!res.ok) throw new Error(String(res.status));
       router.refresh();
     } catch {
-      setError("That didn't save. Check your connection and try again.");
+      setError(CONSENT_COPY.saveError);
       setBusy(false);
     }
   }
@@ -53,7 +57,7 @@ export function AiConsentGate({ version }: { version: string }) {
               <p className="mt-4 text-[15px] leading-relaxed text-muted">{CONSENT_COPY.intro}</p>
             </header>
 
-            <section className="mt-8 animate-fade-up delay-1" aria-label="What happens to your data">
+            <section className="mt-8 animate-fade-up delay-1" aria-label={CONSENT_COPY.sectionsAria}>
               {CONSENT_COPY.sections.map((s) => (
                 <div key={s.title} className="grid grid-cols-[4.5rem_1fr] gap-4 border-t border-rule py-5 sm:grid-cols-[6rem_1fr]">
                   <p className="pt-0.5 text-[11px] font-semibold uppercase tracking-[0.13em] text-accent">{s.label}</p>
@@ -71,11 +75,13 @@ export function AiConsentGate({ version }: { version: string }) {
                 </div>
               ))}
               <p className="border-t border-rule pt-4 text-xs text-muted">
-                Full details in the{" "}
-                <a href={PRIVACY_PATH} target="_blank" rel="noreferrer" className="font-semibold text-fg underline underline-offset-2">
-                  privacy policy
-                </a>
-                .
+                {rich(CONSENT_COPY.fullDetails, {
+                  privacy: (s) => (
+                    <a href={PRIVACY_PATH} target="_blank" rel="noreferrer" className="font-semibold text-fg underline underline-offset-2">
+                      {s}
+                    </a>
+                  ),
+                })}
               </p>
             </section>
 
@@ -90,7 +96,7 @@ export function AiConsentGate({ version }: { version: string }) {
               )}
               <div className="flex flex-col gap-3 sm:flex-row-reverse">
                 <button type="button" onClick={agree} disabled={busy} className="brut-btn brut-btn-primary brut-btn-arrow min-h-[54px] flex-1 px-5">
-                  {busy ? "Saving…" : CONSENT_COPY.agree}
+                  {busy ? t.common.saving : CONSENT_COPY.agree}
                 </button>
                 <button
                   type="button"
@@ -110,9 +116,11 @@ export function AiConsentGate({ version }: { version: string }) {
 }
 
 function Declined({ onReview }: { onReview: () => void }) {
+  const { t } = useI18n();
+  const CONSENT_COPY = t.consent;
   return (
     <div className="my-auto animate-fade-up">
-      <p className="screen-eyebrow">Nothing was sent</p>
+      <p className="screen-eyebrow">{CONSENT_COPY.nothingSent}</p>
       <h1 className="headline mt-3 text-4xl sm:text-5xl">{CONSENT_COPY.declinedTitle}</h1>
       <p className="mt-4 text-[15px] leading-relaxed text-muted">{CONSENT_COPY.declinedBody}</p>
       <div className="mt-8 flex flex-col gap-3">
@@ -121,7 +129,7 @@ function Declined({ onReview }: { onReview: () => void }) {
         </button>
         <form action={signOut}>
           <button type="submit" className="brut-btn brut-btn-quiet w-full px-5 py-3 text-sm">
-            Sign out
+            {t.common.signOut}
           </button>
         </form>
       </div>

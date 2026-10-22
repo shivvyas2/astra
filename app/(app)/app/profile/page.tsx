@@ -10,12 +10,14 @@ import { saveIntake } from "../intake/actions";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { loadReadingLanguage } from "@/lib/astrology/language";
+import { getI18n } from "@/lib/i18n/server";
 
 export default async function ProfilePage() {
   const p = await getBirthProfile();
   if (!p) redirect("/app/intake");
   // None of these throw: no table yet, or a failed read, is an empty list.
   const db = await createServerSupabase();
+  const { t } = await getI18n();
   const [{ facts }, { memories }, { predictions }, language] = await Promise.all([
     loadFacts(db, 100),
     loadMemories(db, 50),
@@ -28,14 +30,14 @@ export default async function ProfilePage() {
       <div className="mx-auto flex min-h-full max-w-md flex-col justify-center px-5 py-8">
         <div className="mb-8">
           <ScreenHeader
-            eyebrow="Account"
-            title="Your profile"
+            eyebrow={t.profile.eyebrow}
+            title={t.profile.title}
             arrow
-            blurb="Update your details or photo. Changing your birth data recomputes your chart."
+            blurb={t.profile.blurb}
           />
           <a href="/api/kundli" className="brut-btn brut-btn-secondary mt-5 px-4 py-2.5 text-sm">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            Download kundli (PDF)
+            {t.profile.kundli}
           </a>
           <LanguagePicker initial={language} />
         </div>

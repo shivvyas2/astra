@@ -4,6 +4,10 @@
  * both together. A material change to what the consent screen says should also
  * bump CONSENT_VERSION (lib/billing/consent.ts) so everyone is asked again.
  *
+ * These are the English words. The site shows the reader's language from
+ * lib/i18n (en.ts takes CONSENT_COPY and PLUS_BENEFITS from here; hi.ts and
+ * gu.ts translate them in the same shape), so a change here goes there too.
+ *
  * Client-safe: no server imports.
  */
 
