@@ -4,6 +4,7 @@ import SwiftUI
 /// initials when there is not, and never an empty grey circle.
 struct AvatarBadge: View {
     let details: BirthProfileDetails?
+    var size: CGFloat = 28
 
     private var initials: String {
         let first = details?.firstName.first.map(String.init) ?? ""
@@ -24,7 +25,7 @@ struct AvatarBadge: View {
                 initialsBlock
             }
         }
-        .frame(width: 28, height: 28)
+        .frame(width: size, height: size)
         .clipShape(Circle())
         .overlay(Circle().strokeBorder(Theme.line, lineWidth: Theme.lineWidth))
     }
@@ -33,7 +34,7 @@ struct AvatarBadge: View {
         ZStack {
             Theme.surface
             Text(initials)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: size * 0.38, weight: .semibold))
                 .foregroundStyle(Theme.fg)
         }
     }

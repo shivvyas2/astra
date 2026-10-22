@@ -6,19 +6,31 @@ import SwiftUI
 /// Lives inside the Chart tab's navigation stack, so a match opens as a
 /// pushed screen with a back button rather than a sheet.
 struct MatchSection: View {
+    /// The user's first name, for the heading.
+    var firstName: String = ""
+
     @State private var people = PeopleStore()
     @State private var selected: Person?
     @State private var adding = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Matching").eyebrow()
-                .padding(.bottom, 6)
+            // Its own section, headed like a screen: the kundli above is
+            // about one chart, this is about two.
+            Text("Matching")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .padding(.bottom, 8)
+            Text(firstName.isEmpty ? "Match your stars" : "Match your stars, \(firstName)")
+                .headlineArrow()
+                .brutHeading(32)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 10)
             Text("Compare your kundli with someone else's: the 36 gunas, the doshas, and how your two charts meet.")
-                .font(.brutBody(14))
+                .font(.brutBody(15))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 12)
+                .padding(.bottom, 16)
 
             if !people.available {
                 BrutNotice(text: "Matching isn't switched on for this account yet.")

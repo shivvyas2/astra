@@ -45,7 +45,10 @@ struct KundliView: View {
                         dashaBlock
                         // Only as a tab: a match opens inside this stack, and its Ask
                         // button needs the Ask tab behind it.
-                        if embedded { MatchSection() }
+                        if embedded {
+                            MatchSection(firstName: details.firstName)
+                                .padding(.top, 20)
+                        }
                         planetTable
                         footer
                     }

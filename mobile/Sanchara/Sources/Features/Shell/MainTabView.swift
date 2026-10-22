@@ -16,6 +16,10 @@ struct MainTabView: View {
 
         var id: String { rawValue }
 
+        /// The four places in the bar. You is not one of them: it opens as a
+        /// sheet from the photo beside Ask's history and new-reading buttons.
+        static let bar: [Tab] = [.today, .ask, .kundli, .life]
+
         var title: String {
             switch self {
             case .today: "Today"
@@ -55,7 +59,7 @@ struct MainTabView: View {
             case .ask: "Ask anything. Every answer is read from your real birth chart."
             case .kundli: "Your birth chart: where every planet sat when you were born."
             case .life: "Your life in dasha periods. Pin what happened and the readings sharpen."
-            case .you: "Birth details, photo, and your account."
+            case .you: "Tap your photo at the top of Ask: birth details, photo, and your account."
             }
         }
     }
@@ -70,6 +74,7 @@ struct MainTabView: View {
     @State private var inboxTab: InboxView.Tab = .daily
     @State private var showTour = !WelcomeTour.seen
     @State private var notificationPrompt: NotificationPrompt.Kind?
+    @State private var showYou = false
     /// While the keyboard is up the tab bar stays where it is and the
     /// keyboard covers it, so whatever is being typed into sits directly on
     /// the keys instead of on top of the tabs.
@@ -85,7 +90,7 @@ struct MainTabView: View {
         // visible, hit-testable, and read by VoiceOver.
         ZStack(alignment: .bottom) {
             ZStack {
-                ForEach(Tab.allCases) { page in
+                ForEach(Tab.bar) { page in
                     let selected = tab == page
                     content(for: page)
                         .opacity(selected ? 1 : 0)
@@ -107,7 +112,13 @@ struct MainTabView: View {
                     tab = .ask
                     chat.startMatch(personId: personId, name: name, question: question)
                 },
-                open: { page in withAnimation(Theme.snap) { tab = page } }
+                open: { page in
+                    if page == .you {
+                        showYou = true
+                    } else {
+                        withAnimation(Theme.snap) { tab = page }
+                    }
+                }
             ))
 
             // Its own layer, pinned to the bottom of the screen: the keyboard
@@ -126,6 +137,9 @@ struct MainTabView: View {
             withAnimation(.easeOut(duration: 0.25)) { keyboardUp = false }
         }
         .tint(Theme.fg)
+        .sheet(isPresented: $showYou) {
+            ProfileView(profile: profile)
+        }
         .sheet(isPresented: $showTour, onDismiss: {
             // After the tour, never on top of it: one sheet at a time.
             Task { notificationPrompt = await NotificationPrompt.due() }
@@ -212,7 +226,8 @@ struct MainTabView: View {
         case .life:
             TimelineView(embedded: true)
         case .you:
-            ProfileView(profile: profile, embedded: true)
+            // A sheet, from the photo in Ask's header; never a page.
+            EmptyView()
         }
     }
 
@@ -369,7 +384,7 @@ struct BrutTabBar: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach(MainTabView.Tab.allCases) { tab in
+            ForEach(MainTabView.Tab.bar) { tab in
                 let selected = selection == tab
                 let count = badge(tab)
                 Button {
