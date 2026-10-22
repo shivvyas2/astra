@@ -13,6 +13,7 @@ const SECTION_NAMES: Record<string, string> = {
   "/app/intake": "Birth details",
   "/app/profiles": "People",
   "/app/timing": "Key dates",
+  "/app/today": "Today",
   "/app/plus": "Astrya Plus",
 };
 
@@ -44,6 +45,9 @@ function UserIcon(p: IconProps) {
 function PeopleIcon(p: IconProps) {
   return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M9 11a4 4 0 100-8 4 4 0 000 8zM2 21a7 7 0 0114 0M16 3.5a4 4 0 010 7M22 21a7 7 0 00-4.5-6.5" /></svg>;
 }
+function BellIcon(p: IconProps) {
+  return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg>;
+}
 function CalendarIcon(p: IconProps) {
   return <svg width="18" height="18" viewBox="0 0 24 24" {...stroke} {...p}><path d="M5 5h14a1 1 0 011 1v13a1 1 0 01-1 1H5a1 1 0 01-1-1V6a1 1 0 011-1zM4 10h16M8 3v4M16 3v4" /></svg>;
 }
@@ -57,6 +61,7 @@ function CloseIcon(p: IconProps) {
 const NAV: { href: string; label: string; blurb: string; icon: (p: IconProps) => React.JSX.Element; external?: boolean }[] = [
   { href: "/app", label: "Home", blurb: "Your chart at a glance", icon: HomeIcon },
   { href: "/app/chat", label: "New reading", blurb: "Ask anything, read from your chart", icon: ChatIcon },
+  { href: "/app/today", label: "Today", blurb: "Daily readings and alerts", icon: BellIcon },
   { href: "/app/timing", label: "Key dates", blurb: "The year ahead, to the day", icon: CalendarIcon },
   { href: "/api/kundli", label: "Kundli", blurb: "Your birth chart as a PDF", icon: FileIcon, external: true },
   { href: "/app/profiles", label: "People", blurb: "Partners, family, compatibility", icon: PeopleIcon },

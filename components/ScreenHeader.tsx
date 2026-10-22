@@ -1,6 +1,5 @@
 /**
- * The top of a screen, as the app draws it: a dot and a small label in the
- * accent, one large phrase, and a sentence saying what the screen is for.
+ * The top of a screen, as the app draws it: a small label in the accent, one large phrase, and a sentence saying what the screen is for.
  * Mirrors `ScreenHeader` in mobile/Sanchara/Sources/Design/Components.swift.
  */
 export function ScreenHeader({

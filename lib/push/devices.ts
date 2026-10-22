@@ -1,12 +1,13 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApnsClient, isPushConfigured, type PushEnvironment, type PushPayloadArgs } from "./apns";
+import { pushToWebSubscriptions } from "./web";
 
 /**
- * Sends one notification to every device a user has registered, and drops
- * the tokens Apple reports as dead. Apple only says a token is gone when you
- * use it, so this is where the table stays clean. Returns how many were sent;
- * 0 when APNs is not configured.
+ * Sends one notification to every device a user has registered, iPhones and
+ * browsers alike, and drops the tokens reported as dead. Apple only says a
+ * token is gone when you use it, so this is where the table stays clean.
+ * Returns how many were sent; each half is skipped when it is not configured.
  */
 export async function pushToUserDevices(
   admin: SupabaseClient,
@@ -14,7 +15,8 @@ export async function pushToUserDevices(
   userId: string,
   payload: PushPayloadArgs,
 ): Promise<number> {
-  if (!isPushConfigured()) return 0;
+  const web = (await pushToWebSubscriptions(admin, userId, payload)).filter((r) => r.ok).length;
+  if (!isPushConfigured()) return web;
 
   const { data } = await admin.from("device_tokens").select("token, environment").eq("user_id", userId);
 
@@ -38,5 +40,5 @@ export async function pushToUserDevices(
     else console.error("apns send failed", result.status, result.reason);
   }
   if (dead.length > 0) await admin.from("device_tokens").delete().in("token", dead);
-  return sent;
+  return sent + web;
 }

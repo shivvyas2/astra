@@ -27,4 +27,11 @@ export const env = {
   apnsBundleId: () => optional("APNS_BUNDLE_ID"),
   /** Contents of the `.p8` key. Newlines may be escaped when set via the CLI. */
   apnsPrivateKey: () => optional("APNS_PRIVATE_KEY")?.replace(/\\n/g, "\n"),
+
+  // Web push (VAPID). The public key is also read by the browser, hence the
+  // NEXT_PUBLIC_ name. Absent, browsers simply get no notifications.
+  vapidPublicKey: () => optional("NEXT_PUBLIC_VAPID_PUBLIC_KEY"),
+  vapidPrivateKey: () => optional("VAPID_PRIVATE_KEY"),
+  /** A mailto: or https: contact that push services can reach. */
+  vapidSubject: () => optional("VAPID_SUBJECT") ?? "mailto:shivvyas0209@gmail.com",
 };
