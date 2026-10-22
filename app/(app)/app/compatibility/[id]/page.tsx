@@ -172,7 +172,7 @@ export default async function CompatibilityPage({
         <p className="mt-5 text-sm leading-relaxed">{r.summary}</p>
 
         <div className="mt-5">
-          <AskAboutUs prompt={r.askPrompt} />
+          <AskAboutUs prompt={r.askPrompt} personId={person.id} />
         </div>
       </div>
     </div>

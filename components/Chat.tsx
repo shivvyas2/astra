@@ -24,12 +24,18 @@ export function Chat({
   initialMessages = [],
   initialTradition = "vedic",
   autostart = false,
+  matchWith,
+  initialQuestion,
 }: {
   firstName?: string;
   initialConversationId?: string;
   initialMessages?: Msg[];
   initialTradition?: ChatMode;
   autostart?: boolean;
+  /** A new match reading about the user and this saved person. */
+  matchWith?: { id: string; name: string };
+  /** Asked as soon as the reading opens, as if typed. */
+  initialQuestion?: string;
 }) {
   const router = useRouter();
   const [tradition, setTradition] = useState<ChatMode>(initialTradition);
@@ -67,7 +73,14 @@ export function Chat({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ conversationId: convId.current, tradition, message: text, deep }),
+        body: JSON.stringify({
+          conversationId: convId.current,
+          tradition,
+          message: text,
+          deep,
+          // Only the first turn carries it; the conversation keeps it after.
+          personId: convId.current ? undefined : matchWith?.id,
+        }),
       });
       convId.current = res.headers.get("x-conversation-id") ?? convId.current;
       if (!res.ok || !res.body) return setLast("Something went wrong. Please try again.");
@@ -94,7 +107,11 @@ export function Chat({
 
   // Auto intro reading on first login (no prior readings).
   useEffect(() => {
-    if (autostart && !started.current && messages.length === 0) {
+    if (started.current || messages.length > 0) return;
+    if (initialQuestion) {
+      started.current = true;
+      void send(initialQuestion);
+    } else if (autostart) {
       started.current = true;
       void send("Welcome me with a short reading for today based on my chart. Two or three short sections.", true);
     }
@@ -180,12 +197,12 @@ export function Chat({
           </button>
         </div>
       )}
-      <div className="flex items-center gap-2 rounded-[28px] border border-line bg-fg/[0.04] py-1 pl-[18px] pr-1 transition-colors focus-within:border-fg">
+      <div className="flex items-center gap-2 rounded-[26px] border border-line bg-fg/[0.04] py-1.5 pl-[18px] pr-1.5 transition-colors focus-within:border-fg">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder="Ask Astrya…"
+          placeholder={matchWith ? `Ask about you and ${matchWith.name}…` : "Ask Astrya…"}
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] text-fg outline-none placeholder:text-muted"
         />
         <button onClick={() => send()} disabled={busy || !input.trim()} aria-label="Send"

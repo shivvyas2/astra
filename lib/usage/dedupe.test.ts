@@ -53,3 +53,11 @@ describe("answer reuse", () => {
     expect(await reuseAnswer(key(), 5)).toBeNull();
   });
 });
+
+describe("answerKey for a match reading", () => {
+  it("keeps the same question about two people apart", () => {
+    const base = { userId: "u1", tradition: "vedic", message: "Are we compatible?" };
+    expect(answerKey({ ...base, personId: "p1" })).not.toBe(answerKey({ ...base, personId: "p2" }));
+    expect(answerKey({ ...base, personId: "p1" })).not.toBe(answerKey(base));
+  });
+});

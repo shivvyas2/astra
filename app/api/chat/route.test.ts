@@ -58,6 +58,7 @@ vi.mock("@/lib/data/birthProfile", () => ({ ensureCurrentChart: async (p: unknow
 vi.mock("@/lib/billing/consent", () => ({ requireConsent: async () => null }));
 vi.mock("@/lib/data/chat", () => ({
   getOrCreateConversation: async () => "conv-1",
+  getConversationPerson: async () => null,
   appendMessage: async () => {},
   getMessages: async () => [],
 }));

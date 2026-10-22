@@ -29,8 +29,11 @@ export function answerKey(args: {
   tradition: string;
   deep?: boolean;
   message: string;
+  /** A new match reading: the same question about two people is two answers. */
+  personId?: string | null;
 }): string {
-  return [args.userId, args.conversationId || "new", args.tradition, args.deep ? "deep" : "std", args.message.trim()].join("\u0000");
+  const conversation = args.conversationId || (args.personId ? `new:${args.personId}` : "new");
+  return [args.userId, conversation, args.tradition, args.deep ? "deep" : "std", args.message.trim()].join("\u0000");
 }
 
 function fresh(entry: Entry, now: number): boolean {

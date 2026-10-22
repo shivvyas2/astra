@@ -221,6 +221,19 @@ export const UNKNOWN_TIME_RULES = `Birth time unknown:
  * at a tenth of the rate. Anything that varies — the date, live transits, the
  * length rule — lives in {@link buildTodaySystem} and comes after it.
  */
+/**
+ * A chart as the reading prompt states it: the full facts when the birth time
+ * is known and derived facts exist, the time-free subset when it is not.
+ * Used for the user's own chart and for a second person's in a match reading.
+ */
+export function renderChartForPrompt(chart: Chart, derived?: Derived): string {
+  return chart.timeKnown === false
+    ? renderChartWithoutTime(chart, derived)
+    : derived
+      ? renderChartFacts(chart, derived)
+      : renderChart(chart);
+}
+
 export function buildChartSystem(args: {
   firstName: string;
   tradition: Tradition;
@@ -240,11 +253,7 @@ export function buildChartSystem(args: {
     : "";
 
   const timeUnknown = args.chart.timeKnown === false;
-  const chartFacts = timeUnknown
-    ? renderChartWithoutTime(args.chart, args.derived)
-    : args.derived
-      ? renderChartFacts(args.chart, args.derived)
-      : renderChart(args.chart);
+  const chartFacts = renderChartForPrompt(args.chart, args.derived);
   const unknownTimeRules = timeUnknown ? `\n\n${UNKNOWN_TIME_RULES}` : "";
 
   return `You are Astrya, a warm, precise ${system} astrologer speaking with ${args.firstName}.

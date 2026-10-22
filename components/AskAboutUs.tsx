@@ -1,23 +1,14 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 
 /**
- * "Ask Astrya about us": copies the suggested question and opens a new
- * reading. The chat page has no prefill parameter yet, so the question
- * travels on the clipboard and the button says so.
+ * "Ask Astrya about us": opens a match reading with both charts and asks the
+ * suggested question. Follow-ups in that reading keep both charts.
  */
-export function AskAboutUs({ prompt }: { prompt: string }) {
+export function AskAboutUs({ prompt, personId }: { prompt: string; personId: string }) {
   const router = useRouter();
-  const [copied, setCopied] = useState(false);
-  async function go() {
-    try {
-      await navigator.clipboard.writeText(prompt);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-    router.push("/app/chat");
+  function go() {
+    router.push(`/app/chat?with=${encodeURIComponent(personId)}&ask=${encodeURIComponent(prompt)}`);
   }
   return (
     <div>
@@ -25,7 +16,7 @@ export function AskAboutUs({ prompt }: { prompt: string }) {
         Ask Astrya about us →
       </button>
       <p className="mt-2 text-xs text-muted">
-        {copied ? "Question copied. Paste it into the new reading." : `Opens a new reading. Suggested question: “${prompt}”`}
+        {`Opens a reading with both charts and asks: “${prompt}” Follow-up questions keep both charts.`}
       </p>
     </div>
   );

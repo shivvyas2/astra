@@ -29,7 +29,10 @@ import {
 } from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
-import { getOrCreateConversation, appendMessage, getMessages } from "@/lib/data/chat";
+import { getOrCreateConversation, getConversationPerson, appendMessage, getMessages } from "@/lib/data/chat";
+import { getPerson } from "@/lib/profiles/store";
+import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
+import { describeMatchForPrompt } from "@/lib/compat/prompt";
 import { selectHistory, HISTORY_BUDGET_CHARS } from "@/lib/data/history";
 import { loadTimeline } from "@/lib/timeline/load";
 import type { Timeline } from "@/lib/timeline/build";
@@ -61,6 +64,8 @@ const WORDS_DEEP = 360;
  */
 const UPCOMING_SAMPLE_DAYS = [30, 90, 180, 365];
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function POST(request: Request) {
   const supabase = await createRouteSupabase(request);
   const { data: { user } } = await supabase.auth.getUser();
@@ -81,8 +86,14 @@ export async function POST(request: Request) {
      * /api/memory/ingest, so the server's Haiku pass is skipped.
      */
     memory?: string;
+    /**
+     * Starts a match reading about the user and this saved person. Only read
+     * for a new conversation; an existing one keeps the person it began with.
+     */
+    personId?: string;
   };
   if (!body.message?.trim()) return new Response("Empty message", { status: 400 });
+  const newPersonId = !body.conversationId && UUID.test(body.personId ?? "") ? body.personId! : null;
   if (!["vedic", "western", "numerology"].includes(body.tradition)) {
     return new Response("Invalid mode", { status: 400 });
   }
@@ -95,6 +106,7 @@ export async function POST(request: Request) {
     tradition: body.tradition,
     deep: body.deep,
     message: body.message,
+    personId: newPersonId,
   });
   const reused = await reuseAnswer(dedupeKey);
   if (reused) {
@@ -252,6 +264,36 @@ export async function POST(request: Request) {
       }
       if (timeline) stableSystem += describeTimelineForPrompt(timeline, { tradition });
 
+      // A match reading: the other person's chart and the scores from the
+      // two, after the user's own. A person deleted since, or a database
+      // without migration 0015, leaves an ordinary reading.
+      const personId = body.conversationId
+        ? await getConversationPerson(body.conversationId, supabase)
+        : newPersonId;
+      if (personId) {
+        try {
+          const { person } = await getPerson(supabase, personId);
+          if (person?.chart) {
+            const theirs = person.chart as unknown as ChartPair;
+            const name = person.label || person.first_name;
+            const compat = computeCompatibility({
+              you: { name: profile.first_name, chart: profile.chart as unknown as ChartPair },
+              them: { name, relationship: person.relationship, chart: theirs },
+              groom: "you",
+            });
+            const theirChart = tradition === "western" && theirs.western ? theirs.western : theirs.vedic;
+            stableSystem += describeMatchForPrompt({
+              you: profile.first_name,
+              them: { name, relationship: person.relationship, chart: theirChart },
+              tradition,
+              compat,
+            });
+          }
+        } catch (err) {
+          console.error("chat match context skipped", err);
+        }
+      }
+
       // Dasha sub-periods are Vedic, as describeTimelineForPrompt already
       // treats them; a Western reading gets the dated sky alone.
       const upcomingPeriods =
@@ -281,6 +323,7 @@ export async function POST(request: Request) {
         conversationId: body.conversationId,
         tradition: body.tradition,
         title: body.message,
+        personId: newPersonId,
       },
       supabase,
     );
