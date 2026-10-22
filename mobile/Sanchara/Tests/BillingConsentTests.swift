@@ -129,7 +129,8 @@ final class BillingConsentTests: XCTestCase {
         XCTAssertEqual(offered, ["AppIcon-Lime", "AppIcon-Violet", "AppIcon-Bone"])
         XCTAssertEqual(alternates, offered)
         XCTAssertFalse(AppIconChoice.ember.needsPlus)
-        XCTAssertTrue(AppIconChoice.allCases.filter { $0 != .ember }.allSatisfy(\.needsPlus))
+        // The alternates are locked only while Plus is on.
+        XCTAssertEqual(AppIconChoice.allCases.filter { $0 != .ember }.allSatisfy(\.needsPlus), PlusStore.isEnabled)
         XCTAssertEqual(AppIconChoice(iconName: nil), .ember)
         XCTAssertEqual(AppIconChoice(iconName: "AppIcon-Bone"), .bone)
     }

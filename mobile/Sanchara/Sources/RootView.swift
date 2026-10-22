@@ -66,7 +66,7 @@ struct SignedInView: View {
         }
         .task { await profile.load() }
         // StoreKit: listen for transactions and sync the entitlement (Features/Billing).
-        .task { PlusStore.shared.start() }
+        .task { if PlusStore.isEnabled { PlusStore.shared.start() } }
     }
 }
 

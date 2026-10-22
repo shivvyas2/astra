@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CONSENT_COPY, TERMS_URL } from "@/lib/billing/copy";
+import { CONSENT_COPY, CONTACT_EMAIL, LEGAL_UPDATED, PLUS_ENABLED, TERMS_PATH, TERMS_URL } from "@/lib/billing/copy";
 
 export const metadata: Metadata = {
   title: "Privacy · Astrya",
@@ -9,8 +9,8 @@ export const metadata: Metadata = {
 
 /**
  * The public privacy policy, linked from the consent screen, the paywall and
- * App Store Connect. OWNER: review before submission and add a contact
- * address; this is a plain statement of how the code behaves, not legal advice.
+ * App Store Connect. A plain statement of how the code behaves, not legal
+ * advice.
  */
 export default function PrivacyPage() {
   return (
@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         <Link href="/" className="eyebrow">Astrya</Link>
         <h1 className="headline mt-4 text-5xl sm:text-6xl">Privacy</h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted">
-          Astrya reads your birth chart with the help of an AI model. This page says what that involves. Inside the app you
+          Last updated {LEGAL_UPDATED}. Astrya reads your birth chart with the help of an AI model. This page says what that involves. Inside the app you
           are asked to agree to it before your first reading, and you can withdraw that agreement in Profile at any time.
         </p>
 
@@ -38,6 +38,9 @@ export default function PrivacyPage() {
             <li>Your email (or Sign in with Apple identifier) is used to sign you in. Data is stored with Supabase and the app runs on Vercel.</li>
             <li>Every table is protected so your account can only read its own rows. Server keys never leave the server.</li>
             <li>There is no advertising, no analytics SDK and no third-party crash reporter. Your data is not sold.</li>
+            <li>Data is stored and processed in the United States.</li>
+            <li>If you turn on alerts, your device&apos;s push token is stored so Astrya can send them. Deleting your account removes it; a token Apple reports as no longer valid is removed automatically.</li>
+            <li>If you add someone else&apos;s birth details to compare charts, they are stored with your account and used only for your readings. Add them only with that person&apos;s permission.</li>
           </ul>
         </section>
 
@@ -50,6 +53,7 @@ export default function PrivacyPage() {
           </ul>
         </section>
 
+        {PLUS_ENABLED && (
         <section className="mt-8 border-t border-rule pt-5">
           <h2 className="text-lg font-semibold">Subscriptions</h2>
           <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-muted">
@@ -61,6 +65,7 @@ export default function PrivacyPage() {
             </li>
           </ul>
         </section>
+        )}
 
         <section className="mt-8 border-t border-rule pt-5">
           <h2 className="text-lg font-semibold">Deleting your data</h2>
@@ -69,6 +74,23 @@ export default function PrivacyPage() {
             <li>Delete a conversation and its summary from your reading history.</li>
             <li>Delete your account in Profile: your chart, readings, memory and alerts are removed with it.</li>
           </ul>
+        </section>
+
+        <section className="mt-8 border-t border-rule pt-5">
+          <h2 className="text-lg font-semibold">Age</h2>
+          <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-muted">
+            <li>Astrya is not meant for anyone under 13 and does not knowingly collect their data. If you believe a child has an account, write to the address below and it will be deleted.</li>
+          </ul>
+        </section>
+
+        <section className="mt-8 border-t border-rule pt-5">
+          <h2 className="text-lg font-semibold">Contact</h2>
+          <p className="mt-3 text-[15px] leading-relaxed text-muted">
+            Questions or requests about your data:{" "}
+            <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-fg underline underline-offset-2">{CONTACT_EMAIL}</a>.
+            See also the{" "}
+            <Link href={TERMS_PATH} className="font-semibold text-fg underline underline-offset-2">Terms of use</Link>.
+          </p>
         </section>
       </div>
     </main>

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { Notice } from "@/components/Notice";
+import { PRIVACY_PATH, TERMS_PATH } from "@/lib/billing/copy";
 
 export function AuthForm({
   title,
@@ -44,7 +46,14 @@ export function AuthForm({
           )}
         </form>
       </div>
-      <div className="mt-10 border-t border-rule pt-4 text-xs text-muted">{footer}</div>
+      <div className="mt-10 border-t border-rule pt-4 text-xs text-muted">
+        <p>
+          By continuing, you agree to the{" "}
+          <Link href={TERMS_PATH} className="underline underline-offset-2 hover:text-fg">Terms of use</Link> and{" "}
+          <Link href={PRIVACY_PATH} className="underline underline-offset-2 hover:text-fg">Privacy policy</Link>.
+        </p>
+        <p className="mt-2">{footer}</p>
+      </div>
     </div>
   );
 }

@@ -24,6 +24,7 @@ struct AuthView: View {
     @State private var mode: Mode = AuthStore.hasSignedInBefore ? .signIn : .signUp
     @State private var email = ""
     @State private var password = ""
+    @State private var legalPage: LegalPage?
     /// Set just before the store moves us to sign-in on its own, so the
     /// "you already have an account" message survives that switch. Every
     /// other mode change is the person's doing and clears the messages.
@@ -154,6 +155,9 @@ struct AuthView: View {
                     .frame(minHeight: 44)
                     .padding(.top, 12)
 
+                    legalNote
+                        .padding(.top, 20)
+
                     Spacer(minLength: 40)
                 }
                 .frame(maxWidth: 420)
@@ -161,6 +165,7 @@ struct AuthView: View {
                 .padding(.horizontal, 24)
             }
             .scrollDismissesKeyboard(.interactively)
+            .legalSheet($legalPage)
         }
         .onChange(of: auth.shouldSwitchToSignIn) { _, shouldSwitch in
             // Sign-up found an existing account: move them to the right form
@@ -177,6 +182,28 @@ struct AuthView: View {
                 auth.clearMessages()
             }
         }
+    }
+
+    /// Covers every way in, Sign in with Apple included: continuing means
+    /// agreeing, and both documents are one tap away.
+    private var legalNote: some View {
+        Text(Self.legalText)
+        .font(.brutBody(12))
+        .foregroundStyle(Theme.muted)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private static var legalText: AttributedString {
+        func link(_ page: LegalPage) -> AttributedString {
+            var text = AttributedString(page.title)
+            text.link = page.url
+            text.foregroundColor = Theme.fg
+            text.underlineStyle = .single
+            return text
+        }
+        return AttributedString("By continuing, you agree to the ") + link(.terms)
+            + AttributedString(" and ") + link(.privacy) + AttributedString(".")
     }
 
     private var codeLabel: String {

@@ -1,7 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getPlan } from "@/lib/billing/plan";
-import { MANAGE_SUBSCRIPTIONS_URL, PLUS_BENEFITS, PLUS_PRICES, PRIVACY_PATH, TERMS_URL } from "@/lib/billing/copy";
+import { MANAGE_SUBSCRIPTIONS_URL, PLUS_BENEFITS, PLUS_ENABLED, PLUS_PRICES, PRIVACY_PATH, TERMS_URL } from "@/lib/billing/copy";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export const dynamic = "force-dynamic";
  * the account is on, and points subscribers to Apple to manage it.
  */
 export default async function PlusPage() {
+  if (!PLUS_ENABLED) notFound();
   const db = await createServerSupabase();
   const { data: { user } } = await db.auth.getUser();
   const plan = user ? await getPlan(db, user.id) : "free";
@@ -27,7 +29,6 @@ export default async function PlusPage() {
       <div className="mx-auto max-w-xl px-4 py-10 sm:px-6">
         <div className="flex items-center">
           <p className="screen-eyebrow">Astrya Plus</p>
-          <span className="astra-mark ml-auto" aria-hidden />
         </div>
         <h1 className="headline headline-arrow mt-3 text-5xl sm:text-6xl">Support Astrya</h1>
         <p className="mt-4 text-[15px] leading-relaxed text-muted">

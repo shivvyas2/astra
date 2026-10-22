@@ -17,7 +17,7 @@ struct ConsentView: View {
     var onSignOut: () -> Void = {}
 
     @State private var declined = false
-    @Environment(\.openURL) private var openURL
+    @State private var legalPage: LegalPage?
 
     var body: some View {
         ZStack {
@@ -54,7 +54,7 @@ struct ConsentView: View {
                 }
 
                 Button {
-                    openURL(ConsentCopy.privacyURL)
+                    legalPage = .privacy
                 } label: {
                     HStack(spacing: 6) {
                         Text("Read the full privacy policy")
@@ -64,6 +64,7 @@ struct ConsentView: View {
                     .foregroundStyle(Theme.fg)
                     .frame(minHeight: 44)
                 }
+                .legalSheet($legalPage)
                 .buttonStyle(DipButtonStyle())
             }
             .padding(.horizontal, 24)

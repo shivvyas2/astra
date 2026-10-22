@@ -95,7 +95,6 @@ export default function CosmicHero() {
       {/* Top bar: the mark and the way back in, as in the app. */}
       <nav className="absolute inset-x-0 top-0 z-20 flex items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/" className="flex items-center gap-2.5 text-lg font-medium tracking-tight">
-          <span className="astra-mark" aria-hidden />
           Astrya
         </Link>
         <Link href={HERO.cta!.secondary!.href} className="brut-btn brut-btn-secondary bg-bg/40 px-4 py-2 text-sm backdrop-blur-sm">
@@ -169,7 +168,10 @@ export default function CosmicHero() {
       <footer className="border-t border-rule px-5 py-8 text-xs text-muted sm:px-8">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
           <span>For guidance and reflection. Not a substitute for professional advice.</span>
-          <Link href="/privacy" className="underline underline-offset-4 hover:text-fg">Privacy</Link>
+          <span className="flex gap-4">
+            <Link href="/privacy" className="underline underline-offset-4 hover:text-fg">Privacy</Link>
+            <Link href="/terms" className="underline underline-offset-4 hover:text-fg">Terms</Link>
+          </span>
         </div>
       </footer>
     </div>

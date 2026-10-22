@@ -37,8 +37,8 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Only the primary icon is free; the alternates come with Plus.
-    var needsPlus: Bool { self != .ember }
+    /// With Plus on, only the primary icon is free; the alternates come with it.
+    var needsPlus: Bool { PlusStore.isEnabled && self != .ember }
 
     init(iconName: String?) {
         self = iconName.flatMap(AppIconChoice.init(rawValue:)) ?? .ember
@@ -57,7 +57,7 @@ struct AppIconPicker: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text("App icon").eyebrow()
-                if store.plan != .plus {
+                if PlusStore.isEnabled && store.plan != .plus {
                     BrutTag(text: "Plus", fill: Theme.fg.opacity(0.12), textColor: Theme.muted)
                 }
             }
@@ -74,7 +74,7 @@ struct AppIconPicker: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .brutBordered()
-        .task { store.start() }
+        .task { if PlusStore.isEnabled { store.start() } }
         .sheet(isPresented: $showPaywall) { PaywallView() }
     }
 

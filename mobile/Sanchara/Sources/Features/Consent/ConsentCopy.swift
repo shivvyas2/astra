@@ -44,4 +44,5 @@ enum ConsentCopy {
     static let reviewAgain = "Review again"
 
     static let privacyURL = AppConfig.apiBaseURL.appendingPathComponent("privacy")
+    static let termsURL = AppConfig.apiBaseURL.appendingPathComponent("terms")
 }

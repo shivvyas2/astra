@@ -59,6 +59,9 @@ export const CONSENT_COPY = {
   reviewAgain: "Review again",
 } as const;
 
+/** Off while Astrya ships free; mirrors `PlusStore.isEnabled` on the iPhone. */
+export const PLUS_ENABLED = false;
+
 /**
  * OWNER: decide what Plus includes before shipping it, and edit this list.
  *
@@ -90,4 +93,9 @@ export const PLUS_PRICES = {
 /** Apple's standard licence agreement, used as the Terms of Use for subscriptions. */
 export const TERMS_URL = "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/";
 export const PRIVACY_PATH = "/privacy";
+export const TERMS_PATH = "/terms";
+/** Where people reach the developer about their data or these terms. */
+export const CONTACT_EMAIL = "shivvyas0209@gmail.com";
+/** Shown at the top of both legal pages. Change it whenever either page changes. */
+export const LEGAL_UPDATED = "October 22, 2026";
 export const MANAGE_SUBSCRIPTIONS_URL = "https://apps.apple.com/account/subscriptions";

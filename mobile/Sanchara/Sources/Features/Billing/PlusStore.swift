@@ -19,6 +19,11 @@ import Supabase
 final class PlusStore {
     static let shared = PlusStore()
 
+    /// Off while Astrya ships free: no paywall, no plan row, no locked icons,
+    /// and StoreKit is never started. Flip to bring Plus back; nothing else
+    /// needs to change.
+    static let isEnabled = false
+
     enum LoadState: Equatable { case idle, loading, loaded, failed }
 
     private(set) var products: [Product] = []

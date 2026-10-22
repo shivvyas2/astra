@@ -18,6 +18,7 @@ struct ProfileView: View {
     @State private var kundli: SharePayload?
     @State private var isPreparingKundli = false
     @State private var confirmDelete = false
+    @State private var legalPage: LegalPage?
     @State private var photoItem: PhotosPickerItem?
     @State private var isUploadingPhoto = false
     @State private var isDeleting = false
@@ -70,7 +71,7 @@ struct ProfileView: View {
                         }
 
                         memoryBlock
-                        PlanRow()
+                        if PlusStore.isEnabled { PlanRow() }
                         AppIconPicker()
                         helpBlock
                         suggestionsBlock
@@ -115,6 +116,7 @@ struct ProfileView: View {
             guard item != nil else { return }
             Task { await uploadPickedPhoto() }
         }
+        .legalSheet($legalPage)
         .alert("Delete your account?", isPresented: $confirmDelete) {
             Button("Cancel", role: .cancel) {}
             Button("Delete", role: .destructive) { Task { await deleteAccount() } }
@@ -262,6 +264,10 @@ struct ProfileView: View {
             .buttonStyle(.plain)
             .accessibilityHint("Shows the welcome tour again")
             BrutDivider()
+            legalRow(.privacy)
+            BrutDivider()
+            legalRow(.terms)
+            BrutDivider()
         }
     }
 
@@ -279,6 +285,26 @@ struct ProfileView: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .brutBordered()
+    }
+
+    /// A Help row that opens one of the legal pages in a sheet.
+    private func legalRow(_ page: LegalPage) -> some View {
+        Button { legalPage = page } label: {
+            HStack(spacing: 12) {
+                Text(page.title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Theme.fg)
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
+                    .accessibilityHidden(true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private var accountBlock: some View {
