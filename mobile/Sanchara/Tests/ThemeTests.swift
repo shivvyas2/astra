@@ -56,4 +56,53 @@ final class ThemeTests: XCTestCase {
         XCTAssertEqual(Theme.shadowOffset, 0)
         XCTAssertEqual(Theme.cardRadius, 24)
     }
+
+    // MARK: - Accessibility
+
+    /// At the default text size every face is the size it was drawn at, so
+    /// the design does not move for anyone who has not asked it to.
+    func testTypeIsDrawnSizeAtTheDefaultTextSize() {
+        for size: CGFloat in [9, 11, 13, 15, 17, 20, 24, 34, 44, 64] {
+            XCTAssertEqual(BrutFont.scaled(size: size).pointSize(at: .large), size, accuracy: 0.01)
+        }
+    }
+
+    /// Reading text reaches at least double at the largest setting offered.
+    func testReadingTextDoublesAtTheLargestSize() {
+        for size: CGFloat in [11, 13, 15, 17] {
+            XCTAssertGreaterThanOrEqual(BrutFont.brutBody(size).pointSize(at: .accessibility3), size * 2)
+        }
+    }
+
+    /// Display words and numerals stop growing early so a screen keeps its shape.
+    func testDisplayTypeStopsAtItsCeiling() {
+        let display = BrutFont.brutDisplay(44)
+        XCTAssertEqual(display.pointSize(at: .accessibility5), display.pointSize(at: .xxxLarge))
+        XCTAssertLessThan(display.pointSize(at: .accessibility5), 44 * 1.3)
+    }
+
+    /// Lines and secondary text keep their CSS values normally and clear 3:1
+    /// and a brighter muted under Increase Contrast.
+    func testIncreaseContrastStrengthensLinesAndMuted() {
+        var standard = EnvironmentValues()
+        standard._colorSchemeContrast = .standard
+        var increased = EnvironmentValues()
+        increased._colorSchemeContrast = .increased
+
+        XCTAssertEqual(Theme.line.resolve(in: standard).opacity, 0.28, accuracy: 0.01)
+        XCTAssertEqual(Theme.line.resolve(in: increased).opacity, 0.55, accuracy: 0.01)
+        XCTAssertEqual(Theme.rule.resolve(in: increased).opacity, 0.4, accuracy: 0.01)
+        XCTAssertGreaterThan(Theme.muted.resolve(in: increased).red, Theme.muted.resolve(in: standard).red)
+    }
+
+    func testReduceMotionFromTheAppDropsAnimations() {
+        let key = Theme.Accessibility.reduceMotionKey
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        UserDefaults.standard.set(false, forKey: key)
+        XCTAssertNotNil(Theme.snap)
+        UserDefaults.standard.set(true, forKey: key)
+        XCTAssertNil(Theme.snap)
+        XCTAssertNil(Theme.ease)
+        XCTAssertNil(Theme.motion(.linear))
+    }
 }

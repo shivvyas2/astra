@@ -10,6 +10,7 @@ struct ChatView: View {
     let chat: ChatStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
     @State private var suggestions = SuggestionEngine()
     @State private var showHistory = false
     @FocusState private var inputFocused: Bool
@@ -102,7 +103,7 @@ struct ChatView: View {
                                         .fixedSize(horizontal: false, vertical: true)
                                     Spacer(minLength: 8)
                                     Image(systemName: "arrow.up.right")
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .font(.scaled(size: 13, weight: .semibold))
                                         .foregroundStyle(Theme.accent)
                                         .accessibilityHidden(true)
                                 }
@@ -139,7 +140,7 @@ struct ChatView: View {
                 Spacer(minLength: 8)
                 if chat.conversations.count > 3 {
                     Button("See all") { showHistory = true }
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
@@ -163,7 +164,7 @@ struct ChatView: View {
                         }
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.scaled(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.muted)
                             .accessibilityHidden(true)
                     }
@@ -227,7 +228,12 @@ struct ChatView: View {
     /// is room to say what they are; in the composer the same choice is a menu.
     private var modeRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
+            // Three across fits every language at ordinary sizes; at the
+            // accessibility sizes they stack so no name is cut short.
+            let layout = typeSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                : AnyLayout(HStackLayout(spacing: 8))
+            layout {
                 ForEach(ChatMode.allCases) { mode in
                     BrutChip(text: mode.label, active: chat.mode == mode, color: mode.dot) {
                         chat.mode = mode
@@ -303,12 +309,12 @@ struct ChatView: View {
             .overlay(alignment: .bottom) {
                 if !isNearBottom {
                     Button {
-                        withAnimation(.easeOut(duration: 0.25)) {
+                        withAnimation(Theme.motion(.easeOut(duration: 0.25))) {
                             proxy.scrollTo(Self.bottomAnchor, anchor: .bottom)
                         }
                     } label: {
                         Label("Jump to latest", systemImage: "arrow.down")
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(.scaled(size: 12, weight: .semibold))
                             .foregroundStyle(Theme.ink)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 9)
@@ -321,7 +327,7 @@ struct ChatView: View {
                     .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.2), value: isNearBottom)
+            .animation(Theme.motion(.easeInOut(duration: 0.2)), value: isNearBottom)
             .onChange(of: chat.messages.count) { _, _ in
                 // A new turn, which the reader either sent or asked for. One
                 // jump, not one per chunk.
@@ -530,10 +536,10 @@ struct ChatView: View {
         } label: {
             HStack(spacing: 7) {
                 Text(chat.mode.label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(size: 13, weight: .medium))
                     .foregroundStyle(Theme.fg)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.scaled(size: 10, weight: .semibold))
                     .foregroundStyle(Theme.muted)
             }
             // One line in every mode: "Numerology" wrapped at 375pt.
@@ -561,7 +567,7 @@ struct ChatView: View {
         HStack(spacing: 12) {
             if chat.messages.isEmpty {
                 Text("Astrya")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(.scaled(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Astrya")
@@ -574,7 +580,7 @@ struct ChatView: View {
                 HStack(spacing: 7) {
                     // A match reading names who it is about instead of the mode.
                     Text(chat.match.map { L10n.string("You & \($0.name)") } ?? chat.mode.label)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.scaled(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                     if chat.deep {
                         BrutTag(text: L10n.string("Deep"), fill: Theme.fg, textColor: Theme.ink)
@@ -712,7 +718,7 @@ private struct HeaderActions: View {
     private func button(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.scaled(size: 15, weight: .semibold))
                 .foregroundStyle(Theme.fg)
                 .frame(width: 48, height: 40)
                 .contentShape(Rectangle())

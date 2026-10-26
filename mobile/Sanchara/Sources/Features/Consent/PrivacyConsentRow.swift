@@ -20,7 +20,7 @@ struct PrivacyConsentRow: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("What's shared with Anthropic")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                         Text("What readings send, what's kept, and how to withdraw.")
                             .font(.brutBody(13))
@@ -29,7 +29,7 @@ struct PrivacyConsentRow: View {
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                 }

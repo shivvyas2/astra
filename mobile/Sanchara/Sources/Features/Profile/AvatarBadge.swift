@@ -34,7 +34,7 @@ struct AvatarBadge: View {
         ZStack {
             Theme.surface
             Text(initials)
-                .font(.system(size: size * 0.38, weight: .semibold))
+                .font(.scaled(size: size * 0.38, weight: .semibold))
                 .foregroundStyle(Theme.fg)
         }
     }

@@ -54,7 +54,7 @@ struct AvatarCircle: View {
                 }
             } else {
                 Image(systemName: "person")
-                    .font(.system(size: size * 0.34, weight: .light))
+                    .font(.scaled(size: size * 0.34, weight: .light))
                     .foregroundStyle(Theme.muted)
             }
             if isLoading {
@@ -68,7 +68,7 @@ struct AvatarCircle: View {
         .overlay(alignment: .bottomTrailing) {
             if showsBadge && !isLoading {
                 Image(systemName: "plus")
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.scaled(size: 13, weight: .bold))
                     .foregroundStyle(Theme.ink)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(Theme.accent))

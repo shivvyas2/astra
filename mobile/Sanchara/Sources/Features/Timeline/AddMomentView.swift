@@ -41,7 +41,7 @@ struct AddMomentView: View {
                             Text("When").eyebrow()
                             HStack {
                                 Text("Date")
-                                    .font(.system(size: 15))
+                                    .font(.scaled(size: 15))
                                     .foregroundStyle(Theme.muted)
                                 Spacer(minLength: 8)
                                 DatePicker("When", selection: $date, in: range, displayedComponents: .date)
@@ -71,7 +71,7 @@ struct AddMomentView: View {
                             Text("Anything else").eyebrow()
                             TextField("", text: $note, prompt: Text("Optional").foregroundStyle(Theme.muted.opacity(0.8)), axis: .vertical)
                                 .lineLimit(2...6)
-                                .font(.system(size: 17))
+                                .font(.scaled(size: 17))
                                 .foregroundStyle(Theme.fg)
                                 .focused($noteFocused)
                                 .padding(.vertical, 10)
@@ -93,7 +93,7 @@ struct AddMomentView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }

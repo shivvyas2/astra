@@ -78,83 +78,96 @@ final class BrutSnapshotTests: XCTestCase {
 
     @MainActor
     func testRendersTheComponents() throws {
-        try render(
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Components").eyebrow()
-                SancharaPrimaryButton(title: "Primary") {}
-                SancharaPrimaryButton(title: "Accent", kind: .accent) {}
-                SancharaSecondaryButton(title: "Secondary") {}
-                HStack(spacing: 8) {
-                    BrutChip(text: "Vedic", active: true, color: Theme.accent) {}
-                    BrutChip(text: "Western", color: Theme.violet) {}
-                    BrutChip(text: "Numerology", color: Theme.yellow) {}
-                    BrutChip(text: "Deep", active: true, color: Theme.fg) {}
-                }
-                BrutSegmented(options: [("a", "That day"), ("b", "That month"), ("c", "That year")], selection: .constant("b"))
-                BrutProgressBar(progress: 0.38)
-                HStack(spacing: 8) {
-                    BrutTag(text: "Now")
-                    BrutTag(text: "Morning", fill: Theme.yellow)
-                    BrutTag(text: "Warning", fill: Theme.accent)
-                    BrutTag(text: "Western", fill: Theme.violet)
-                }
-                BrutNotice(text: "Could not load that reading.")
-                BrutEmptyState(
-                    title: "No readings yet",
-                    message: "Astrya writes you a reading each morning and each night. They collect here by date.",
-                    systemImage: "sun.max"
-                )
-                HStack(spacing: 10) {
-                    BrutIconButton(systemImage: "clock", label: "Past readings") {}
-                    BrutIconButton(systemImage: "bell", label: "Inbox", badge: 3) {}
-                    BrutIconButton(systemImage: "square.and.pencil", label: "New reading") {}
-                }
+        try render(components, name: "brut-components")
+    }
+
+    @MainActor
+    private var components: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Components").eyebrow()
+            SancharaPrimaryButton(title: "Primary") {}
+            SancharaPrimaryButton(title: "Accent", kind: .accent) {}
+            SancharaSecondaryButton(title: "Secondary") {}
+            HStack(spacing: 8) {
+                BrutChip(text: "Vedic", active: true, color: Theme.accent) {}
+                BrutChip(text: "Western", color: Theme.violet) {}
+                BrutChip(text: "Numerology", color: Theme.yellow) {}
+                BrutChip(text: "Deep", active: true, color: Theme.fg) {}
             }
-            .padding(16),
-            name: "brut-components"
-        )
+            BrutSegmented(options: [("a", "That day"), ("b", "That month"), ("c", "That year")], selection: .constant("b"))
+            BrutProgressBar(progress: 0.38)
+            HStack(spacing: 8) {
+                BrutTag(text: "Now")
+                BrutTag(text: "Morning", fill: Theme.yellow)
+                BrutTag(text: "Warning", fill: Theme.accent)
+                BrutTag(text: "Western", fill: Theme.violet)
+            }
+            BrutNotice(text: "Could not load that reading.")
+            BrutEmptyState(
+                title: "No readings yet",
+                message: "Astrya writes you a reading each morning and each night. They collect here by date.",
+                systemImage: "sun.max"
+            )
+            HStack(spacing: 10) {
+                BrutIconButton(systemImage: "clock", label: "Past readings") {}
+                BrutIconButton(systemImage: "bell", label: "Inbox", badge: 3) {}
+                BrutIconButton(systemImage: "square.and.pencil", label: "New reading") {}
+            }
+        }
+        .padding(16)
     }
 
     @MainActor
     func testRendersTheDataComponents() throws {
-        try render(
-            ZStack(alignment: .top) {
-                Atmosphere(mood: .dawn)
-                VStack(alignment: .leading, spacing: 18) {
-                    ScreenHeader(
-                        eyebrow: "Life map",
-                        title: "Your life in periods",
-                        blurb: "Vimshottari dasha periods from birth onward.",
-                        accent: Theme.violet,
-                        titleSize: 36,
-                        trailingArrow: true
-                    )
-                    BigNumber(value: "05", unit: "October", caption: "Sunday", size: 88, unitColor: Theme.fg)
-                    MonthScrubber(
-                        items: [(id: 1, label: "Saturn 1998"), (id: 2, label: "Mercury 2017"), (id: 3, label: "Ketu 2034")],
-                        selection: .constant(2),
-                        tint: Theme.violet
-                    )
-                    VStack(spacing: 0) {
-                        StatRow(label: "Progress", systemImage: "chart.line.uptrend.xyaxis", value: "38", unit: "%")
-                        StatRow(label: "Years left", systemImage: "hourglass", value: "6.4", unit: "years", caption: "until 2031")
-                    }
-                    VStack(spacing: 0) {
-                        TableBand(leading: "Graha", trailing: "Sign · House")
-                        TableRow(label: "Sun", value: "Simha 14°32'", detail: "House 10")
-                        TableRow(label: "Moon", value: "Vrishchika 2°05'", detail: "House 1", showsRule: false)
-                    }
-                    VStack(spacing: 0) {
-                        ViewMoreRow(title: "Why this period matters") {}
-                        ViewMoreRow(title: "Export as PDF", systemImage: "square.and.arrow.up", showsTopRule: false) {}
-                    }
-                    StepFooter(step: 1, label: "Read it") {}
+        try render(dataComponents.frame(height: 1_100), name: "brut-data")
+    }
+
+    @MainActor
+    private var dataComponents: some View {
+        ZStack(alignment: .top) {
+            Atmosphere(mood: .dawn)
+            VStack(alignment: .leading, spacing: 18) {
+                ScreenHeader(
+                    eyebrow: "Life map",
+                    title: "Your life in periods",
+                    blurb: "Vimshottari dasha periods from birth onward.",
+                    accent: Theme.violet,
+                    titleSize: 36,
+                    trailingArrow: true
+                )
+                BigNumber(value: "05", unit: "October", caption: "Sunday", size: 88, unitColor: Theme.fg)
+                MonthScrubber(
+                    items: [(id: 1, label: "Saturn 1998"), (id: 2, label: "Mercury 2017"), (id: 3, label: "Ketu 2034")],
+                    selection: .constant(2),
+                    tint: Theme.violet
+                )
+                VStack(spacing: 0) {
+                    StatRow(label: "Progress", systemImage: "chart.line.uptrend.xyaxis", value: "38", unit: "%")
+                    StatRow(label: "Years left", systemImage: "hourglass", value: "6.4", unit: "years", caption: "until 2031")
                 }
-                .padding(16)
+                VStack(spacing: 0) {
+                    TableBand(leading: "Graha", trailing: "Sign · House")
+                    TableRow(label: "Sun", value: "Simha 14°32'", detail: "House 10")
+                    TableRow(label: "Moon", value: "Vrishchika 2°05'", detail: "House 1", showsRule: false)
+                }
+                VStack(spacing: 0) {
+                    ViewMoreRow(title: "Why this period matters") {}
+                    ViewMoreRow(title: "Export as PDF", systemImage: "square.and.arrow.up", showsTopRule: false) {}
+                }
+                StepFooter(step: 1, label: "Read it") {}
             }
-            .frame(height: 1_100),
-            name: "brut-data"
-        )
+            .padding(16)
+        }
+    }
+
+    /// The same components with every accessibility setting on: the largest
+    /// text size offered, Increase Contrast, and shapes as well as colour.
+    /// Look at these when touching layout; text should wrap, not clip.
+    @MainActor
+    func testRendersTheComponentsWithAccessibilitySettings() throws {
+        try render(components.accessibilityExtremes, name: "brut-components-a11y")
+        try render(dataComponents.accessibilityExtremes, name: "brut-data-a11y")
+        try render(AccessibilitySettingsView().frame(height: 900), name: "brut-a11y-settings")
     }
 
     @MainActor
@@ -183,5 +196,13 @@ final class BrutSnapshotTests: XCTestCase {
         let lit = over(Atmosphere.Dawn.peachRGB, Atmosphere.Dawn.peachPeak, over(ember, Atmosphere.Dawn.emberPeak, ground))
         let contrast = (luminance(bone) + 0.05) / (luminance(lit) + 0.05)
         XCTAssertGreaterThanOrEqual(contrast, 4.5, "Bone on the brightest dawn is \(contrast):1")
+    }
+}
+
+private extension View {
+    var accessibilityExtremes: some View {
+        dynamicTypeSize(.accessibility3)
+            .environment(\._colorSchemeContrast, .increased)
+            .environment(\._accessibilityDifferentiateWithoutColor, true)
     }
 }

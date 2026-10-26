@@ -12,6 +12,7 @@ struct SancharaApp: App {
             RootView()
                 .environment(auth)
                 .preferredColorScheme(.dark)
+                .appAccessibility()
         }
         .onChange(of: scenePhase) { _, phase in
             // Leaving the app is the moment to book the next background

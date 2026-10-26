@@ -94,7 +94,7 @@ struct AppIconPicker: View {
                         .shadow(color: choice.swatch.opacity(0.5), radius: 6)
                     if locked {
                         Image(systemName: "lock.fill")
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.scaled(size: 9, weight: .bold))
                             .foregroundStyle(Theme.muted)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                             .padding(5)
@@ -106,7 +106,7 @@ struct AppIconPicker: View {
                         .strokeBorder(selected ? Theme.accent : Theme.line, lineWidth: selected ? 2 : Theme.lineWidth)
                 }
                 Text(choice.label)
-                    .font(.system(size: 12, weight: selected ? .semibold : .regular))
+                    .font(.scaled(size: 12, weight: selected ? .semibold : .regular))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .frame(maxWidth: 56)

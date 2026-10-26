@@ -75,6 +75,7 @@ struct ProfileView: View {
                         }
 
                         languageBlock
+                        accessibilityBlock
                         memoryBlock
                         if PlusStore.isEnabled { PlanRow() }
                         AppIconPicker()
@@ -95,7 +96,7 @@ struct ProfileView: View {
                 if !embedded {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { dismiss() }
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.scaled(size: 14, weight: .bold))
                             .foregroundStyle(Theme.fg)
                     }
                 }
@@ -265,6 +266,40 @@ struct ProfileView: View {
         WidgetRefresh.reloadAll()
     }
 
+    /// Text size, motion, contrast and shape cues, on top of iOS's own.
+    private var accessibilityBlock: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Accessibility").eyebrow()
+                .padding(.bottom, 4)
+            BrutDivider()
+            NavigationLink {
+                AccessibilitySettingsView()
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Text size and display")
+                            .font(.scaled(size: 16, weight: .semibold))
+                            .foregroundStyle(Theme.fg)
+                        Text("Larger text, less motion, more contrast.")
+                            .font(.brutBody(13))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.scaled(size: 13, weight: .semibold))
+                        .foregroundStyle(Theme.muted)
+                        .accessibilityHidden(true)
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            BrutDivider()
+        }
+    }
+
     /// What readings remember about the person's life, and the way to
     /// read or delete it.
     private var memoryBlock: some View {
@@ -278,7 +313,7 @@ struct ProfileView: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("What Astrya knows")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                         Text("Facts from your readings that make them personal. Delete any.")
                             .font(.brutBody(13))
@@ -287,7 +322,7 @@ struct ProfileView: View {
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                 }
@@ -312,7 +347,7 @@ struct ProfileView: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Replay the tutorial")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                         Text("What each tab is for, in a minute.")
                             .font(.brutBody(13))
@@ -320,7 +355,7 @@ struct ProfileView: View {
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                 }
@@ -359,11 +394,11 @@ struct ProfileView: View {
         Button { legalPage = page } label: {
             HStack(spacing: 12) {
                 Text(page.title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.scaled(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.muted)
                     .accessibilityHidden(true)
             }

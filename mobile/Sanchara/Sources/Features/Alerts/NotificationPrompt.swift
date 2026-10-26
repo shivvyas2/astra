@@ -64,7 +64,7 @@ struct NotificationPromptView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             Image(systemName: "bell.badge")
-                .font(.system(size: 26, weight: .medium))
+                .font(.scaled(size: 26, weight: .medium))
                 .foregroundStyle(Theme.accent)
                 .accessibilityHidden(true)
 
@@ -88,7 +88,7 @@ struct NotificationPromptView: View {
                     Task { await primary() }
                 }
                 Button("Not now") { onDone() }
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.scaled(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .frame(maxWidth: .infinity, minHeight: 44)
             }

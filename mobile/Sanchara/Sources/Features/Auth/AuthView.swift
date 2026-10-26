@@ -25,6 +25,7 @@ struct AuthView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var legalPage: LegalPage?
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var shapeCues
     /// Set just before the store moves us to sign-in on its own, so the
     /// "you already have an account" message survives that switch. Every
     /// other mode change is the person's doing and clears the messages.
@@ -102,13 +103,18 @@ struct AuthView: View {
                             .focused($focus, equals: .password)
 
                             if mode == .signUp {
-                                Text("At least \(AuthStore.minimumPasswordLength) characters.")
-                                    .font(.brutMono(11, weight: .medium))
-                                    .foregroundStyle(
-                                        password.isEmpty || password.count >= AuthStore.minimumPasswordLength
-                                            ? Theme.muted
-                                            : Theme.ember
-                                    )
+                                let tooShort = !password.isEmpty && password.count < AuthStore.minimumPasswordLength
+                                HStack(spacing: 4) {
+                                    // Colour alone says "too short"; the
+                                    // setting adds the mark notices use.
+                                    if shapeCues && tooShort {
+                                        Image(systemName: "exclamationmark.circle.fill")
+                                            .accessibilityHidden(true)
+                                    }
+                                    Text("At least \(AuthStore.minimumPasswordLength) characters.")
+                                }
+                                .font(.brutMono(11, weight: .medium))
+                                .foregroundStyle(tooShort ? Theme.ember : Theme.muted)
                             }
                         }
                     }
@@ -125,7 +131,7 @@ struct AuthView: View {
                                     .foregroundStyle(Theme.fg)
                                     .underline()
                             }
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.scaled(size: 14, weight: .semibold))
                             .frame(minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                         }

@@ -54,20 +54,20 @@ struct ReadingCard: View {
     private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(eyebrow)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.scaled(size: 10, weight: .semibold))
                 .textCase(.uppercase)
                 .tracking(1.4)
                 .foregroundStyle(Theme.muted)
 
             // The revamp's display type: medium weight, set tight.
             Text(title)
-                .font(.system(size: 20, weight: .medium))
+                .font(.scaled(size: 20, weight: .medium))
                 .tracking(-0.7)
                 .foregroundStyle(Theme.fg)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(text)
-                .font(.system(size: 13))
+                .font(.scaled(size: 13))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(bodyLineLimit)
                 .fixedSize(horizontal: false, vertical: true)

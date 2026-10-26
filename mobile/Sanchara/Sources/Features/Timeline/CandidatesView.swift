@@ -45,7 +45,7 @@ struct CandidatesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { store.candidates = []; dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }
@@ -111,7 +111,7 @@ struct CandidatesView: View {
                         .padding(.top, -3)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(candidate.title)
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.scaled(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
@@ -126,7 +126,7 @@ struct CandidatesView: View {
                         }
                         if !candidate.evidence.isEmpty {
                             Text(verbatim: "“\(candidate.evidence)”")
-                                .font(.system(size: 12).italic())
+                                .font(.scaled(size: 12).italic())
                                 .foregroundStyle(Theme.muted)
                                 .multilineTextAlignment(.leading)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -156,7 +156,7 @@ struct CandidatesView: View {
             if isChosen {
                 Circle().fill(Theme.accent)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.scaled(size: 11, weight: .bold))
                     .foregroundStyle(Theme.ink)
             } else {
                 Circle().fill(Theme.fg.opacity(0.04))

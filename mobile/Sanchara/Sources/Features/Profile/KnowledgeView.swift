@@ -12,6 +12,7 @@ import SwiftUI
 struct KnowledgeView: View {
     @State private var store = KnowledgeStore()
     @State private var confirmForgetAll = false
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         ZStack {
@@ -144,7 +145,7 @@ struct KnowledgeView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                             Text(([Self.shortDate(memory.lastMessageAt)] + memory.topics.map(\.label))
                                 .filter { !$0.isEmpty }.joined(separator: " · "))
-                                .font(.system(size: 12))
+                                .font(.scaled(size: 12))
                                 .foregroundStyle(Theme.muted)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -180,7 +181,7 @@ struct KnowledgeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 8) {
                         Text([p.topic.label, p.windowLabel, p.confidenceLabel].joined(separator: " · "))
-                            .font(.system(size: 12))
+                            .font(.scaled(size: 12))
                             .foregroundStyle(Theme.muted)
                         if p.status != .open {
                             BrutTag(text: p.status.label, fill: p.status == .happened ? Theme.accent : Theme.fg)
@@ -188,10 +189,13 @@ struct KnowledgeView: View {
                     }
                     if p.canCheck(today: Self.today) {
                         Text("Did this happen?")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.scaled(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                             .padding(.top, 4)
-                        HStack(spacing: 8) {
+                        let layout = typeSize.isAccessibilitySize
+                            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                            : AnyLayout(HStackLayout(spacing: 8))
+                        layout {
                             BrutChip(text: L10n.string("Yes")) { Task { await store.mark(p, .happened) } }
                             BrutChip(text: L10n.string("No")) { Task { await store.mark(p, .didnt) } }
                             BrutChip(text: L10n.string("Not sure")) { Task { await store.mark(p, .unsure) } }

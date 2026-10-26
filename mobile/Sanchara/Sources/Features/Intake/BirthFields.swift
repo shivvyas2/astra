@@ -75,7 +75,7 @@ struct BirthDetailsFields: View {
                     } else {
                         underlined(L10n.string("Time of birth")) {
                             Text(form.approxTime.map { L10n.string("Roughly \($0.label.lowercased())") } ?? L10n.string("Unknown"))
-                                .font(.system(size: 17))
+                                .font(.scaled(size: 17))
                                 .foregroundStyle(Theme.muted)
                         }
                     }
@@ -86,7 +86,7 @@ struct BirthDetailsFields: View {
                     set: { unknown in withAnimation(Theme.snap) { form.birthTimeKnown = !unknown } }
                 )) {
                     Text(someoneElse ? L10n.string("I don't know their birth time") : L10n.string("I don't know my birth time"))
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.scaled(size: 15, weight: .medium))
                         .foregroundStyle(Theme.fg)
                 }
                 .tint(Theme.accent)
@@ -149,7 +149,7 @@ struct BirthDetailsFields: View {
                 HStack(alignment: .center, spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(place.name)
-                            .font(.system(size: 17))
+                            .font(.scaled(size: 17))
                             .foregroundStyle(Theme.fg)
                         Text(place.timezone)
                             .font(.brutMono(11, weight: .medium))
@@ -191,7 +191,7 @@ struct BirthDetailsFields: View {
                             }
                             Spacer(minLength: 8)
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.scaled(size: 13, weight: .semibold))
                                 .foregroundStyle(Theme.muted)
                                 .accessibilityHidden(true)
                         }

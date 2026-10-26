@@ -58,9 +58,9 @@ struct ConsentView: View {
                 } label: {
                     HStack(spacing: 6) {
                         Text("Read the full privacy policy")
-                        Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .semibold))
+                        Image(systemName: "arrow.up.right").font(.scaled(size: 11, weight: .semibold))
                     }
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .frame(minHeight: 44)
                 }

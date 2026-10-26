@@ -60,7 +60,7 @@ struct InboxView: View {
                 if !embedded {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") { dismiss() }
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.scaled(size: 14, weight: .bold))
                             .foregroundStyle(Theme.fg)
                     }
                 }
@@ -112,7 +112,7 @@ struct InboxView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text("Today")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(size: 13, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                 if embedded {
                     Spacer(minLength: 8)
@@ -278,7 +278,7 @@ struct InboxView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(reading.title)
-                    .font(.system(size: 15, weight: reading.isUnread ? .semibold : .regular))
+                    .font(.scaled(size: 15, weight: reading.isUnread ? .semibold : .regular))
                     .foregroundStyle(Theme.fg)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
@@ -340,7 +340,7 @@ struct InboxView: View {
                         .foregroundStyle(Theme.muted)
                 }
                 Text(alert.title)
-                    .font(.system(size: 16, weight: alert.isUnread ? .semibold : .regular))
+                    .font(.scaled(size: 16, weight: alert.isUnread ? .semibold : .regular))
                     .foregroundStyle(Theme.fg)
                     .multilineTextAlignment(.leading)
                     .lineLimit(2)
@@ -371,7 +371,7 @@ struct InboxView: View {
     /// A round, outlined tile for a row's icon.
     private func iconCircle(_ systemImage: String, tint: Color) -> some View {
         Image(systemName: systemImage)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.scaled(size: 14, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: 36, height: 36)
             .background {
@@ -390,7 +390,7 @@ struct InboxView: View {
 
     private var chevron: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 12, weight: .semibold))
+            .font(.scaled(size: 12, weight: .semibold))
             .foregroundStyle(Theme.muted)
             .accessibilityHidden(true)
     }
@@ -411,7 +411,7 @@ struct DailyReadingView: View {
                     VStack(alignment: .leading, spacing: 18) {
                         HStack(spacing: 8) {
                             Image(systemName: reading.isMorning ? "sun.max" : "moon.stars")
-                                .font(.system(size: 12, weight: .bold))
+                                .font(.scaled(size: 12, weight: .bold))
                                 .foregroundStyle(reading.isMorning ? Theme.accent : Theme.violet)
                                 .accessibilityHidden(true)
                             Text(verbatim: "\(reading.slotLabel) · \(DailyReadingDay(date: reading.forDate, readings: []).label)")
@@ -440,7 +440,7 @@ struct DailyReadingView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }

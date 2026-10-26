@@ -35,7 +35,7 @@ struct CompatibilityView: View {
                     Button(L10n.string("Remove \(person.label)"), role: .destructive) { confirmDelete = true }
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.scaled(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                         .frame(width: 44, height: 44)
                 }
@@ -125,7 +125,7 @@ struct CompatibilityView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(alignment: .firstTextBaseline) {
                         Text(k.name)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                         Spacer(minLength: 8)
                         Text("\(GunaFormat.points(k.score)) / \(GunaFormat.points(k.max))")
@@ -158,7 +158,7 @@ struct CompatibilityView: View {
                 groomIsThem.toggle()
             } label: {
                 Text(groomIsThem ? L10n.string("Read your chart as the groom's") : L10n.string("Read \(person.label)'s chart as the groom's"))
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.scaled(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .underline()
                     .frame(minHeight: 44)
@@ -180,7 +180,7 @@ struct CompatibilityView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Text(d.title)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                         Spacer(minLength: 8)
                         BrutTag(

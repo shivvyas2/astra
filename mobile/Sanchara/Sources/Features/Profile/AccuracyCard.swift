@@ -71,11 +71,11 @@ struct AccuracyCard: View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 Text(label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
                 Spacer(minLength: 8)
                 Text(value)
-                    .font(.system(size: 18, weight: .medium).monospacedDigit())
+                    .font(.scaled(size: 18, weight: .medium).monospacedDigit())
                     .foregroundStyle(accent ? Theme.accent : Theme.fg)
             }
             .padding(.vertical, 10)

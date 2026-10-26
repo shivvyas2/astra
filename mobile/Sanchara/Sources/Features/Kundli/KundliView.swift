@@ -67,7 +67,7 @@ struct KundliView: View {
                         ProfileAvatarButton()
                     } else {
                         Button("Done") { dismiss() }
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.scaled(size: 14, weight: .bold))
                             .foregroundStyle(Theme.fg)
                     }
                 }
@@ -112,7 +112,7 @@ struct KundliView: View {
                 HStack(spacing: 8) {
                     HStack(spacing: 8) {
                         Text("Birth chart")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(.scaled(size: 13, weight: .semibold))
                             .foregroundStyle(Theme.accent)
                     }
                     .accessibilityElement(children: .combine)
@@ -131,7 +131,7 @@ struct KundliView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 Text(chart.isTimeKnown ? "Lagna (ascendant)" : "Chandra lagna (Moon sign)")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
                     .padding(.bottom, 64)
 
@@ -155,7 +155,7 @@ struct KundliView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(details.fullName)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(.scaled(size: 15, weight: .semibold))
                         .foregroundStyle(Theme.fg)
                     Text("\(birthLine)\n\(details.placeName)")
                         .font(.brutMono(12, weight: .medium))
@@ -220,11 +220,11 @@ struct KundliView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: "clock.badge.questionmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.scaled(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.accent)
                     .accessibilityHidden(true)
                 Text("Ascendant uncertain: birth time unknown")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.scaled(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -293,10 +293,10 @@ struct KundliView: View {
                 Text(script.label)
                     .foregroundStyle(Theme.fg)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.scaled(size: 10, weight: .bold))
                     .foregroundStyle(Theme.muted)
             }
-            .font(.system(size: 13, weight: .semibold))
+            .font(.scaled(size: 13, weight: .semibold))
             .padding(.horizontal, 14)
             .frame(minHeight: 36)
             .background {
@@ -386,11 +386,11 @@ struct KundliView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                                     Text(planet.name(in: script) + (planet.retrograde ? " ℞" : ""))
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.scaled(size: 15, weight: .semibold))
                                         .foregroundStyle(Theme.fg)
                                     if script != .english {
                                         Text(planet.name)
-                                            .font(.system(size: 12, weight: .medium))
+                                            .font(.scaled(size: 12, weight: .medium))
                                             .foregroundStyle(Theme.muted)
                                     }
                                 }
@@ -412,7 +412,7 @@ struct KundliView: View {
                                     .foregroundStyle(Theme.muted)
                             }
                             Image(systemName: "chevron.right")
-                                .font(.system(size: 12, weight: .semibold))
+                                .font(.scaled(size: 12, weight: .semibold))
                                 .foregroundStyle(Theme.muted)
                                 .accessibilityHidden(true)
                         }
@@ -543,7 +543,7 @@ struct HouseDetailSheet: View {
                                         GlyphCircle(glyph: planet.glyph)
                                         VStack(alignment: .leading, spacing: 3) {
                                             Text(planet.name(in: script) + (script == .english ? "" : " · \(planet.name)") + (planet.retrograde ? " ℞ " + L10n.string("retrograde") : ""))
-                                                .font(.system(size: 15, weight: .semibold))
+                                                .font(.scaled(size: 15, weight: .semibold))
                                                 .foregroundStyle(Theme.fg)
                                             Text(planet.nakshatra.map { "\(planet.degreeText) · \($0)" } ?? planet.degreeText)
                                                 .font(.brutMono(12))
@@ -577,7 +577,7 @@ struct HouseDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }
@@ -599,7 +599,7 @@ private struct GlyphCircle: View {
 
     var body: some View {
         Text(glyph)
-            .font(.system(size: size * 0.48))
+            .font(.scaled(size: size * 0.48))
             .foregroundStyle(Theme.accent)
             .frame(width: size, height: size)
             .background {

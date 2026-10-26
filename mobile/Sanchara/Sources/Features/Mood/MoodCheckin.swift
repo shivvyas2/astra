@@ -92,7 +92,7 @@ struct MoodCheckinCard: View {
             VStack(spacing: 4) {
                 Text("\(mood)").font(.brutNumeral(22))
                 // Five across: a longer Hindi or Gujarati word shrinks to fit.
-                Text(label).font(.system(size: 11, weight: .medium))
+                Text(label).font(.scaled(size: 11, weight: .medium))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
             }

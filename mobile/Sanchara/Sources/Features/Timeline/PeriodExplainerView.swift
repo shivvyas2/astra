@@ -76,7 +76,7 @@ struct PeriodExplainerView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }

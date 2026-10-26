@@ -133,7 +133,7 @@ struct PaywallView: View {
                         .frame(width: 22, height: 22)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(option.label)
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.scaled(size: 16, weight: .semibold))
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                                 .foregroundStyle(Theme.fg)
@@ -153,7 +153,7 @@ struct PaywallView: View {
                                 .lineLimit(1)
                                 .fixedSize()
                             Text(verbatim: "/\(option.per)")
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.scaled(size: 13, weight: .medium))
                                 .foregroundStyle(Theme.muted)
                                 .fixedSize()
                         }
@@ -198,7 +198,7 @@ struct PaywallView: View {
             .disabled(selectedProduct == nil)
             .opacity(selectedProduct == nil ? 0.6 : 1)
             Text(PlusCopy.renewalDisclosure(yearly: isYearlySelected))
-                .font(.system(size: 11))
+                .font(.scaled(size: 11))
                 .foregroundStyle(Theme.muted)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -249,7 +249,7 @@ struct PaywallView: View {
                 Button("Terms of Use") { openURL(PlusCopy.termsURL) }
                 Button("Privacy Policy") { openURL(PlusCopy.privacyURL) }
             }
-            .font(.system(size: 12, weight: .medium))
+            .font(.scaled(size: 12, weight: .medium))
             .foregroundStyle(Theme.muted)
             .frame(minHeight: 36)
         }

@@ -233,11 +233,11 @@ struct ChartBasisDisclosure: View {
                 HStack(spacing: 8) {
                     Circle().fill(Theme.accent).frame(width: 6, height: 6)
                     Text("Why Astrya said this")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.scaled(size: 14, weight: .medium))
                         .foregroundStyle(Theme.fg)
                     Spacer(minLength: 8)
                     Image(systemName: "plus")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.scaled(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .rotationEffect(.degrees(open ? 45 : 0))
                 }

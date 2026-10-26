@@ -22,7 +22,7 @@ struct PlanRow: View {
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 8) {
                             Text(store.plan == .plus ? L10n.string("Plus member") : PlusCopy.title)
-                                .font(.system(size: 16, weight: .semibold))
+                                .font(.scaled(size: 16, weight: .semibold))
                                 .foregroundStyle(Theme.fg)
                             if store.plan == .plus { PlusBadge() }
                         }
@@ -35,7 +35,7 @@ struct PlanRow: View {
                     }
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(.scaled(size: 13, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                 }

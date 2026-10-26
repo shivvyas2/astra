@@ -199,7 +199,7 @@ struct KundliChartView: View {
             // sitting in a fixed house. Set in the text face at medium weight,
             // in step with the rest of the screen's numerals.
             Text("\(house.rashi.number)")
-                .font(.system(size: numeral, weight: .medium))
+                .font(.scaled(size: numeral, weight: .medium))
                 .foregroundStyle(house.isLagna ? Theme.accent : Theme.muted)
 
             if !house.planets.isEmpty {
@@ -213,12 +213,12 @@ struct KundliChartView: View {
                         HStack(spacing: 5) {
                             ForEach(row) { planet in
                                 Text(planet.chartLabel(in: script))
-                                    .font(.system(size: label, weight: script == .english ? .regular : .semibold))
+                                    .font(.scaled(size: label, weight: script == .english ? .regular : .semibold))
                                     .foregroundStyle(Theme.fg)
                                     .overlay(alignment: .topTrailing) {
                                         if planet.retrograde {
                                             Text("R")
-                                                .font(.system(size: max(7, numeral - 3), weight: .medium))
+                                                .font(.scaled(size: max(7, numeral - 3), weight: .medium))
                                                 .foregroundStyle(Theme.accent)
                                                 .offset(x: 5, y: -3)
                                         }

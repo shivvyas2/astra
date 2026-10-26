@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The Astrya design tokens, kept in step with `app/globals.css`.
 ///
@@ -26,8 +27,8 @@ enum Theme {
     static let surfaceRaised = Color(hex: 0x1D1D21)
     /// `--fg: #f4f1ea` — bone. Text, and the fill of the main button.
     static let fg = Color(hex: 0xF4F1EA)
-    /// `--muted: #9a978f`
-    static let muted = Color(hex: 0x9A978F)
+    /// `--muted: #9a978f`. Lifted to `#b8b5ad` under Increase Contrast.
+    static let muted = Color(hex: 0x9A978F, increased: 0xB8B5AD)
     /// `--accent: #dfee6b` — lime. The one vivid colour: the word a screen is
     /// about, the selected tab, the thing to tap.
     static let accent = Color(hex: 0xDFEE6B)
@@ -42,13 +43,14 @@ enum Theme {
     static let yellow = accent
 
     /// Outlines: cards, chips, fields at rest. A quiet line, one point thick.
-    static let line = fg.opacity(0.28)
+    /// Under Increase Contrast it clears 3:1 against the ground.
+    static let line = Color(hex: 0xF4F1EA, opacity: 0.28, increased: 0.55)
     /// The same line when it has to be noticed: a focused field, a selection.
     static let lineStrong = fg
     /// A row separator inside a card or a table.
-    static let rule = fg.opacity(0.14)
+    static let rule = Color(hex: 0xF4F1EA, opacity: 0.14, increased: 0.4)
     /// Kept for callers that predate the revamp; reads as `rule`.
-    static let hairline = fg.opacity(0.14)
+    static let hairline = rule
     /// Kept for callers that predate the revamp; reads as `surface`.
     static let fieldFill = surface
 
@@ -65,10 +67,36 @@ enum Theme {
     /// The kundli's rule lines. The diagram is content, so it gets a real line.
     static let chartLine = fg.opacity(0.55)
 
-    /// The site's easing: `cubic-bezier(0.22, 1, 0.36, 1)`.
-    static let ease = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.6)
-    /// Button presses and toggles: quick, nothing springy.
-    static let snap = Animation.easeOut(duration: 0.14)
+    /// The site's easing: `cubic-bezier(0.22, 1, 0.36, 1)`. Nil under Reduce
+    /// Motion, so the change lands without moving.
+    static var ease: Animation? {
+        reducesMotion ? nil : .timingCurve(0.22, 1, 0.36, 1, duration: 0.6)
+    }
+    /// Button presses and toggles: quick, nothing springy. Nil under Reduce
+    /// Motion.
+    static var snap: Animation? {
+        reducesMotion ? nil : .easeOut(duration: 0.14)
+    }
+    /// Any other timing, dropped under Reduce Motion the same way.
+    static func motion(_ animation: Animation) -> Animation? {
+        reducesMotion ? nil : animation
+    }
+
+    /// Settings › Accessibility in the app. Each switch adds to the matching
+    /// iOS setting; neither can turn the other off.
+    enum Accessibility {
+        static let textSizeKey = "a11y.textSize"
+        static let reduceMotionKey = "a11y.reduceMotion"
+        static let increaseContrastKey = "a11y.increaseContrast"
+        static let shapeCuesKey = "a11y.differentiateWithoutColor"
+    }
+
+    /// Reduce Motion from iOS or the app. Read here rather than from the
+    /// environment because `withAnimation` runs in actions, outside `body`.
+    static var reducesMotion: Bool {
+        UIAccessibility.isReduceMotionEnabled
+            || UserDefaults.standard.bool(forKey: Accessibility.reduceMotionKey)
+    }
 }
 
 extension Color {
@@ -83,38 +111,146 @@ extension Color {
             opacity: 1
         )
     }
+
+    /// A token with a stronger value under Increase Contrast. SwiftUI resolves
+    /// it against the view's `colorSchemeContrast`, which the app root sets
+    /// from iOS or from Settings › Accessibility.
+    init(hex: UInt32, increased: UInt32) {
+        self.init(uiColor: UIColor { traits in
+            UIColor(Color(hex: traits.accessibilityContrast == .high ? increased : hex))
+        })
+    }
+
+    /// The same, for a translucent line whose opacity rises.
+    init(hex: UInt32, opacity: Double, increased: Double) {
+        self.init(uiColor: UIColor { traits in
+            UIColor(Color(hex: hex).opacity(traits.accessibilityContrast == .high ? increased : opacity))
+        })
+    }
 }
 
 // MARK: - Type
 
-extension Font {
+/// A face set at a design size that follows the reader's text size.
+///
+/// At the default text size this is exactly `.system(size:weight:)`, so every
+/// screen looks the way it was drawn. A larger size, chosen in iOS or in
+/// Settings › Accessibility here, scales it along the curve of the text style
+/// nearest its size. Display sizes stop at a ceiling so one huge word cannot
+/// push a screen apart; body sizes keep growing well past double.
+///
+/// `View.font(_:)` below takes one of these, so call sites read the same as
+/// they did when these were plain `Font`s: `.font(.brutBody(15))`.
+struct BrutFont: Equatable {
+    var size: CGFloat
+    var weight: Font.Weight = .regular
+    var monospacedDigits = false
+    var isItalic = false
+
+    /// Any size and weight, for the places that are not one of the named roles.
+    static func scaled(size: CGFloat, weight: Font.Weight = .regular) -> BrutFont {
+        BrutFont(size: size, weight: weight)
+    }
+
     /// The one large word or phrase a screen is about. Medium weight, set
     /// tight; size does the work that weight did in the blockier style.
-    static func brutDisplay(_ size: CGFloat = 44) -> Font {
-        .system(size: size, weight: .medium)
+    static func brutDisplay(_ size: CGFloat = 44) -> BrutFont {
+        BrutFont(size: size, weight: .medium)
     }
 
     /// Section and card titles.
-    static func brutTitle(_ size: CGFloat = 20) -> Font {
-        .system(size: size, weight: .semibold)
+    static func brutTitle(_ size: CGFloat = 20) -> BrutFont {
+        BrutFont(size: size, weight: .semibold)
     }
 
     /// Labels, dates, degrees, counts. The text face with tabular digits, so
     /// columns of numbers line up without switching typeface.
-    static func brutMono(_ size: CGFloat = 11, weight: Font.Weight = .medium) -> Font {
-        .system(size: size, weight: weight).monospacedDigit()
+    static func brutMono(_ size: CGFloat = 11, weight: Font.Weight = .medium) -> BrutFont {
+        BrutFont(size: size, weight: weight, monospacedDigits: true)
     }
 
     /// An oversized figure: a percentage, a day of the month, a count. Light
     /// weight with tabular digits — at this size weight would shout, and the
     /// digits have to sit still when the number changes.
-    static func brutNumeral(_ size: CGFloat = 64) -> Font {
-        .system(size: size, weight: .light).monospacedDigit()
+    static func brutNumeral(_ size: CGFloat = 64) -> BrutFont {
+        BrutFont(size: size, weight: .light, monospacedDigits: true)
     }
 
     /// Body copy.
-    static func brutBody(_ size: CGFloat = 15) -> Font {
-        .system(size: size, weight: .regular)
+    static func brutBody(_ size: CGFloat = 15) -> BrutFont {
+        BrutFont(size: size, weight: .regular)
+    }
+
+    func monospacedDigit() -> BrutFont {
+        var font = self
+        font.monospacedDigits = true
+        return font
+    }
+
+    func italic() -> BrutFont {
+        var font = self
+        font.isItalic = true
+        return font
+    }
+
+    func weight(_ weight: Font.Weight) -> BrutFont {
+        var font = self
+        font.weight = weight
+        return font
+    }
+
+    /// The text style whose growth curve this size follows.
+    var textStyle: UIFont.TextStyle {
+        switch size {
+        case ..<12.5: .caption1
+        case ..<14.5: .footnote
+        case ..<16: .subheadline
+        case ..<18.5: .body
+        case ..<21: .title3
+        case ..<25: .title2
+        case ..<31: .title1
+        default: .largeTitle
+        }
+    }
+
+    /// The largest text size this follows. Numerals and display words are
+    /// already big, so they stop early; reading text goes to Accessibility 3,
+    /// more than twice its drawn size.
+    var ceiling: DynamicTypeSize {
+        switch size {
+        case 31...: .xxxLarge
+        case 21...: .accessibility1
+        default: .accessibility3
+        }
+    }
+
+    /// The point size at a given text size.
+    func pointSize(at typeSize: DynamicTypeSize) -> CGFloat {
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(min(typeSize, ceiling)))
+        return UIFontMetrics(forTextStyle: textStyle).scaledValue(for: size, compatibleWith: traits)
+    }
+
+    func font(at typeSize: DynamicTypeSize) -> Font {
+        var font = Font.system(size: pointSize(at: typeSize), weight: weight)
+        if monospacedDigits { font = font.monospacedDigit() }
+        if isItalic { font = font.italic() }
+        return font
+    }
+}
+
+private struct BrutFontModifier: ViewModifier {
+    @Environment(\.dynamicTypeSize) private var typeSize
+    let font: BrutFont
+
+    func body(content: Content) -> some View {
+        content.font(font.font(at: typeSize))
+    }
+}
+
+extension View {
+    /// Sets a `BrutFont`, resolved against the current text size.
+    func font(_ font: BrutFont) -> some View {
+        modifier(BrutFontModifier(font: font))
     }
 }
 
@@ -122,7 +258,7 @@ extension Text {
     /// The eyebrow: small, uppercase, tracked, muted. Sits above a title or
     /// labels a block.
     func eyebrow() -> some View {
-        self.font(.system(size: 13, weight: .medium))
+        self.font(.scaled(size: 13, weight: .medium))
             .foregroundStyle(Theme.muted)
     }
 

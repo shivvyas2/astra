@@ -49,7 +49,7 @@ struct HistoryView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }
@@ -79,7 +79,7 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 8) {
                 BrutTag(text: conversation.mode.label, fill: conversation.mode.dot)
                 Text(conversation.title ?? L10n.string("Reading"))
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.scaled(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)
@@ -89,7 +89,7 @@ struct HistoryView: View {
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.scaled(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.muted)
                 .accessibilityHidden(true)
         }

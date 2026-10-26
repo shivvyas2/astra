@@ -169,7 +169,7 @@ struct KeyDatesView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.scaled(size: 14, weight: .bold))
                         .foregroundStyle(Theme.fg)
                 }
             }
@@ -240,7 +240,7 @@ struct KeyDatesView: View {
                         BrutTag(text: toneLabel(e.tone), fill: toneColor(e.tone), textColor: Theme.ink)
                         Text(kindLabel(e.kind)).eyebrow()
                     }
-                    Text(e.title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.fg)
+                    Text(e.title).font(.scaled(size: 15, weight: .semibold)).foregroundStyle(Theme.fg)
                         .fixedSize(horizontal: false, vertical: true)
                     Text(e.detail).font(.brutBody(13)).foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)

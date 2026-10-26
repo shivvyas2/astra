@@ -18,7 +18,7 @@ struct MatchSection: View {
             // Its own section, headed like a screen: the kundli above is
             // about one chart, this is about two.
             Text("Matching")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.scaled(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.accent)
                 .padding(.bottom, 8)
             Text(firstName.isEmpty ? L10n.string("Match your stars") : L10n.string("Match your stars, \(firstName)"))
@@ -45,12 +45,12 @@ struct MatchSection: View {
                 Button { adding = true } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "plus")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.scaled(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.ink)
                             .frame(width: 36, height: 36)
                             .background(Circle().fill(Theme.accent))
                         Text(people.people.isEmpty ? "Add someone to compare with" : "Add someone")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .foregroundStyle(Theme.fg)
                         Spacer(minLength: 8)
                     }
@@ -82,13 +82,13 @@ struct MatchSection: View {
     private func row(_ person: Person) -> some View {
         HStack(spacing: 12) {
             Text(person.initials)
-                .font(.system(size: 13, weight: .semibold))
+                .font(.scaled(size: 13, weight: .semibold))
                 .foregroundStyle(Theme.fg)
                 .frame(width: 36, height: 36)
                 .background(Circle().fill(Theme.fg.opacity(0.08)))
             VStack(alignment: .leading, spacing: 2) {
                 Text(person.label)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.scaled(size: 16, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                 Text([person.relationship.label, person.moonSign.map { L10n.string("Moon in \(GunaFormat.sign($0))") }].compactMap { $0 }.joined(separator: ", "))
                     .font(.brutBody(13))
@@ -96,7 +96,7 @@ struct MatchSection: View {
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
+                .font(.scaled(size: 12, weight: .semibold))
                 .foregroundStyle(Theme.muted)
                 .accessibilityHidden(true)
         }

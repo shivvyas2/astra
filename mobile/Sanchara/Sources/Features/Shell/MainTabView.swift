@@ -132,10 +132,10 @@ struct MainTabView: View {
                 .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            withAnimation(.easeOut(duration: 0.25)) { keyboardUp = true }
+            withAnimation(Theme.motion(.easeOut(duration: 0.25))) { keyboardUp = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            withAnimation(.easeOut(duration: 0.25)) { keyboardUp = false }
+            withAnimation(Theme.motion(.easeOut(duration: 0.25))) { keyboardUp = false }
         }
         .tint(Theme.fg)
         .sheet(isPresented: $showYou) {
@@ -393,12 +393,12 @@ struct BrutTabBar: View {
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: tab.symbol)
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.scaled(size: 16, weight: .semibold))
                             .frame(height: 20)
                             .overlay(alignment: .topTrailing) {
                                 if count > 0 {
                                     Text(count > 9 ? "9+" : "\(count)")
-                                        .font(.system(size: 9, weight: .bold).monospacedDigit())
+                                        .font(.scaled(size: 9, weight: .bold).monospacedDigit())
                                         .foregroundStyle(Theme.ink)
                                         .padding(.horizontal, 4)
                                         .frame(minWidth: 15, minHeight: 15)
@@ -409,7 +409,7 @@ struct BrutTabBar: View {
                                 }
                             }
                         Text(tab.title)
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(.scaled(size: 11, weight: .semibold))
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
                     }

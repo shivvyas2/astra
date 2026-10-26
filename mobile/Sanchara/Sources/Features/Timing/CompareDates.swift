@@ -29,6 +29,7 @@ struct CompareDatesSection: View {
     @State private var result: DateComparison?
     @State private var busy = false
     @State private var error: String?
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var shapeCues
 
     /// The tag the server takes, and the label for it in the app's language.
     private static var topics: [(String, String)] {
@@ -56,7 +57,7 @@ struct CompareDatesSection: View {
 
             if let result {
                 Text(result.winner.map { L10n.string("\(Self.long($0.date)) reads better.") } ?? L10n.string("Neither date stands out: they read about the same."))
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.scaled(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                 day(result.a, best: result.better == "a")
                 day(result.b, best: result.better == "b")
@@ -76,14 +77,25 @@ struct CompareDatesSection: View {
     private func day(_ d: DateComparison.Day, best: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(Self.long(d.date)).font(.system(size: 14, weight: .semibold))
+                Text(Self.long(d.date)).font(.scaled(size: 14, weight: .semibold))
                 Spacer()
                 if best { BrutTag(text: L10n.string("Better")) }
             }
             Text(verbatim: d.score > 0 ? "+\(d.score)" : "\(d.score)").font(.brutNumeral(36))
             ForEach(d.factors, id: \.self) { f in
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Circle().fill(f.score > 0 ? Theme.accent : f.score < 0 ? Theme.ember : Theme.muted).frame(width: 6, height: 6)
+                    let tint = f.score > 0 ? Theme.accent : f.score < 0 ? Theme.ember : Theme.muted
+                    if shapeCues {
+                        // The dot's colour is the only sign of which way a
+                        // factor pulls, so the setting swaps it for a sign.
+                        Text(verbatim: f.score > 0 ? "+" : f.score < 0 ? "\u{2212}" : "\u{00B7}")
+                            .font(.brutMono(13, weight: .bold))
+                            .foregroundStyle(tint)
+                            .frame(width: 10)
+                            .accessibilityHidden(true)
+                    } else {
+                        Circle().fill(tint).frame(width: 6, height: 6)
+                    }
                     (Text(f.label + ". ").fontWeight(.medium) + Text(f.detail).foregroundColor(Theme.muted))
                         .font(.brutBody(13))
                         .fixedSize(horizontal: false, vertical: true)

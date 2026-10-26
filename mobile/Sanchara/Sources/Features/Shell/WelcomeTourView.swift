@@ -139,7 +139,7 @@ private struct TourPage: View {
                 OrbitDecoration(color: Theme.fg.opacity(0.3))
                     .frame(width: 240, height: 200)
                 Image(systemName: tab.symbol)
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(.scaled(size: 22, weight: .semibold))
                     .foregroundStyle(color)
                     .frame(width: 56, height: 56)
                     .background {

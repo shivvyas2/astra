@@ -1306,6 +1306,22 @@
         }
       }
     },
+    "Accessibility": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "સુલભતા"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सुलभता"
+          }
+        }
+      }
+    },
     "Account": {
       "localizations": {
         "gu": {
@@ -1597,6 +1613,22 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Adds a symbol wherever colour alone shows a meaning.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "જ્યાં ફક્ત રંગથી અર્થ સમજાય છે, ત્યાં એક ચિહ્ન ઉમેરે છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "जहाँ केवल रंग से अर्थ पता चलता है, वहाँ एक चिह्न जोड़ता है।"
           }
         }
       }
@@ -2463,6 +2495,22 @@
         }
       }
     },
+    "Brighter outlines and secondary text.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "વધુ તેજસ્વી રેખાઓ અને સહાયક ટેક્સ્ટ."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ज़्यादा चमकीली रेखाएँ और सहायक टेक्स्ट।"
+          }
+        }
+      }
+    },
     "By continuing, you agree to the %@ and %@.": {
       "localizations": {
         "gu": {
@@ -2683,6 +2731,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "बदलाव, विरासत, छिपी बातें"
+          }
+        }
+      }
+    },
+    "Changes appear without sliding or fading.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ફેરફારો સરક્યા કે ઝાંખા થયા વિના દેખાય છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बदलाव बिना खिसके या धुंधले हुए दिखते हैं।"
           }
         }
       }
@@ -3428,6 +3492,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "गहरा फलादेश चालू"
+          }
+        }
+      }
+    },
+    "Default": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ડિફૉલ્ટ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "डिफ़ॉल्ट"
           }
         }
       }
@@ -4752,6 +4832,22 @@
         }
       }
     },
+    "Increase contrast": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કોન્ટ્રાસ્ટ વધારો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कंट्रास्ट बढ़ाएँ"
+          }
+        }
+      }
+    },
     "Inside every chapter the same nine planets take turns again, in the same order, starting with the chapter's own planet. These sub-periods are where the texture of a chapter comes from: a Saturn chapter feels different in its Venus months than in its Mars months.": {
       "localizations": {
         "gu": {
@@ -4991,6 +5087,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "भाषा"
+          }
+        }
+      }
+    },
+    "Larger text, less motion, more contrast.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "મોટું ટેક્સ્ટ, ઓછું મોશન, વધુ કોન્ટ્રાસ્ટ."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बड़ा टेक्स्ट, कम मोशन, ज़्यादा कंट्रास्ट।"
           }
         }
       }
@@ -6014,6 +6126,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "Apple Intelligence वाले iPhone पर कुछ जवाब और नोट फ़ोन में ही चलने वाले Apple के मॉडल से बनते हैं। वह सब आपके फ़ोन में ही रहता है।"
+          }
+        }
+      }
+    },
+    "On in iOS Settings.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS સેટિંગ્સમાં ચાલુ છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iOS सेटिंग्स में चालू है।"
           }
         }
       }
@@ -7385,6 +7513,22 @@
         }
       }
     },
+    "Reduce motion": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "મોશન ઘટાડો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मोशन कम करें"
+          }
+        }
+      }
+    },
     "Relationships": {
       "localizations": {
         "gu": {
@@ -7774,6 +7918,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "फिर से भेज दिया। आने में एक मिनट लग सकता है।"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "સેટિંગ્સ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सेटिंग्स"
+          }
+        }
+      }
+    },
+    "Shapes as well as colour": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "રંગ સાથે આકારો પણ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रंग के साथ आकृतियाँ भी"
           }
         }
       }
@@ -8418,6 +8594,38 @@
         }
       }
     },
+    "Text size": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ટેક્સ્ટનું કદ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "टेक्स्ट का आकार"
+          }
+        }
+      }
+    },
+    "Text size and display": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ટેક્સ્ટનું કદ અને ડિસ્પ્લે"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "टेक्स्ट का आकार और डिस्प्ले"
+          }
+        }
+      }
+    },
     "Thank you": {
       "localizations": {
         "gu": {
@@ -8961,6 +9169,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "अभी कोई फलादेश नहीं है। Astrya हर सुबह और रात एक लिखता है।"
+          }
+        }
+      }
+    },
+    "These add to the settings in iOS. Astrya also works with VoiceOver and Voice Control.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "આ iOS ની સેટિંગ્સ સાથે કામ કરે છે. Astrya VoiceOver અને Voice Control સાથે પણ ચાલે છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ये iOS की सेटिंग्स के साथ काम करती हैं। Astrya VoiceOver और Voice Control के साथ भी चलता है।"
           }
         }
       }
@@ -11111,6 +11335,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "आपके फलादेश और अलर्ट ऐप में इंतज़ार कर रहे हैं, पर आपका फ़ोन आपको इनके बारे में नहीं बताएगा। आप सेटिंग्स में सूचनाएँ चालू कर सकते हैं।"
+          }
+        }
+      }
+    },
+    "Your readings and every screen use this size. If iOS is set larger, Astrya follows iOS.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "તમારી રીડિંગ અને દરેક સ્ક્રીન આ કદ વાપરે છે. જો iOS માં કદ મોટું હોય, તો Astrya iOS ને અનુસરે છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपकी रीडिंग और हर स्क्रीन यही आकार इस्तेमाल करती है। अगर iOS में आकार बड़ा है, तो Astrya iOS का पालन करता है।"
           }
         }
       }

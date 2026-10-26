@@ -312,11 +312,11 @@ struct BrutButtonStyle: ButtonStyle {
             configuration.label
             if kind == .primary || kind == .accent {
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(size: 13, weight: .semibold))
                     .accessibilityHidden(true)
             }
         }
-        .font(.system(size: kind == .quiet ? 14 : 16, weight: .semibold))
+        .font(.scaled(size: kind == .quiet ? 14 : 16, weight: .semibold))
         .foregroundStyle(textColor)
         .padding(.horizontal, kind == .quiet ? 4 : 22)
         .frame(maxWidth: fullWidth ? .infinity : nil)
@@ -399,7 +399,7 @@ struct CircleButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: size * 0.36, weight: .semibold))
+                .font(.scaled(size: size * 0.36, weight: .semibold))
                 .foregroundStyle(fill == .outline ? Theme.fg : Theme.ink)
                 .frame(width: size, height: size)
                 .background {
@@ -414,7 +414,7 @@ struct CircleButton: View {
                 .overlay(alignment: .topTrailing) {
                     if badge > 0 {
                         Text(badge > 9 ? "9+" : "\(badge)")
-                            .font(.system(size: 10, weight: .bold).monospacedDigit())
+                            .font(.scaled(size: 10, weight: .bold).monospacedDigit())
                             .foregroundStyle(Theme.ink)
                             .padding(.horizontal, 5)
                             .frame(minWidth: 18, minHeight: 18)
@@ -465,7 +465,7 @@ struct BrutChip: View {
     var body: some View {
         Button(action: action) {
             Text(text)
-                .font(.system(size: 13, weight: .medium))
+                .font(.scaled(size: 13, weight: .medium))
                 .foregroundStyle(active ? Theme.ink : Theme.fg)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -486,12 +486,18 @@ struct BrutTag: View {
     let text: String
     var fill: Color = Theme.accent
     var textColor: Color = Theme.ink
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         Text(text)
-            .font(.system(size: 10, weight: .bold))
+            .font(.scaled(size: 10, weight: .bold))
             .textCase(.uppercase)
             .tracking(0.8)
+            // A tag is one word or two; at the accessibility sizes, in a tight
+            // row, it shrinks a little rather than breaking "MORNING" across
+            // lines. Ordinary sizes keep the plain layout.
+            .lineLimit(typeSize.isAccessibilitySize ? 1 : nil)
+            .minimumScaleFactor(typeSize.isAccessibilitySize ? 0.6 : 1)
             .foregroundStyle(textColor)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -506,7 +512,7 @@ struct NumberBadge: View {
 
     var body: some View {
         Text(String(format: "%02d.", number))
-            .font(.system(size: 17, weight: .semibold).monospacedDigit())
+            .font(.scaled(size: 17, weight: .semibold).monospacedDigit())
             .foregroundStyle(Theme.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
@@ -539,7 +545,7 @@ struct SancharaField: View {
                     TextField("", text: $text, prompt: prompt)
                 }
             }
-            .font(.system(size: 17))
+            .font(.scaled(size: 17))
             .foregroundStyle(Theme.fg)
             .keyboardType(keyboard)
             .textContentType(textContentType)
@@ -582,7 +588,7 @@ struct SancharaSecureField: View {
                         SecureField("", text: $text, prompt: prompt)
                     }
                 }
-                .font(.system(size: 17))
+                .font(.scaled(size: 17))
                 .foregroundStyle(Theme.fg)
                 .textContentType(textContentType)
                 .textInputAutocapitalization(.never)
@@ -593,7 +599,7 @@ struct SancharaSecureField: View {
                     isRevealed.toggle()
                 } label: {
                     Image(systemName: isRevealed ? "eye.slash" : "eye")
-                        .font(.system(size: 15, weight: .medium))
+                        .font(.scaled(size: 15, weight: .medium))
                         .foregroundStyle(Theme.muted)
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
@@ -619,6 +625,7 @@ struct BrutSegmented<Option: Hashable>: View {
     let options: [(Option, String)]
     @Binding var selection: Option
     var activeFill: Color = Theme.accent
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     var body: some View {
         HStack(spacing: 0) {
@@ -629,9 +636,10 @@ struct BrutSegmented<Option: Hashable>: View {
                 } label: {
                     VStack(spacing: 10) {
                         Text(option.1)
-                            .font(.system(size: 14, weight: active ? .semibold : .regular))
+                            .font(.scaled(size: 14, weight: active ? .semibold : .regular))
                             .foregroundStyle(active ? Theme.fg : Theme.muted)
-                            .lineLimit(1)
+                            .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                            .multilineTextAlignment(.center)
                             .minimumScaleFactor(0.8)
                         Rectangle()
                             .fill(active ? activeFill : .clear)
@@ -695,7 +703,7 @@ struct DataRow: View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 16) {
                 Text(label)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
@@ -743,7 +751,7 @@ struct ScreenHeader: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Text(eyebrow)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.scaled(size: 13, weight: .semibold))
                     .foregroundStyle(accent)
             }
             (trailingArrow ? Text(title).headlineArrow(accent) : Text(title))
@@ -774,7 +782,7 @@ struct BrutEmptyState: View {
         VStack(alignment: .leading, spacing: 10) {
             if let systemImage {
                 Image(systemName: systemImage)
-                    .font(.system(size: 20, weight: .medium))
+                    .font(.scaled(size: 20, weight: .medium))
                     .foregroundStyle(Theme.accent)
             } else {
                 AstraMark(size: 20, glow: false)
@@ -809,10 +817,10 @@ struct BrutNotice: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: tone == .error ? "exclamationmark.circle.fill" : "info.circle.fill")
-                .font(.system(size: 14))
+                .font(.scaled(size: 14))
                 .foregroundStyle(tone == .error ? Theme.ember : Theme.accent)
             Text(text)
-                .font(.system(size: 14, weight: .medium))
+                .font(.scaled(size: 14, weight: .medium))
                 .foregroundStyle(Theme.fg)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -874,7 +882,7 @@ struct BigNumber: View {
                     .minimumScaleFactor(0.5)
                 if let unit, !unit.isEmpty {
                     Text(unit)
-                        .font(.system(size: unitSize, weight: .medium))
+                        .font(.scaled(size: unitSize, weight: .medium))
                         .foregroundStyle(unitColor)
                         .lineLimit(1)
                         .fixedSize()
@@ -882,7 +890,7 @@ struct BigNumber: View {
             }
             if let caption, !caption.isEmpty {
                 Text(caption)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.scaled(size: 13, weight: .medium))
                     .foregroundStyle(Theme.muted)
             }
         }
@@ -927,13 +935,13 @@ struct StatRow: View {
                 HStack(spacing: 8) {
                     if let systemImage {
                         Image(systemName: systemImage)
-                            .font(.system(size: 9, weight: .bold))
+                            .font(.scaled(size: 9, weight: .bold))
                             .foregroundStyle(Theme.fg)
                             .frame(width: 20, height: 20)
                             .overlay(Circle().strokeBorder(Theme.line, lineWidth: Theme.lineWidth))
                     }
                     Text(label)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.scaled(size: 13, weight: .medium))
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -968,19 +976,19 @@ struct StepFooter: View {
         Button(action: action) {
             HStack(spacing: 12) {
                 Text(String(format: "%02d.", step))
-                    .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                    .font(.scaled(size: 15, weight: .semibold).monospacedDigit())
                     .foregroundStyle(Theme.ink)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(Capsule().fill(Theme.fg))
                 Spacer(minLength: 8)
                 Text(label)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.scaled(size: 15, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .lineLimit(2)
                     .multilineTextAlignment(.trailing)
                 Image(systemName: "arrow.up.right")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(.scaled(size: 16, weight: .semibold))
                     .foregroundStyle(fill == .outline ? Theme.fg : Theme.ink)
                     .frame(width: 44, height: 44)
                     .background {
@@ -1018,7 +1026,7 @@ struct ViewMoreRow: View {
                 if showsTopRule { BrutDivider() }
                 HStack(spacing: 12) {
                     Text(title)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.scaled(size: 12, weight: .semibold))
                         .textCase(.uppercase)
                         .tracking(1.3)
                         .foregroundStyle(tint)
@@ -1030,7 +1038,7 @@ struct ViewMoreRow: View {
                             ProgressView().tint(tint)
                         } else {
                             Image(systemName: systemImage)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.scaled(size: 13, weight: .semibold))
                                 .foregroundStyle(tint)
                         }
                     }
@@ -1060,7 +1068,7 @@ struct TableBand: View {
             Spacer(minLength: 8)
             if let trailing { Text(trailing) }
         }
-        .font(.system(size: 11, weight: .bold))
+        .font(.scaled(size: 11, weight: .bold))
         .textCase(.uppercase)
         .tracking(1.2)
         .foregroundStyle(Theme.ink)
@@ -1085,7 +1093,7 @@ struct TableRow: View {
         VStack(spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
                 Text(label)
-                    .font(.system(size: 15, weight: .regular))
+                    .font(.scaled(size: 15, weight: .regular))
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
@@ -1135,7 +1143,7 @@ struct MonthScrubber<ID: Hashable>: View {
                                     .fill(active ? tint : .clear)
                                     .frame(width: 18, height: 2)
                                 Text(item.label)
-                                    .font(.system(size: 12, weight: active ? .bold : .regular))
+                                    .font(.scaled(size: 12, weight: active ? .bold : .regular))
                                     .textCase(.uppercase)
                                     .tracking(1.1)
                                     .foregroundStyle(active ? Theme.fg : Theme.muted)

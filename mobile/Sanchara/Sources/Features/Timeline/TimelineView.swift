@@ -41,7 +41,7 @@ struct TimelineView: View {
                 if !embedded {
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Done") { dismiss() }
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.scaled(size: 14, weight: .bold))
                             .foregroundStyle(Theme.fg)
                     }
                 }
@@ -305,7 +305,7 @@ struct TimelineView: View {
                 HStack(spacing: 6) {
                     Text("What are these periods?")
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.scaled(size: 12, weight: .semibold))
                         .foregroundStyle(Theme.muted)
                         .accessibilityHidden(true)
                 }
@@ -543,7 +543,7 @@ private struct BandRow: View {
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.scaled(size: 12, weight: .semibold))
                     .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     .frame(width: 28, height: 28)
                     .accessibilityHidden(true)
@@ -572,7 +572,7 @@ private struct BandRow: View {
                             .accessibilityHidden(true)
                     }
                     Text(verbatim: "\(ChartPlanet.displayName(band.lord))–\(ChartPlanet.displayName(sub.lord))")
-                        .font(.system(size: 14, weight: isNow ? .semibold : .regular))
+                        .font(.scaled(size: 14, weight: isNow ? .semibold : .regular))
                         .foregroundStyle(isNow ? Theme.accent : Theme.fg)
                     Spacer(minLength: 8)
                     Text(verbatim: "\(String(sub.start.prefix(7))) – \(String(sub.end.prefix(7)))")
@@ -609,7 +609,7 @@ private struct EventRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(event.title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.scaled(size: 14, weight: .semibold))
                     .foregroundStyle(Theme.fg)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 6) {
