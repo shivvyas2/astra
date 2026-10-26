@@ -14,8 +14,15 @@ final class AuthStore {
         case loading
         case signedOut
         case signedIn
-        /// A six-digit code has been emailed and is waiting to be entered.
-        case awaitingCode(email: String, purpose: CodePurpose)
+        /// A six-digit code has been emailed or texted and is waiting to be entered.
+        case awaitingCode(CodeDestination)
+    }
+
+    /// Where the waiting code went.
+    enum CodeDestination: Equatable {
+        case email(String, CodePurpose)
+        /// E.164, as sent to Supabase.
+        case phone(String)
     }
 
     /// Which code was sent, which decides how it is verified.
@@ -93,7 +100,7 @@ final class AuthStore {
         } catch {
             let message = error.localizedDescription.lowercased()
             if message.contains("not confirmed") {
-                state = .awaitingCode(email: email, purpose: .confirmSignUp)
+                state = .awaitingCode(.email(email, .confirmSignUp))
             } else if message.contains("invalid login") || message.contains("credentials") {
                 errorMessage = L10n.string("Incorrect email or password. Try again, or use a magic link.")
             } else {
@@ -124,7 +131,7 @@ final class AuthStore {
             if response.session != nil {
                 state = .signedIn // email confirmation is switched off
             } else {
-                state = .awaitingCode(email: email, purpose: .confirmSignUp)
+                state = .awaitingCode(.email(email, .confirmSignUp))
             }
         } catch {
             let message = error.localizedDescription.lowercased()
@@ -200,10 +207,44 @@ final class AuthStore {
                 email: email,
                 redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
             )
-            state = .awaitingCode(email: email, purpose: .signIn)
+            state = .awaitingCode(.email(email, .signIn))
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // MARK: - Phone codes
+
+    /// Sign-in and sign-up are one path by phone: Supabase creates the account
+    /// on the first code, and there is no password to get wrong.
+    func sendPhoneCode(country: PhoneCountry, number: String) async {
+        clearMessages()
+        guard let phone = country.e164(number) else {
+            errorMessage = number.isEmpty
+                ? L10n.string("Enter your phone number first.")
+                : L10n.string("That doesn't look like a \(country.name) mobile number.")
+            return
+        }
+        isWorking = true
+        defer { isWorking = false }
+        do {
+            try await Supa.client.auth.signInWithOTP(phone: phone)
+            state = .awaitingCode(.phone(phone))
+        } catch {
+            errorMessage = Self.phoneError(error)
+        }
+    }
+
+    /// Supabase's wording when the phone provider is off or Twilio refuses.
+    private static func phoneError(_ error: Error) -> String {
+        let message = error.localizedDescription.lowercased()
+        if message.contains("provider") || message.contains("unsupported") || message.contains("disabled") {
+            return L10n.string("Phone sign-in isn't available right now. Use email or Apple instead.")
+        }
+        if message.contains("rate") || message.contains("too many") {
+            return L10n.string("Too many codes for this number. Wait a minute and try again.")
+        }
+        return error.localizedDescription
     }
 
     /// Digits only: people paste codes with stray spaces, and an email client
@@ -213,17 +254,26 @@ final class AuthStore {
     }
 
     func verifyCode(_ input: String) async {
-        guard case .awaitingCode(let email, let purpose) = state else { return }
+        guard case .awaitingCode(let destination) = state else { return }
         let code = Self.normalizedCode(input)
         clearMessages()
         guard code.count == Self.codeLength else {
-            errorMessage = L10n.string("Enter the \(Self.codeLength) digits from the email.")
+            if case .phone = destination {
+                errorMessage = L10n.string("Enter the \(Self.codeLength) digits from the text.")
+            } else {
+                errorMessage = L10n.string("Enter the \(Self.codeLength) digits from the email.")
+            }
             return
         }
         isWorking = true
         defer { isWorking = false }
         do {
-            try await Supa.client.auth.verifyOTP(email: email, token: code, type: purpose.otpType)
+            switch destination {
+            case .email(let email, let purpose):
+                try await Supa.client.auth.verifyOTP(email: email, token: code, type: purpose.otpType)
+            case .phone(let phone):
+                try await Supa.client.auth.verifyOTP(phone: phone, token: code, type: .sms)
+            }
             Self.rememberSignedInBefore()
             state = .signedIn
         } catch {
@@ -237,18 +287,20 @@ final class AuthStore {
 
     /// Sends another code for whichever flow is waiting.
     func resendCode() async {
-        guard case .awaitingCode(let email, let purpose) = state else { return }
+        guard case .awaitingCode(let destination) = state else { return }
         clearMessages()
         isWorking = true
         defer { isWorking = false }
         do {
-            switch purpose {
-            case .signIn:
+            switch destination {
+            case .phone(let phone):
+                try await Supa.client.auth.signInWithOTP(phone: phone)
+            case .email(let email, .signIn):
                 try await Supa.client.auth.signInWithOTP(
                     email: email,
                     redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
                 )
-            case .confirmSignUp:
+            case .email(let email, .confirmSignUp):
                 try await Supa.client.auth.resend(
                     email: email,
                     type: .signup,

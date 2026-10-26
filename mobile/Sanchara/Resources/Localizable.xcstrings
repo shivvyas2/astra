@@ -2873,6 +2873,22 @@
         }
       }
     },
+    "Check your messages": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "તમારા મેસેજ જુઓ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपने मैसेज देखें"
+          }
+        }
+      }
+    },
     "Child": {
       "localizations": {
         "gu": {
@@ -3164,6 +3180,22 @@
         }
       }
     },
+    "Continue with %@": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ સાથે આગળ વધો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ से आगे बढ़ें"
+          }
+        }
+      }
+    },
     "Cost": {
       "shouldTranslate": false
     },
@@ -3294,6 +3326,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "मेरे चंद्र से गिनें तो %@ भाव (%@) %@ के बारे में क्या कहता है?"
+          }
+        }
+      }
+    },
+    "Country code, %@ %@": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "દેશ કોડ, %1$@ %2$@"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "देश कोड, %1$@ %2$@"
           }
         }
       }
@@ -3824,6 +3872,22 @@
         }
       }
     },
+    "Enter the %lld digits from the text.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "મેસેજમાં આવેલા %lld અંક દાખલ કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मैसेज में आए %lld अंक डालें।"
+          }
+        }
+      }
+    },
     "Enter your code": {
       "localizations": {
         "gu": {
@@ -3852,6 +3916,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "पहले अपना ईमेल डालें।"
+          }
+        }
+      }
+    },
+    "Enter your phone number first.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "પહેલા તમારો ફોન નંબર દાખલ કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पहले अपना फ़ोन नंबर डालें।"
           }
         }
       }
@@ -4844,6 +4924,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "कंट्रास्ट बढ़ाएँ"
+          }
+        }
+      }
+    },
+    "India": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ભારત"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भारत"
           }
         }
       }
@@ -6784,6 +6880,54 @@
         }
       }
     },
+    "Phone": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ફોન"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ोन"
+          }
+        }
+      }
+    },
+    "Phone number": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ફોન નંબર"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ोन नंबर"
+          }
+        }
+      }
+    },
+    "Phone sign-in isn't available right now. Use email or Apple instead.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ફોનથી સાઇન-ઇન હમણાં ઉપલબ્ધ નથી. ઇમેઇલ અથવા Apple વાપરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ोन से साइन-इन अभी उपलब्ध नहीं है। ईमेल या Apple का इस्तेमाल करें।"
+          }
+        }
+      }
+    },
     "Phone …%@, registered %@": {
       "shouldTranslate": false
     },
@@ -8642,6 +8786,22 @@
         }
       }
     },
+    "Text me a code": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "મને કોડ મોકલો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मुझे कोड भेजें"
+          }
+        }
+      }
+    },
     "Text size": {
       "localizations": {
         "gu": {
@@ -8766,6 +8926,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "यह सेव नहीं हुआ। फिर कोशिश करें।"
+          }
+        }
+      }
+    },
+    "That doesn't look like a %@ mobile number.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "આ %@ નો મોબાઇલ નંબર લાગતો નથી."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह %@ का मोबाइल नंबर नहीं लगता।"
           }
         }
       }
@@ -9461,6 +9637,22 @@
         }
       }
     },
+    "Too many codes for this number. Wait a minute and try again.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "આ નંબર પર ઘણા કોડ મોકલાયા. એક મિનિટ રાહ જોઈ ફરી પ્રયાસ કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस नंबर पर बहुत सारे कोड भेजे गए। एक मिनट रुककर फिर कोशिश करें।"
+          }
+        }
+      }
+    },
     "Total %@, average %@ a day": {
       "shouldTranslate": false
     },
@@ -9608,6 +9800,22 @@
         }
       }
     },
+    "United States": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "અમેરિકા"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अमेरिका"
+          }
+        }
+      }
+    },
     "Unknown": {
       "localizations": {
         "gu": {
@@ -9687,6 +9895,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "दूसरा ईमेल इस्तेमाल करें"
+          }
+        }
+      }
+    },
+    "Use a different number": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "બીજો નંબર વાપરો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "दूसरा नंबर इस्तेमाल करें"
           }
         }
       }
@@ -9847,6 +10071,54 @@
           "stringUnit": {
             "state": "translated",
             "value": "हमने %2$@ पर %1$lld अंकों का कोड भेजा है।"
+          }
+        }
+      }
+    },
+    "We texted a %lld-digit code to %@.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "અમે %2$@ પર %1$lld અંકનો કોડ મોકલ્યો છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हमने %2$@ पर %1$lld अंकों का कोड भेजा है।"
+          }
+        }
+      }
+    },
+    "We'll text you a %lld-digit code.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "અમે તમને %lld અંકનો કોડ મોકલીશું."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हम आपको %lld अंकों का कोड भेजेंगे।"
+          }
+        }
+      }
+    },
+    "We'll text you a code. No password needed.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "અમે તમને એક કોડ મોકલીશું. પાસવર્ડની જરૂર નથી."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हम आपको एक कोड भेजेंगे। पासवर्ड की ज़रूरत नहीं।"
           }
         }
       }
@@ -11255,6 +11527,22 @@
           "stringUnit": {
             "state": "translated",
             "value": "सुबह और रात के फलादेश, और किसी दोष या कठिन गोचर के शुरू होने पर अलर्ट।"
+          }
+        }
+      }
+    },
+    "Your number, one code, and we'll build your real birth chart next.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "તમારો નંબર, એક કોડ, અને પછી અમે તમારી સાચી જન્મ કુંડળી બનાવીશું."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपका नंबर, एक कोड, और फिर हम आपकी असली जन्म कुंडली बनाएँगे।"
           }
         }
       }

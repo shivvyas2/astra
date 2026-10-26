@@ -110,6 +110,32 @@ final class AppStoreScreenshots: XCTestCase {
         shoot("08-icon-picker")
     }
 
+    /// The signed-out screen with Phone chosen and a number typed. Run on a
+    /// simulator that is not signed in.
+    func testCaptureAuthPhone() throws {
+        let phone = app.buttons["Continue with Phone"]
+        // Signed in: sign out first (only ever on a spare simulator).
+        if !phone.waitForExistence(timeout: 15), ProcessInfo.processInfo.environment["SHOTS_SIGN_OUT"] != nil {
+            let skip = app.buttons["Skip"]
+            if skip.exists { skip.tap() }
+            tab("You").tap()
+            let signOut = app.buttons["Sign out"]
+            for _ in 0..<10 where !signOut.isHittable { app.swipeUp() }
+            signOut.tap()
+        }
+        XCTAssertTrue(phone.waitForExistence(timeout: 40), "Not on the sign-in screen")
+        sleep(1)
+        shoot("09-auth-email")
+        phone.tap()
+        sleep(1)
+        shoot("10-auth-phone")
+        let field = app.textFields["Phone number"]
+        field.tap()
+        field.typeText("98765 43210")
+        sleep(1)
+        shoot("11-auth-phone-typed")
+    }
+
     private func tab(_ title: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
     }

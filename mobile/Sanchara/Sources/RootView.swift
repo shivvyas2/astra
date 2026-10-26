@@ -12,8 +12,8 @@ struct RootView: View {
                 LoadingScreen()
             case .signedOut:
                 AuthView()
-            case .awaitingCode(let email, let purpose):
-                VerifyCodeView(email: email, purpose: purpose)
+            case .awaitingCode(let destination):
+                VerifyCodeView(destination: destination)
             case .signedIn:
                 SignedInView()
             }
