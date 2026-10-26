@@ -11,6 +11,13 @@ export function authErrorMessage(i: I18n, raw: string): string {
   const e = i.t.auth.errors;
   if (raw === "missing") return e.missing;
   if (raw === "password") return e.password;
+  if (raw === "rateLimit") return e.rateLimit;
+  if (raw === "phoneMissing") return e.phoneMissing;
+  if (raw === "phoneInvalid") return e.phoneInvalid;
+  if (raw === "phoneUnavailable") return e.phoneUnavailable;
+  if (raw === "phoneExpired") return e.phoneExpired;
+  if (raw === "codeLength") return e.codeLength;
+  if (raw === "codeInvalid") return e.codeInvalid;
   const m = raw.toLowerCase();
   if (m.includes("rate limit") || m.includes("too many")) return i.locale === "en" ? raw : e.rateLimit;
   if (m.includes("password should be")) return i.locale === "en" ? raw : e.weakPassword;

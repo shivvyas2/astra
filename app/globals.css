@@ -164,6 +164,16 @@ input[type="date"], input[type="time"] { -webkit-appearance: none; appearance: n
   .brut-field::placeholder { color: rgb(154 151 143 / 0.8); }
   .brut-field:focus, .brut-field:focus-visible { border-bottom-color: var(--accent); box-shadow: 0 1px 0 0 var(--accent); outline: none; }
   select.brut-field option { background: var(--surface); color: var(--fg); }
+  /* Country and number share one underline, which turns lime with either. */
+  .phone-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: var(--line-w) solid var(--line);
+    transition: border-color 140ms ease-out, box-shadow 140ms ease-out;
+  }
+  .phone-row:focus-within { border-bottom-color: var(--accent); box-shadow: 0 1px 0 0 var(--accent); }
+  .phone-row .brut-field, .phone-row .brut-field:focus { border-bottom: 0; box-shadow: none; }
 
   .brut-chip {
     --chip: var(--accent);
