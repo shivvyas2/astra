@@ -3,7 +3,7 @@ import Foundation
 /// The words on the Plus paywall.
 ///
 /// Every line must be true on the day it ships. Plus never gates or caps
-/// readings — they are unlimited for everyone and Deep readings are open to
+/// readings — they are free for everyone, under the same daily limits, and Deep readings are open to
 /// all — so what it offers is support and cosmetic extras (alternate app
 /// icons, the badge). Do not add "more readings" or "unlock" lines. Mirror edits in lib/billing/copy.ts
 /// (`PLUS_BENEFITS`).
@@ -27,14 +27,14 @@ enum PlusCopy {
             ),
             Benefit(
                 title: L10n.string("A thank-you mark"),
-                detail: L10n.string("A Plus badge on your profile. Every reading stays free and unlimited for everyone.")
+                detail: L10n.string("A Plus badge on your profile. Every reading stays free for everyone.")
             ),
         ]
     }
 
     static let eyebrow = "Astrya Plus"
     static var title: String { L10n.string("Support Astrya") }
-    static var blurb: String { L10n.string("Every reading is free and unlimited, Deep readings included. Plus is a way to keep it that way.") }
+    static var blurb: String { L10n.string("Every reading is free, Deep readings included. Plus is a way to keep it that way.") }
 
     /// Shown before StoreKit has answered, and in previews. The real prices
     /// come from the App Store in the buyer's currency.

@@ -47,6 +47,7 @@ import { selectMemory } from "@/lib/memory/select";
 import { rememberTurn } from "@/lib/memory/extract";
 import { recordUsage, type UsageLike } from "@/lib/usage/record";
 import { answerKey, claimAnswer, reuseAnswer } from "@/lib/usage/dedupe";
+import { guardUsage, limitResponse } from "@/lib/usage/limits";
 import { skyEvents } from "@/lib/timing/sky";
 import { describeTiming, personalTiming } from "@/lib/timing/engine";
 
@@ -123,6 +124,11 @@ export async function POST(request: Request) {
       },
     });
   }
+  // The daily limits set in the admin (lib/usage/limits.ts). After the reuse
+  // above, so a retry of an answer already paid for is never refused.
+  const limit = await guardUsage(user.id, { reading: true });
+  if (limit.block) return limitResponse(limit.block, body.language ?? limit.language);
+
   const claim = claimAnswer(dedupeKey);
 
   let conversationId: string;

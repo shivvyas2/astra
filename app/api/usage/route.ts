@@ -4,14 +4,18 @@ import { createAdminSupabase } from "@/lib/supabase/admin";
 import { getPlan, type Plan } from "@/lib/billing/plan";
 import { isAdminId, json, signedInUser } from "@/lib/admin/api";
 import { costSince, countReadingsSince, dayWindow } from "@/lib/usage/today";
+import { effectiveLimits, loadLimits, loadUserLimits } from "@/lib/usage/limits";
 
 export const runtime = "nodejs";
 
 /**
- * The caller's own usage today. Informational: Astrya has no reading limits,
- * so there is nothing "left" to report and nothing here ever blocks.
+ * The caller's own usage today. Informational: nothing here blocks; the
+ * limits themselves are enforced where the calls are made (lib/usage/limits.ts).
  *
- *   { plan, unlimited: true, today: { readings, deep }, resetAt, monthCostUsd? }
+ *   { plan, unlimited, limit, today: { readings, deep }, resetAt, monthCostUsd? }
+ *
+ * `limit` is the caller's readings per day, null (and `unlimited` true) when
+ * there is none — as for admins, and before migration 0018.
  *
  * `today` is the caller's local day (their birth-profile timezone, else UTC);
  * `resetAt` is when that day ends. `monthCostUsd` (this UTC month's model
@@ -45,12 +49,18 @@ export async function GET(request: Request) {
     plan = "free";
   }
 
-  if (!admin) return json({ plan, unlimited: true, today: { readings: 0, deep: 0 }, resetAt });
+  if (!admin) return json({ plan, unlimited: true, limit: null, today: { readings: 0, deep: 0 }, resetAt });
 
-  const [today, isAdmin] = await Promise.all([countReadingsSince(admin, user.id, start), isAdminId(admin, user.id)]);
+  const [today, isAdmin, limit] = await Promise.all([
+    countReadingsSince(admin, user.id, start),
+    isAdminId(admin, user.id),
+    readingLimit(admin, user.id),
+  ]);
+  const readingsLimit = isAdmin ? null : limit;
   const body: Record<string, unknown> = {
     plan,
-    unlimited: true,
+    unlimited: readingsLimit === null,
+    limit: readingsLimit,
     today: { readings: today.readings, deep: today.deep },
     resetAt,
   };
@@ -59,4 +69,14 @@ export async function GET(request: Request) {
     body.monthCostUsd = await costSince(admin, user.id, monthStart);
   }
   return json(body);
+}
+
+/** The user's readings per day, or null for none. Null when the limits cannot be read. */
+async function readingLimit(admin: ReturnType<typeof createAdminSupabase>, userId: string): Promise<number | null> {
+  try {
+    const [defaults, overrides] = await Promise.all([loadLimits(admin), loadUserLimits(admin, userId)]);
+    return defaults ? effectiveLimits(defaults, overrides).readingsPerDay : null;
+  } catch {
+    return null;
+  }
 }

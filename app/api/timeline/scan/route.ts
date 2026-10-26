@@ -2,6 +2,7 @@ import { createRouteSupabase } from "@/lib/supabase/route";
 import { loadBirthRow } from "@/lib/timeline/load";
 import { extractLifeEvents, type Utterance } from "@/lib/timeline/extract";
 import { requireConsent } from "@/lib/billing/consent";
+import { guardUsage, limitResponse } from "@/lib/usage/limits";
 
 export const runtime = "nodejs";
 // Reading a chat history and extracting from it takes longer than a chat turn.
@@ -51,6 +52,11 @@ export async function POST(request: Request) {
     content: String(m.content),
     createdAt: String(m.created_at),
   }));
+
+  // The daily spend limits (lib/usage/limits.ts). Not recorded as a scan, so
+  // the user can scan again once the limit resets.
+  const limit = await guardUsage(user.id, { reading: false });
+  if (limit.block) return limitResponse(limit.block, limit.language);
 
   const candidates = await extractLifeEvents({
     birthDate: String(row.birth_date),

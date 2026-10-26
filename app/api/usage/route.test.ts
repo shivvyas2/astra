@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { memoryDb } from "@/lib/admin/testDb";
 import { resetTodayLogForTests } from "@/lib/usage/today";
 
-/** GET /api/usage: the caller's own counts. Informational only; there are no limits to report. */
+/** GET /api/usage: the caller's own counts and readings limit. Informational only; nothing here blocks. */
 
 const h = vi.hoisted(() => ({ user: null as null | { id: string }, timezone: "UTC" as string | null, db: null as unknown }));
 
@@ -44,9 +44,27 @@ describe("GET /api/usage", () => {
 
   it("reports today's readings and Deep readings, unlimited, with no cost for a non-admin", async () => {
     const body = await (await call()).json();
-    expect(body).toEqual({ plan: "free", unlimited: true, today: { readings: 2, deep: 1 }, resetAt: expect.any(String) });
+    expect(body).toEqual({ plan: "free", unlimited: true, limit: null, today: { readings: 2, deep: 1 }, resetAt: expect.any(String) });
     expect(new Date(body.resetAt).getTime()).toBeGreaterThan(Date.now());
-    expect(body).not.toHaveProperty("limits");
+    expect(body).not.toHaveProperty("monthCostUsd");
+  });
+
+  it("reports the readings limit, the user's override over the default", async () => {
+    h.db = memoryDb({ tables: { model_usage: usageRows, usage_limits: [{ id: true, readings_per_day: 25 }] } });
+    expect(await (await call()).json()).toMatchObject({ unlimited: false, limit: 25 });
+    h.db = memoryDb({
+      tables: {
+        model_usage: usageRows,
+        usage_limits: [{ id: true, readings_per_day: 25 }],
+        user_usage_limits: [{ user_id: "u1", readings_per_day: 40 }],
+      },
+    });
+    expect(await (await call()).json()).toMatchObject({ unlimited: false, limit: 40 });
+  });
+
+  it("reports no limit for an admin", async () => {
+    h.db = memoryDb({ tables: { model_usage: usageRows, admins: [{ user_id: "u1" }], usage_limits: [{ id: true, readings_per_day: 25 }] } });
+    expect(await (await call()).json()).toMatchObject({ unlimited: true, limit: null });
   });
 
   it("adds this month's model spend for an admin", async () => {

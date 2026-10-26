@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { AdminUserDetail } from "@/lib/admin/types";
+import type { UserLimitsState } from "@/lib/admin/limits";
+import { UserLimitsCard } from "@/components/admin/LimitsCard";
 import { AdminShell } from "@/components/AdminShell";
 import { AreaChart } from "@/components/admin/AreaChart";
 import { Stat } from "@/components/admin/Figures";
@@ -24,7 +26,11 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   unsure: { label: "Unsure", cls: "" },
 };
 
-export function UserView({ d, sp }: { d: AdminUserDetail; sp: { tab?: string; reset?: string; login_link?: string } }) {
+export function UserView({ d, sp, limits }: {
+  d: AdminUserDetail;
+  sp: { tab?: string; reset?: string; login_link?: string; limits?: string };
+  limits?: UserLimitsState;
+}) {
   const id = d.user.id;
   const tab: Tab = (TABS.find((t) => t.id === sp.tab)?.id ?? "timeline") as Tab;
 
@@ -112,6 +118,8 @@ export function UserView({ d, sp }: { d: AdminUserDetail; sp: { tab?: string; re
           </div>
         </div>
       </section>
+
+      {limits && <UserLimitsCard userId={id} state={limits} isAdmin={user.isAdmin} status={sp.limits} />}
 
       {/* pill tabs */}
       <nav className="mb-5 flex gap-2 overflow-x-auto pb-1" aria-label="User sections">

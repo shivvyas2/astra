@@ -1047,18 +1047,18 @@
     "9+": {
       "shouldTranslate": false
     },
-    "A Plus badge on your profile. Every reading stays free and unlimited for everyone.": {
+    "A Plus badge on your profile. Every reading stays free for everyone.": {
       "localizations": {
         "gu": {
           "stringUnit": {
             "state": "translated",
-            "value": "તમારી પ્રોફાઇલ પર એક Plus બૅજ. દરેક ફળાદેશ બધા માટે મફત અને અમર્યાદિત રહે છે."
+            "value": "તમારી પ્રોફાઇલ પર એક Plus બૅજ. દરેક ફળાદેશ બધા માટે મફત રહે છે."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आपकी प्रोफ़ाइल पर एक Plus बैज। हर फलादेश सबके लिए मुफ़्त और असीमित रहता है।"
+            "value": "आपकी प्रोफ़ाइल पर एक Plus बैज। हर फलादेश सबके लिए मुफ़्त रहता है।"
           }
         }
       }
@@ -3808,18 +3808,18 @@
         }
       }
     },
-    "Every reading is free and unlimited, Deep readings included. Plus is a way to keep it that way.": {
+    "Every reading is free, Deep readings included. Plus is a way to keep it that way.": {
       "localizations": {
         "gu": {
           "stringUnit": {
             "state": "translated",
-            "value": "દરેક ફળાદેશ મફત અને અમર્યાદિત છે, Deep ફળાદેશ પણ. Plus તેને એવું જ રાખવાનો એક રસ્તો છે."
+            "value": "દરેક ફળાદેશ મફત છે, Deep ફળાદેશ પણ. Plus તેને એવું જ રાખવાનો એક રસ્તો છે."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हर फलादेश मुफ़्त और असीमित है, Deep फलादेश भी। Plus इसे ऐसा ही बनाए रखने का एक तरीका है।"
+            "value": "हर फलादेश मुफ़्त है, Deep फलादेश भी। Plus इसे ऐसा ही बनाए रखने का एक तरीका है।"
           }
         }
       }
@@ -7321,18 +7321,18 @@
     "Readings per day": {
       "shouldTranslate": false
     },
-    "Readings stay free and unlimited. Plus helps pay for them.": {
+    "Readings stay free. Plus helps pay for them.": {
       "localizations": {
         "gu": {
           "stringUnit": {
             "state": "translated",
-            "value": "ફળાદેશ મફત અને અમર્યાદિત રહે છે. Plus તેનો ખર્ચ ચૂકવવામાં મદદ કરે છે."
+            "value": "ફળાદેશ મફત રહે છે. Plus તેનો ખર્ચ ચૂકવવામાં મદદ કરે છે."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "फलादेश मुफ़्त और असीमित रहते हैं। Plus उनका खर्च उठाने में मदद करता है।"
+            "value": "फलादेश मुफ़्त रहते हैं। Plus उनका खर्च उठाने में मदद करता है।"
           }
         }
       }

@@ -85,6 +85,8 @@ export function Chat({
         }),
       });
       convId.current = res.headers.get("x-conversation-id") ?? convId.current;
+      // 429: a daily limit (lib/usage/limits.ts); its body is the message to show.
+      if (res.status === 429) return setLast((await res.text()) || t.chat.limitReached);
       if (!res.ok || !res.body) return setLast(t.chat.error);
 
       const reader = res.body.getReader();

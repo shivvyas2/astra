@@ -288,6 +288,8 @@ export const en = {
     why: "Why Astrya said this",
     basisNote: "The facts from your computed chart this reading rests on.",
     streamError: "[The stars are momentarily clouded. Please try again.]",
+    limitReached: "You have reached today's readings. Astrya is free, so each account has a daily limit. You can ask again tomorrow.",
+    limitPaused: "Readings are paused for a few hours because Astrya has reached its limit for today. Please try again later.",
     // Sent as the first message of a new account's first reading; it shows
     // when that reading is reopened, so it is in the reader's language.
     welcome: "Welcome me with a short reading for today based on my chart. Two or three short sections.",
@@ -718,7 +720,7 @@ export const en = {
   plus: {
     eyebrow: "Astrya Plus",
     title: "Support Astrya",
-    intro: "Every reading is free and unlimited, Deep readings included. Plus is a way to keep it that way.",
+    intro: "Every reading is free, Deep readings included. Plus is a way to keep it that way.",
     yourPlan: "Your plan",
     plus: "Plus",
     free: "Free",

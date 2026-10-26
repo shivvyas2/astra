@@ -28,7 +28,7 @@ struct PlanRow: View {
                         }
                         Text(store.plan == .plus
                              ? "Thank you for supporting Astrya. Manage or cancel here."
-                             : "Readings stay free and unlimited. Plus helps pay for them.")
+                             : "Readings stay free. Plus helps pay for them.")
                             .font(.brutBody(13))
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)

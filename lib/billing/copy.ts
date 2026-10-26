@@ -70,7 +70,8 @@ export const PLUS_ENABLED = false;
  * OWNER: decide what Plus includes before shipping it, and edit this list.
  *
  * Every line must be true on the day it ships. Today Plus gates nothing:
- * readings are unlimited for everyone and Deep readings are open to all, so
+ * readings are free for everyone (under the same daily limits) and Deep
+ * readings are open to all, so
  * the honest offer is support. Do not add "more readings" or "unlock" lines
  * unless the product actually changes. Mirror edits in PlusCopy.swift.
  */
@@ -85,7 +86,7 @@ export const PLUS_BENEFITS: { title: string; detail: string }[] = [
   },
   {
     title: "A thank-you mark",
-    detail: "A Plus badge on your profile. Every reading stays free and unlimited for everyone.",
+    detail: "A Plus badge on your profile. Every reading stays free for everyone.",
   },
 ];
 

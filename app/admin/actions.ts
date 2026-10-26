@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { isAdminUser, requireAdmin } from "@/lib/admin/guard";
+import { parseLimit, saveLimits, saveUserLimits } from "@/lib/admin/limits";
 
 // Generate a one-time login link for a user (impersonate for testing) WITHOUT
 // their password. Open it in a private window to sign in as that user.
@@ -52,4 +53,31 @@ export async function adminSignOut() {
   const supabase = await createServerSupabase();
   await supabase.auth.signOut();
   redirect("/admin/login");
+}
+
+// The daily limits (lib/usage/limits.ts). Blank is "no limit". A bad value
+// comes back as ?limits=invalid rather than saving half the form.
+export async function updateLimits(formData: FormData) {
+  const user = await requireAdmin();
+  const readingsPerDay = parseLimit(formData.get("readings_per_day"), "readings");
+  const usdPerUserDay = parseLimit(formData.get("usd_per_user_day"), "usd");
+  const usdAllUsersDay = parseLimit(formData.get("usd_all_users_day"), "usd");
+  if (readingsPerDay === undefined || usdPerUserDay === undefined || usdAllUsersDay === undefined) {
+    redirect("/admin?limits=invalid#limits");
+  }
+  await saveLimits(createAdminSupabase(), { readingsPerDay, usdPerUserDay, usdAllUsersDay }, user.id);
+  redirect("/admin?limits=saved#limits");
+}
+
+// One user's overrides. Blank uses the default; both blank removes the override.
+export async function updateUserLimits(formData: FormData) {
+  const user = await requireAdmin();
+  const userId = String(formData.get("user_id"));
+  const readingsPerDay = parseLimit(formData.get("readings_per_day"), "readings");
+  const usdPerUserDay = parseLimit(formData.get("usd_per_user_day"), "usd");
+  if (readingsPerDay === undefined || usdPerUserDay === undefined) {
+    redirect(`/admin/users/${userId}?limits=invalid`);
+  }
+  await saveUserLimits(createAdminSupabase(), userId, { readingsPerDay, usdPerUserDay }, user.id);
+  redirect(`/admin/users/${userId}?limits=saved`);
 }

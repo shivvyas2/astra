@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { HEAVY_USE } from "@/lib/admin/stats";
 import type { Overview } from "@/lib/admin/types";
+import type { LimitsState } from "@/lib/admin/limits";
+import { LimitsCard } from "@/components/admin/LimitsCard";
 import { AdminShell } from "@/components/AdminShell";
 import { AreaChart } from "@/components/admin/AreaChart";
 import { Bars, Ring, Stat } from "@/components/admin/Figures";
@@ -19,7 +21,7 @@ const KIND_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-export function OverviewView({ o }: { o: Overview }) {
+export function OverviewView({ o, limits, limitsStatus }: { o: Overview; limits?: LimitsState; limitsStatus?: string }) {
   const days = o.days;
   const t = o.totals;
   const sum = (k: "readings" | "signups" | "costUsd") => o.series.reduce((s, d) => s + d[k], 0);
@@ -79,6 +81,8 @@ export function OverviewView({ o }: { o: Overview }) {
           ))}
         </div>
       </section>
+
+      {limits && <LimitsCard state={limits} status={limitsStatus} />}
 
       {/* trends: one measure per chart, never two axes */}
       <section className="adm-grid-3 mb-4" aria-label="Trends">
@@ -149,7 +153,7 @@ export function OverviewView({ o }: { o: Overview }) {
             Top users by cost, 30 days
           </h2>
           <span className="adm-label">
-            Heavy use: {fmtUsd(HEAVY_USE.cost30dUsd)}+ in 30 days, or {HEAVY_USE.readingsPerDay}+ readings in a day. Nothing is limited.
+            Heavy use: {fmtUsd(HEAVY_USE.cost30dUsd)}+ in 30 days, or {HEAVY_USE.readingsPerDay}+ readings in a day. Limits are under Daily limits above.
           </span>
         </div>
         {o.topUsers.length === 0 ? (

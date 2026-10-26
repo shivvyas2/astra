@@ -3,6 +3,7 @@ import { loadBirthRow, loadTimeline, loadScanState } from "@/lib/timeline/load";
 import { explainTimeline, eventsHashFor, NOW_LORD } from "@/lib/timeline/explain";
 import { requireConsent } from "@/lib/billing/consent";
 import { loadReadingLanguage } from "@/lib/astrology/language";
+import { guardUsage } from "@/lib/usage/limits";
 
 export const runtime = "nodejs";
 // One model call that covers the whole life; longer than a chat turn.
@@ -31,7 +32,9 @@ export async function POST(request: Request) {
     return Response.json({ error: "Complete your birth details first." }, { status: 400 });
   }
 
-  if (timeline.needsExplaining) {
+  // Over a daily spend limit (lib/usage/limits.ts) the timeline still comes
+  // back, unexplained, and the client asks again on a later open.
+  if (timeline.needsExplaining && !(await guardUsage(user.id, { reading: false })).block) {
     const explanations = await explainTimeline({
       firstName: row.first_name,
       birthDate: timeline.birthDate,
