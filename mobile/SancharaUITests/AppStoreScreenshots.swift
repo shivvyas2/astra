@@ -40,7 +40,7 @@ final class AppStoreScreenshots: XCTestCase {
         let field = app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields.firstMatch
         if ProcessInfo.processInfo.environment["SHOTS_SKIP_ASK"] == nil, field.waitForExistence(timeout: 10) {
             field.tap()
-            field.typeText("Will I change jobs next year?")
+            field.typeText(ProcessInfo.processInfo.environment["SHOTS_QUESTION"] ?? "Will I change jobs next year?")
             // The composer's Send; the keyboard can carry a second one.
             let send = app.buttons.matching(identifier: "Send").allElementsBoundByIndex.first { $0.isHittable }
             send?.tap()
@@ -76,6 +76,38 @@ final class AppStoreScreenshots: XCTestCase {
             sleep(2)
             shoot("06-accessibility")
         }
+    }
+
+    /// Reopens the oldest reading from Past readings and captures its top,
+    /// seal and all. Asks nothing, so it costs no reading; later answers to
+    /// the same account refer back to earlier ones, which reads oddly in a
+    /// store screenshot.
+    func testCaptureFirstReading() throws {
+        let skip = app.buttons["Skip"]
+        if skip.waitForExistence(timeout: 8) { skip.tap() }
+        XCTAssertTrue(tab("Ask").waitForExistence(timeout: 20))
+        tab("Ask").tap()
+        let seeAll = app.buttons["See all"]
+        for _ in 0..<4 where !seeAll.isHittable { app.swipeUp() }
+        seeAll.tap()
+        let rows = app.buttons.matching(NSPredicate(format: "label CONTAINS[c] %@", "change jobs")).allElementsBoundByIndex
+        try XCTUnwrap(rows.last, "No earlier reading about changing jobs").tap()
+        sleep(3)
+        for _ in 0..<3 { app.swipeDown(velocity: .fast) }
+        sleep(1)
+        shoot("03c-first-reading-top")
+    }
+
+    /// The You tab's app icon picker.
+    func testCaptureIconPicker() throws {
+        let skip = app.buttons["Skip"]
+        if skip.waitForExistence(timeout: 8) { skip.tap() }
+        XCTAssertTrue(tab("You").waitForExistence(timeout: 20))
+        tab("You").tap()
+        let picker = app.staticTexts["App icon"]
+        for _ in 0..<8 where !picker.isHittable { app.swipeUp(velocity: .slow) }
+        sleep(1)
+        shoot("08-icon-picker")
     }
 
     private func tab(_ title: String) -> XCUIElement {

@@ -46,13 +46,14 @@ targets:
       properties:
         CFBundleDisplayName: Astrya
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "27"
+        CFBundleVersion: "28"
         # English, Hindi and Gujarati (Resources/Localizable.xcstrings). Listing
         # them is what puts the language choice in Settings › Astrya.
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, hi, gu]
         UILaunchScreen:
           UIColorName: LaunchBackground
+          UIImageName: LaunchLogo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         # The app is dark by design — the cosmic theme has no light variant.
@@ -107,7 +108,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         # Plus's alternate icons (mobile/scripts/make-icon.py alternates).
         # Names must match AppIconChoice in Features/Billing/AppIconPicker.swift.
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Lime AppIcon-Violet AppIcon-Bone"
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Ember AppIcon-Violet AppIcon-Bone"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         TARGETED_DEVICE_FAMILY: "1"
     # A shared scheme, so Run uses the local StoreKit configuration (Astrya
@@ -157,7 +158,7 @@ targets:
       properties:
         CFBundleDisplayName: Astrya
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "27"
+        CFBundleVersion: "28"
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, hi, gu]
         NSExtension:

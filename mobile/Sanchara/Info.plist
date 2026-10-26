@@ -40,7 +40,7 @@
 		</dict>
 	</array>
 	<key>CFBundleVersion</key>
-	<string>27</string>
+	<string>28</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
@@ -54,6 +54,8 @@
 	<dict>
 		<key>UIColorName</key>
 		<string>LaunchBackground</string>
+		<key>UIImageName</key>
+		<string>LaunchLogo</string>
 	</dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>

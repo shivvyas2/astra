@@ -1,22 +1,23 @@
 import SwiftUI
 import UIKit
 
-/// The home-screen icons Plus offers: the Astrya mark in each theme colour.
+/// The home-screen icons Plus offers: the AST/RYA wordmark in each theme
+/// colour. Lime is the primary icon.
 ///
 /// Cosmetic on purpose. Plus never gates or caps readings; what it adds is a
 /// way to make the app look like yours. The raw values are asset-catalog icon
 /// set names and must match `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` in
-/// project.yml; `mobile/scripts/make-icon.py alternates` draws them.
+/// project.yml; `mobile/scripts/recolor-icon.py` draws them from the primary.
 enum AppIconChoice: String, CaseIterable, Identifiable {
-    case ember = ""
-    case lime = "AppIcon-Lime"
+    case lime = ""
+    case ember = "AppIcon-Ember"
     case violet = "AppIcon-Violet"
     case bone = "AppIcon-Bone"
 
     var id: String { rawValue }
 
     /// What `setAlternateIconName` takes: nil restores the primary icon.
-    var iconName: String? { self == .ember ? nil : rawValue }
+    var iconName: String? { self == .lime ? nil : rawValue }
 
     var label: String {
         switch self {
@@ -27,7 +28,7 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The disc colour, for the swatch in the picker.
+    /// The wordmark's colour, for the swatch in the picker.
     var swatch: Color {
         switch self {
         case .ember: Theme.ember
@@ -38,10 +39,10 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
     }
 
     /// With Plus on, only the primary icon is free; the alternates come with it.
-    var needsPlus: Bool { PlusStore.isEnabled && self != .ember }
+    var needsPlus: Bool { PlusStore.isEnabled && self != .lime }
 
     init(iconName: String?) {
-        self = iconName.flatMap(AppIconChoice.init(rawValue:)) ?? .ember
+        self = iconName.flatMap(AppIconChoice.init(rawValue:)) ?? .lime
     }
 }
 
@@ -88,10 +89,14 @@ struct AppIconPicker: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 13, style: .continuous)
                         .fill(Theme.bg)
-                    Circle()
-                        .fill(LinearGradient(colors: [choice.swatch, choice.swatch.opacity(0.7)], startPoint: .top, endPoint: .bottom))
-                        .frame(width: 22, height: 22)
-                        .shadow(color: choice.swatch.opacity(0.5), radius: 6)
+                    // The icon itself, small: the wordmark in this colour.
+                    Image("Logo")
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .foregroundStyle(choice.swatch)
+                        .padding(11)
+                        .accessibilityHidden(true)
                     if locked {
                         Image(systemName: "lock.fill")
                             .font(.scaled(size: 9, weight: .bold))

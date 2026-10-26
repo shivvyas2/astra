@@ -126,12 +126,12 @@ final class BillingConsentTests: XCTestCase {
         let built = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any]
         let alternates = (built?["CFBundleAlternateIcons"] as? [String: Any]).map { Set($0.keys) } ?? []
         let offered = Set(AppIconChoice.allCases.compactMap(\.iconName))
-        XCTAssertEqual(offered, ["AppIcon-Lime", "AppIcon-Violet", "AppIcon-Bone"])
+        XCTAssertEqual(offered, ["AppIcon-Ember", "AppIcon-Violet", "AppIcon-Bone"])
         XCTAssertEqual(alternates, offered)
-        XCTAssertFalse(AppIconChoice.ember.needsPlus)
+        XCTAssertFalse(AppIconChoice.lime.needsPlus)
         // The alternates are locked only while Plus is on.
-        XCTAssertEqual(AppIconChoice.allCases.filter { $0 != .ember }.allSatisfy(\.needsPlus), PlusStore.isEnabled)
-        XCTAssertEqual(AppIconChoice(iconName: nil), .ember)
+        XCTAssertEqual(AppIconChoice.allCases.filter { $0 != .lime }.allSatisfy(\.needsPlus), PlusStore.isEnabled)
+        XCTAssertEqual(AppIconChoice(iconName: nil), .lime)
         XCTAssertEqual(AppIconChoice(iconName: "AppIcon-Bone"), .bone)
     }
 }

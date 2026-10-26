@@ -79,16 +79,22 @@ struct LoadingScreen: View {
     var body: some View {
         ZStack {
             Atmosphere(mood: .dusk)
-            VStack(spacing: 14) {
-                AstraMark(size: 40)
-                    .padding(.bottom, 6)
-                Text("Astrya").brutHeading(28)
-                ProgressView()
-                    .tint(Theme.accent)
-                    .padding(.top, 4)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Loading Astrya")
+            // The app icon's wordmark, centred and sized like the launch
+            // screen's, so opening the app continues from the icon tapped
+            // without the logo jumping.
+            Image("Logo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 132)
+                .foregroundStyle(Theme.accent)
+                .overlay(alignment: .bottom) {
+                    ProgressView()
+                        .tint(Theme.accent)
+                        .offset(y: 56)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading Astrya")
         }
     }
 }
