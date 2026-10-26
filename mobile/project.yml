@@ -46,7 +46,7 @@ targets:
       properties:
         CFBundleDisplayName: Astrya
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "26"
+        CFBundleVersion: "27"
         # English, Hindi and Gujarati (Resources/Localizable.xcstrings). Listing
         # them is what puts the language choice in Settings › Astrya.
         CFBundleDevelopmentRegion: en
@@ -117,6 +117,7 @@ targets:
     scheme:
       testTargets:
         - SancharaTests
+        - SancharaUITests
       storeKitConfiguration: Sanchara/Astrya.storekit
 
   SancharaWidgets:
@@ -156,7 +157,7 @@ targets:
       properties:
         CFBundleDisplayName: Astrya
         CFBundleShortVersionString: "1.0"
-        CFBundleVersion: "26"
+        CFBundleVersion: "27"
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, hi, gu]
         NSExtension:
@@ -184,3 +185,19 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra.tests
         GENERATE_INFOPLIST_FILE: YES
+
+  # Drives a signed-in simulator through the screens used for the App Store
+  # screenshots. Skips itself unless SHOTS_DIR is set, so ordinary test runs
+  # are unaffected.
+  SancharaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SancharaUITests
+    dependencies:
+      - target: Sanchara
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Sanchara

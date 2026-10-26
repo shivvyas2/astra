@@ -367,26 +367,49 @@ struct ChatView: View {
                 .frame(maxWidth: 300, alignment: .trailing)
                 .accessibilityLabel(L10n.string("You asked: \(message.content)"))
         case .assistant:
-            HStack(alignment: .top, spacing: 12) {
-                Capsule()
-                    .fill(message.source == .onDevice ? Theme.muted : Theme.accent)
-                    .frame(width: 2)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 10) {
+            // The kundli that turned while the answer was being read settles
+            // into a seal above it, lit on the houses the answer talks about.
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
                     if message.content.isEmpty {
+                        ChartReadingLoader(active: !reduceMotion, size: 24)
                         ShimmerText(L10n.string("Reading your chart…"), active: !reduceMotion)
                     } else {
-                        MarkdownText(markdown: message.content)
-                        if isLast && chat.isStreaming {
-                            StreamingCaret(active: !reduceMotion)
-                        }
-                        if message.source == .onDevice {
-                            onDeviceFooter(isLast: isLast)
-                        }
+                        let houses = ReadingHouses.mentioned(in: message.content)
+                        ChartReadingLoader(
+                            active: false,
+                            size: 24,
+                            lit: houses.isEmpty ? [1] : houses,
+                            tint: message.source == .onDevice ? Theme.muted : Theme.accent
+                        )
+                        Text(sealLabel(houses))
+                            .font(.brutMono(10, weight: .semibold))
+                            .textCase(.uppercase)
+                            .tracking(1.1)
+                            .foregroundStyle(Theme.muted)
+                    }
+                }
+                if !message.content.isEmpty {
+                    MarkdownText(markdown: message.content)
+                    if isLast && chat.isStreaming {
+                        StreamingCaret(active: !reduceMotion)
+                    }
+                    if message.source == .onDevice {
+                        onDeviceFooter(isLast: isLast)
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// "Read from houses 10 · 12", or the whole chart when none is named.
+    private func sealLabel(_ houses: [Int]) -> String {
+        switch houses.count {
+        case 0: L10n.string("Read from your chart")
+        case 1: L10n.string("Read from house \(houses[0])")
+        default: L10n.string("Read from houses \(houses.map(String.init).joined(separator: " · "))")
         }
     }
 
@@ -672,6 +695,69 @@ struct ShimmerText: View {
                 .opacity(dim ? 0.4 : 1)
                 .animation(active ? .easeInOut(duration: 1.0) : nil, value: dim)
         }
+    }
+}
+
+/// Shown beside "Reading your chart…" until the first words arrive: a small
+/// kundli whose houses light up one at a time, anticlockwise from the lagna —
+/// the order a chart is read in. Time-driven for the same reason as
+/// `ShimmerText`.
+///
+/// Still, it is the seal at the top of an answer: the houses in `lit` stay
+/// lit, so the chart that was being read settles on what the answer used.
+/// Under Reduce Motion the loader holds still the same way.
+struct ChartReadingLoader: View {
+    var active: Bool
+    var size: CGFloat = 28
+    var lit: [Int] = [1]
+    var tint: Color = Theme.accent
+
+    /// Seconds each house stays lit before handing on to the next.
+    private static let step: Double = 0.18
+
+    var body: some View {
+        SwiftUI.TimelineView(.animation(paused: !active)) { context in
+            let t = context.date.timeIntervalSinceReferenceDate / Self.step
+            Canvas { canvas, canvasSize in
+                let rect = CGRect(origin: .zero, size: canvasSize).insetBy(dx: 0.5, dy: 0.5)
+                for house in 1...12 {
+                    let glow = active ? Self.glow(house: house, at: t) : (lit.contains(house) ? 1 : 0)
+                    guard glow > 0.01 else { continue }
+                    canvas.fill(
+                        KundliGeometry.path(house: house, in: rect),
+                        with: .color(tint.opacity(0.85 * glow))
+                    )
+                }
+                canvas.stroke(Self.outline(in: rect), with: .color(Theme.chartLine), lineWidth: Theme.lineWidth)
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+
+    /// 1 for the house being read now, fading over the next few steps so a
+    /// short trail follows it round the chart.
+    private static func glow(house: Int, at t: Double) -> Double {
+        let lead = t.truncatingRemainder(dividingBy: 12)
+        let behind = (lead - Double(house - 1) + 12).truncatingRemainder(dividingBy: 12)
+        return max(0, 1 - behind / 3)
+    }
+
+    /// The square, its diagonals, and the inner diamond.
+    private static func outline(in rect: CGRect) -> Path {
+        var path = Path(rect)
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.move(to: CGPoint(x: rect.maxX, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.move(to: CGPoint(x: rect.midX, y: rect.minY))
+        path.addLines([
+            CGPoint(x: rect.maxX, y: rect.midY),
+            CGPoint(x: rect.midX, y: rect.maxY),
+            CGPoint(x: rect.minX, y: rect.midY),
+            CGPoint(x: rect.midX, y: rect.minY),
+        ])
+        return path
     }
 }
 

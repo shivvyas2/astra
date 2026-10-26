@@ -7190,6 +7190,54 @@
         }
       }
     },
+    "Read from house %lld": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ભાવ %lld પરથી વાંચ્યું"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भाव %lld से पढ़ा"
+          }
+        }
+      }
+    },
+    "Read from houses %@": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ભાવ %@ પરથી વાંચ્યું"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भाव %@ से पढ़ा"
+          }
+        }
+      }
+    },
+    "Read from your chart": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "તમારી કુંડળી પરથી વાંચ્યું"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपकी कुंडली से पढ़ा"
+          }
+        }
+      }
+    },
     "Read from your chart on this device": {
       "localizations": {
         "gu": {
