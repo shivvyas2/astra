@@ -43,6 +43,8 @@
 	<string>1</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
+	<string>Astrya adds the key dates from your chart to your calendar. It never reads your calendar.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
