@@ -66,6 +66,10 @@ struct MainTabView: View {
 
     @Environment(AuthStore.self) private var auth
     @Environment(\.scenePhase) private var scenePhase
+    /// Regular on an iPad at full or two-thirds width: the places move from
+    /// the bottom bar to a sidebar. Split View's narrow pane and Slide Over
+    /// report compact and keep the phone's bar.
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     @State private var tab: Tab = .ask
     @State private var chat = ChatStore()
@@ -81,6 +85,10 @@ struct MainTabView: View {
     @State private var keyboardUp = false
 
     private var unreadCount: Int { daily.unreadCount + alerts.unreadCount }
+    private var usesSidebar: Bool { sizeClass == .regular }
+    /// Room the bottom bar takes from the pages: none beside a sidebar, and
+    /// none while the keyboard covers the bar.
+    private var barClearance: CGFloat { usesSidebar || keyboardUp ? 0 : BrutTabBar.height }
 
     var body: some View {
         // Not a `TabView`: its bar cannot be reliably hidden from outside the
@@ -89,6 +97,18 @@ struct MainTabView: View {
         // its scroll position and loaded state; only the chosen one is
         // visible, hit-testable, and read by VoiceOver.
         ZStack(alignment: .bottom) {
+            // The sidebar comes first and the pages second whichever layout
+            // is showing, so turning the iPad or resizing a Split View pane
+            // keeps every page mounted rather than rebuilding it.
+            HStack(spacing: 0) {
+            if usesSidebar {
+                BrutSidebar(
+                    selection: $tab,
+                    details: profile.details,
+                    badge: { $0 == .today ? unreadCount : 0 },
+                    onYou: { showYou = true }
+                )
+            }
             ZStack {
                 ForEach(Tab.bar) { page in
                     let selected = tab == page
@@ -103,7 +123,7 @@ struct MainTabView: View {
             // the keyboard up they end at the keyboard. Handed down rather
             // than set here as an inset: each page has its own navigation
             // stack, and an inset from outside one does not reach inside it.
-            .environment(\.tabBarClearance, keyboardUp ? 0 : BrutTabBar.height)
+            .environment(\.tabBarClearance, barClearance)
             .environment(\.accountDetails, profile.details)
             // Lets any page (or a sheet it opens) jump to another tab, or
             // carry a question over to Ask, without threading closures.
@@ -121,15 +141,18 @@ struct MainTabView: View {
                     }
                 }
             ))
+            }
 
             // Its own layer, pinned to the bottom of the screen: the keyboard
             // slides over it rather than pushing it up. It also fades, for
             // the short bar a hardware keyboard shows, which would not cover it.
-            BrutTabBar(selection: $tab, badge: { $0 == .today ? unreadCount : 0 })
-                .opacity(keyboardUp ? 0 : 1)
-                .allowsHitTesting(!keyboardUp)
-                .accessibilityHidden(keyboardUp)
-                .ignoresSafeArea(.keyboard, edges: .bottom)
+            if !usesSidebar {
+                BrutTabBar(selection: $tab, badge: { $0 == .today ? unreadCount : 0 })
+                    .opacity(keyboardUp ? 0 : 1)
+                    .allowsHitTesting(!keyboardUp)
+                    .accessibilityHidden(keyboardUp)
+                    .ignoresSafeArea(.keyboard, edges: .bottom)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             withAnimation(Theme.motion(.easeOut(duration: 0.25))) { keyboardUp = true }
@@ -441,5 +464,134 @@ struct BrutTabBar: View {
         .frame(height: Self.height, alignment: .bottom)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Tabs")
+    }
+}
+
+// MARK: - The sidebar (iPad)
+
+/// The bar's places stood on end, for a screen wide enough to keep them in
+/// view beside the page: the wordmark, the four places with their labels and
+/// the same fills, and You pinned at the foot instead of hidden behind Ask's
+/// photo.
+struct BrutSidebar: View {
+    static let width: CGFloat = 236
+
+    @Binding var selection: MainTabView.Tab
+    let details: BirthProfileDetails?
+    var badge: (MainTabView.Tab) -> Int = { _ in 0 }
+    var onYou: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image("Logo")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 92)
+                .foregroundStyle(Theme.accent)
+                .padding(.horizontal, 14)
+                .padding(.top, 20)
+                .padding(.bottom, 28)
+                .accessibilityLabel("Astrya")
+                .accessibilityAddTraits(.isHeader)
+
+            VStack(spacing: 6) {
+                ForEach(MainTabView.Tab.bar) { tab in
+                    row(tab)
+                }
+            }
+
+            Spacer(minLength: 24)
+
+            Rectangle()
+                .fill(Theme.line)
+                .frame(height: Theme.lineWidth)
+                .padding(.bottom, 12)
+            youRow
+        }
+        .padding(.horizontal, 14)
+        .padding(.bottom, 16)
+        .frame(width: Self.width, alignment: .leading)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background {
+            Theme.surface.opacity(0.92).ignoresSafeArea()
+        }
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Theme.line)
+                .frame(width: Theme.lineWidth)
+                .ignoresSafeArea()
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tabs")
+    }
+
+    private func row(_ tab: MainTabView.Tab) -> some View {
+        let selected = selection == tab
+        let count = badge(tab)
+        return Button {
+            withAnimation(Theme.snap) { selection = tab }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: tab.symbol)
+                    .font(.scaled(size: 17, weight: .semibold))
+                    .frame(width: 24)
+                Text(tab.title)
+                    .font(.scaled(size: 16, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                Spacer(minLength: 8)
+                if count > 0 {
+                    Text(count > 9 ? "9+" : "\(count)")
+                        .font(.scaled(size: 11, weight: .bold).monospacedDigit())
+                        .foregroundStyle(Theme.ink)
+                        .padding(.horizontal, 6)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Capsule().fill(selected ? Theme.ink.opacity(0.18) : Theme.accent))
+                        .accessibilityHidden(true)
+                }
+            }
+            .foregroundStyle(selected ? Theme.ink : Theme.muted)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 50, alignment: .leading)
+            .background {
+                if selected {
+                    Capsule().fill(tab.color)
+                }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .accessibilityLabel(count > 0 ? L10n.string("\(tab.title), \(count) unread") : tab.title)
+        .accessibilityHint(tab.blurb)
+        .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private var youRow: some View {
+        Button(action: onYou) {
+            HStack(spacing: 12) {
+                AvatarBadge(details: details, size: 36)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(MainTabView.Tab.you.title)
+                        .font(.scaled(size: 15, weight: .semibold))
+                        .foregroundStyle(Theme.fg)
+                    if let name = details?.firstName, !name.isEmpty {
+                        Text(name)
+                            .font(.scaled(size: 13, weight: .medium))
+                            .foregroundStyle(Theme.muted)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
+        .accessibilityLabel("You")
+        .accessibilityHint("Birth details, photo, and your account")
     }
 }

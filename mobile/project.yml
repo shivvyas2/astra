@@ -56,6 +56,14 @@ targets:
           UIImageName: LaunchLogo
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # iPad turns every way: Split View, Slide Over and Stage Manager all
+        # require it. Wide layouts switch on the size class (sidebar instead
+        # of the tab bar, two-column kundli), so portrait iPhone is unchanged.
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # The app is dark by design — the cosmic theme has no light variant.
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
@@ -110,7 +118,7 @@ targets:
         # Names must match AppIconChoice in Features/Billing/AppIconPicker.swift.
         ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Ember AppIcon-Violet AppIcon-Bone"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
     # A shared scheme, so Run uses the local StoreKit configuration (Astrya
     # Plus products, no App Store Connect needed) and Test runs SancharaTests.
     # Purchases made against it are signed by Xcode, not Apple, so
@@ -172,7 +180,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.shivvyas.astra.widgets
         GENERATE_INFOPLIST_FILE: NO
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         SKIP_INSTALL: YES
 
   SancharaTests:

@@ -1170,3 +1170,15 @@ struct MonthScrubber<ID: Hashable>: View {
         .accessibilityLabel(accessibilityName)
     }
 }
+
+// MARK: - Readable width
+
+extension View {
+    /// Caps content at `width` and centres it. On a phone the cap is wider
+    /// than the screen, so nothing changes; on an iPad it keeps lines and
+    /// cards at a readable measure instead of stretching edge to edge.
+    func readableColumn(_ width: CGFloat) -> some View {
+        frame(maxWidth: width)
+            .frame(maxWidth: .infinity)
+    }
+}

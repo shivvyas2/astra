@@ -47,6 +47,7 @@ struct InboxView: View {
                     .padding(.horizontal, 16)
                     .padding(.top, embedded ? 0 : 8)
                     .padding(.bottom, 32)
+                    .readableColumn(640)
                 }
                 .refreshable {
                     await daily.load()

@@ -168,6 +168,7 @@ struct TimelineView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, embedded ? 8 : 0)
                 .padding(.bottom, 32)
+                .readableColumn(720)
             }
             .refreshable { await store.load() }
             .onAppear {

@@ -37,25 +37,31 @@ struct KundliView: View {
             ZStack {
                 Atmosphere(mood: .dusk)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 28) {
-                        hero
-                        if !chart.isTimeKnown { timeUnknownNotice }
-                        signRows
-                        chartBlock
-                        dashaBlock
-                        // Only as a tab: a match opens inside this stack, and its Ask
-                        // button needs the Ask tab behind it.
-                        if embedded {
-                            MatchSection(firstName: details.firstName)
-                                .padding(.top, 20)
+                    if wide {
+                        // iPad: the chart and its reading side by side, so
+                        // the diagram stays in view while the table is read.
+                        HStack(alignment: .top, spacing: 40) {
+                            VStack(alignment: .leading, spacing: 28) {
+                                chartColumn
+                            }
+                            .frame(maxWidth: 480)
+                            VStack(alignment: .leading, spacing: 28) {
+                                detailColumn
+                            }
+                            .frame(maxWidth: 480)
                         }
-                        planetTable
-                        footer
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 28)
+                        .readableColumn(1080)
+                    } else {
+                        VStack(alignment: .leading, spacing: 28) {
+                            chartColumn
+                            detailColumn
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 24)
+                        .readableColumn(480)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 24)
-                    .frame(maxWidth: 480)
-                    .frame(maxWidth: .infinity)
                 }
             }
             .clearsTabBar(active: embedded)
@@ -91,6 +97,33 @@ struct KundliView: View {
         .sheet(item: $share) { payload in
             ShareSheet(items: [payload.url])
         }
+    }
+
+    /// Two columns once there is room for two (iPad, full or two-thirds
+    /// width) and the screen is a tab. Split View's narrow panes report
+    /// compact, and a sheet is too narrow, so both keep one column.
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    private var wide: Bool { embedded && sizeClass == .regular }
+
+    @ViewBuilder
+    private var chartColumn: some View {
+        hero
+        if !chart.isTimeKnown { timeUnknownNotice }
+        signRows
+        chartBlock
+    }
+
+    @ViewBuilder
+    private var detailColumn: some View {
+        dashaBlock
+        // Only as a tab: a match opens inside this stack, and its Ask
+        // button needs the Ask tab behind it.
+        if embedded {
+            MatchSection(firstName: details.firstName)
+                .padding(.top, wide ? 0 : 20)
+        }
+        planetTable
+        footer
     }
 
     /// Into Ask with the question waiting, to edit or send. Only as a tab:
