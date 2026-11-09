@@ -70,6 +70,20 @@ describe("checkUsageLimits", () => {
     expect(r.block).toEqual({ reason: "readings", resetAt: "2026-10-26T18:30:00.000Z" });
   });
 
+  it("a Plus member is not paused by the all-users limit, but keeps their own", async () => {
+    const tables = {
+      usage_limits: limits({ usd_all_users_day: 1, readings_per_day: 1 }),
+      subscriptions: [{ user_id: USER, plan: "plus", status: "active", expires_at: "2099-01-01T00:00:00Z" }],
+      birth_profiles: [profile],
+      model_usage: [reading("other", "2026-10-26T01:00:00Z", 2)],
+    };
+    expect((await checkUsageLimits(db(tables), USER, { reading: true, now: NOW })).block).toBeNull();
+    tables.model_usage.push(reading(USER, "2026-10-26T02:00:00Z"));
+    expect((await checkUsageLimits(db(tables), USER, { reading: true, now: NOW })).block?.reason).toBe("readings");
+    tables.subscriptions[0].status = "expired";
+    expect((await checkUsageLimits(db(tables), USER, { reading: true, now: NOW })).block?.reason).toBe("all_spend");
+  });
+
   it("a user override replaces the default", async () => {
     const d = db({
       usage_limits: limits({ readings_per_day: 1 }),

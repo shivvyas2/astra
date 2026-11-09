@@ -3,6 +3,7 @@ import { DateTime } from "luxon";
 import { isMissingRelation } from "./record";
 import { countReadingsSince, dayWindow } from "./today";
 import { isAdminId } from "@/lib/admin/api";
+import { getPlan } from "@/lib/billing/plan";
 import { isReadingLanguage, type ReadingLanguage } from "@/lib/astrology/language";
 import { localeForLanguage } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/dictionaries";
@@ -115,6 +116,8 @@ export type LimitCheck = { block: LimitBlock | null; language: string };
  *
  * The user's limits run over their local day (their birth-profile timezone,
  * as GET /api/usage reports it); the all-users limit over the UTC day.
+ * Plus members (granted by hand while Plus is not sold) are not held by the
+ * all-users limit, only by their own.
  */
 export async function checkUsageLimits(
   db: AnyDb,
@@ -123,14 +126,16 @@ export async function checkUsageLimits(
 ): Promise<LimitCheck> {
   const now = opts.now ?? new Date();
   try {
-    const [defaults, overrides, admin, profile] = await Promise.all([
+    const [defaults, overrides, admin, profile, plan] = await Promise.all([
       loadLimits(db),
       loadUserLimits(db, userId),
       isAdminId(db, userId),
       loadProfile(db, userId),
+      getPlan(db as never, userId),
     ]);
     if (!defaults || admin) return { block: null, language: profile.language };
-    const limits = effectiveLimits(defaults, overrides);
+    const base = effectiveLimits(defaults, overrides);
+    const limits = plan === "plus" ? { ...base, usdAllUsersDay: null } : base;
     const { start, resetAt } = dayWindow(profile.timezone, now);
     const utcStart = DateTime.fromJSDate(now).toUTC().startOf("day");
 
