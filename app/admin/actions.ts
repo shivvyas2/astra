@@ -5,6 +5,7 @@ import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { isAdminUser, requireAdmin } from "@/lib/admin/guard";
 import { parseLimit, saveLimits, saveUserLimits } from "@/lib/admin/limits";
+import { grantPlus, isGrantDuration, revokePlus } from "@/lib/admin/plus";
 
 // Generate a one-time login link for a user (impersonate for testing) WITHOUT
 // their password. Open it in a private window to sign in as that user.
@@ -80,4 +81,21 @@ export async function updateUserLimits(formData: FormData) {
   }
   await saveUserLimits(createAdminSupabase(), userId, { readingsPerDay, usdPerUserDay }, user.id);
   redirect(`/admin/users/${userId}?limits=saved`);
+}
+
+// Grant or extend Plus by hand (lib/admin/plus.ts). No App Store purchase.
+export async function grantUserPlus(formData: FormData) {
+  await requireAdmin();
+  const userId = String(formData.get("user_id"));
+  const duration = formData.get("duration");
+  if (!isGrantDuration(duration)) redirect(`/admin/users/${userId}?plus=invalid#plus`);
+  const result = await grantPlus(createAdminSupabase(), userId, duration);
+  redirect(`/admin/users/${userId}?plus=${result}#plus`);
+}
+
+export async function revokeUserPlus(formData: FormData) {
+  await requireAdmin();
+  const userId = String(formData.get("user_id"));
+  const result = await revokePlus(createAdminSupabase(), userId);
+  redirect(`/admin/users/${userId}?plus=${result}#plus`);
 }

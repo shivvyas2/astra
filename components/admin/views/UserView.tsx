@@ -2,6 +2,8 @@ import Link from "next/link";
 import type { AdminUserDetail } from "@/lib/admin/types";
 import type { UserLimitsState } from "@/lib/admin/limits";
 import { UserLimitsCard } from "@/components/admin/LimitsCard";
+import { PlusCard } from "@/components/admin/PlusCard";
+import type { PlusState } from "@/lib/admin/plus";
 import { AdminShell } from "@/components/AdminShell";
 import { AreaChart } from "@/components/admin/AreaChart";
 import { Stat } from "@/components/admin/Figures";
@@ -26,10 +28,11 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   unsure: { label: "Unsure", cls: "" },
 };
 
-export function UserView({ d, sp, limits }: {
+export function UserView({ d, sp, limits, plus }: {
   d: AdminUserDetail;
-  sp: { tab?: string; reset?: string; login_link?: string; limits?: string };
+  sp: { tab?: string; reset?: string; login_link?: string; limits?: string; plus?: string };
   limits?: UserLimitsState;
+  plus?: PlusState;
 }) {
   const id = d.user.id;
   const tab: Tab = (TABS.find((t) => t.id === sp.tab)?.id ?? "timeline") as Tab;
@@ -118,6 +121,8 @@ export function UserView({ d, sp, limits }: {
           </div>
         </div>
       </section>
+
+      {plus && <PlusCard userId={id} state={plus} status={sp.plus} />}
 
       {limits && <UserLimitsCard userId={id} state={limits} isAdmin={user.isAdmin} status={sp.limits} />}
 
