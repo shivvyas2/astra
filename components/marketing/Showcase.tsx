@@ -10,6 +10,8 @@ import { rich } from "@/lib/i18n/rich";
  * from an account.
  */
 
+const APP_STORE_URL = "https://apps.apple.com/app/id6805243295";
+
 const arrow = (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
     <path d="M7 17L17 7M9 7h8v8" />
@@ -145,7 +147,7 @@ function TodayCard() {
   );
 }
 
-/** Astrya on iPhone: the two device renders, a Today card, and what each tab does. */
+/** Astrya on iPhone and iPad: device renders, a Today card, what each tab does, and the App Store link. */
 export function AppShowcase() {
   const { t } = useI18n();
   return (
@@ -157,6 +159,16 @@ export function AppShowcase() {
         </div>
         <h2 className="headline headline-arrow mt-6 max-w-4xl text-5xl sm:text-7xl lg:text-8xl">{t.showcase.pocketTitle}</h2>
         <p className="mt-6 max-w-xl text-base leading-relaxed text-muted sm:text-lg">{t.showcase.pocketBody}</p>
+        <div className="mt-8">
+          <a
+            href={APP_STORE_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="brut-btn brut-btn-primary brut-btn-arrow min-h-[54px] px-6"
+          >
+            {t.showcase.appStore}
+          </a>
+        </div>
 
         <div className="mt-12 grid gap-4 lg:grid-cols-5">
           <figure className="relative overflow-hidden rounded-[24px] border border-line lg:col-span-3">
@@ -191,6 +203,17 @@ export function AppShowcase() {
               className="h-auto w-full object-cover object-top lg:aspect-[16/9]"
             />
             <figcaption className="absolute bottom-4 left-4 brut-tag bg-fg">{t.showcase.todayTag}</figcaption>
+          </figure>
+          <figure className="relative overflow-hidden rounded-[24px] border border-line lg:col-span-5">
+            <Image
+              src="/images/showcase-ipad.jpg"
+              alt={t.showcase.ipadAlt}
+              width={2200}
+              height={1467}
+              sizes="100vw"
+              className="h-auto w-full object-cover"
+            />
+            <figcaption className="absolute bottom-4 left-4 brut-tag bg-fg">{t.showcase.ipadTag}</figcaption>
           </figure>
         </div>
       </div>

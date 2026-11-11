@@ -134,14 +134,17 @@ export const en = {
       { label: "Kundli", text: "Your full birth chart, dashas and nakshatras, drawn and explained." },
       { label: "Life", text: "Your periods laid out on a timeline, with alerts when a dosha or hard transit starts." },
     ],
-    onIphone: "On iPhone",
+    onIphone: "On iPhone and iPad",
     pocketTitle: "Your chart, in your pocket",
     pocketBody:
-      "The same account on the web and on iPhone: readings, people and memory follow you. The app adds a reading every morning and night, home-screen widgets, and alerts when your sky shifts.",
+      "The same account on the web, iPhone and iPad: readings, people and memory follow you. The app adds a reading every morning and night, home-screen widgets, and alerts when your sky shifts.",
     askAlt: "Astrya on iPhone: the Ask screen, with tradition chips and suggested questions",
     askTag: "Ask",
     todayAlt: "Astrya on iPhone: the Today screen, with the date, a night reading and earlier readings",
     todayTag: "Today",
+    ipadAlt: "Astrya on iPad: the Kundli screen with the chart and its details side by side, next to the Life map",
+    ipadTag: "iPad",
+    appStore: "Download on the App Store",
   },
 
   auth: {
