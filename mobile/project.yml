@@ -45,8 +45,8 @@ targets:
       path: Sanchara/Info.plist
       properties:
         CFBundleDisplayName: Astrya
-        CFBundleShortVersionString: "1.1"
-        CFBundleVersion: "30"
+        CFBundleShortVersionString: "1.1.1"
+        CFBundleVersion: "31"
         # English, Hindi and Gujarati (Resources/Localizable.xcstrings). Listing
         # them is what puts the language choice in Settings › Astrya.
         CFBundleDevelopmentRegion: en
@@ -165,8 +165,8 @@ targets:
       path: SancharaWidgets/Info.plist
       properties:
         CFBundleDisplayName: Astrya
-        CFBundleShortVersionString: "1.1"
-        CFBundleVersion: "30"
+        CFBundleShortVersionString: "1.1.1"
+        CFBundleVersion: "31"
         CFBundleDevelopmentRegion: en
         CFBundleLocalizations: [en, hi, gu]
         NSExtension:
