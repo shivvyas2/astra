@@ -73,6 +73,7 @@ export async function AuthForm({
         {phone ? (
           <form className="mt-6 space-y-6">
             <input type="hidden" name="from" value={from ?? "login"} />
+            <Honeypot />
             <label className="block">
               <span className="eyebrow block">{t.auth.phone}</span>
               <span className="phone-row">
@@ -103,6 +104,7 @@ export async function AuthForm({
         ) : (
           <form className={`${phoneAction ? "mt-6" : "mt-8"} space-y-6`}>
             <input type="hidden" name="from" value={from ?? "login"} />
+            <Honeypot />
             <label className="block">
               <span className="eyebrow block">{t.auth.email}</span>
               <input name="email" type="email" required placeholder={t.auth.emailPlaceholder} className="brut-field" />
@@ -124,6 +126,18 @@ export async function AuthForm({
         <p>{rich(t.auth.agree, { terms: link(TERMS_PATH), privacy: link(PRIVACY_PATH) })}</p>
         <p className="mt-2">{footer}</p>
       </div>
+    </div>
+  );
+}
+
+/** Hidden from people and from screen readers; only a script fills it in. */
+function Honeypot() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute -left-[9999px] h-px w-px overflow-hidden">
+      <label>
+        Website
+        <input name="website" type="text" tabIndex={-1} autoComplete="off" defaultValue="" />
+      </label>
     </div>
   );
 }

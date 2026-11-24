@@ -19,14 +19,14 @@ final class AuthStore {
     }
 
     /// Where the waiting code went.
-    enum CodeDestination: Equatable {
+    enum CodeDestination: Equatable, Codable {
         case email(String, CodePurpose)
         /// E.164, as sent to Supabase.
         case phone(String)
     }
 
     /// Which code was sent, which decides how it is verified.
-    enum CodePurpose {
+    enum CodePurpose: Equatable, Codable {
         /// Passwordless sign-in or sign-up.
         case signIn
         /// Confirming the address on an account created with a password.
@@ -43,6 +43,10 @@ final class AuthStore {
     var state: State = .loading
     var errorMessage: String?
     var notice: String?
+    /// The code being waited for, for the code screen's timers.
+    var pendingCode: PendingCode? {
+        didSet { PendingCode.save(pendingCode) }
+    }
     var isWorking = false
     /// Set when sign-up finds an existing account, so the screen can switch to
     /// sign-in with the email already filled in.
@@ -50,16 +54,69 @@ final class AuthStore {
 
     func start() async {
         state = (try? await Supa.client.auth.session) != nil ? .signedIn : .signedOut
+        if case .signedOut = state, let held = PendingCode.restore() {
+            pendingCode = held
+            state = .awaitingCode(held.destination)
+        } else {
+            pendingCode = nil
+        }
         for await change in Supa.client.auth.authStateChanges {
             switch change.event {
             case .signedIn, .tokenRefreshed:
-                if change.session != nil { state = .signedIn }
+                if change.session != nil {
+                    pendingCode = nil
+                    state = .signedIn
+                }
             case .signedOut:
                 state = .signedOut
             default:
                 break
             }
         }
+    }
+
+    // MARK: - Waiting for a code
+
+    private func awaitCode(_ destination: CodeDestination, sent: Bool) {
+        var pending = PendingCode(destination: destination)
+        if sent { pending.sent(at: .now, again: false) }
+        pendingCode = pending
+        state = .awaitingCode(destination)
+    }
+
+    /// Asked for again in a hurry: the first code is on its way, so wait there.
+    private func isAlreadyWaiting(for destination: CodeDestination) -> Bool {
+        guard let pendingCode, pendingCode.destination == destination, pendingCode.resendIn(at: .now) > 0 else { return false }
+        state = .awaitingCode(destination)
+        return true
+    }
+
+    /// Back to the sign-in form, with nothing pending.
+    func leaveCodeScreen() {
+        pendingCode = nil
+        clearMessages()
+        state = .signedOut
+    }
+
+    /// Supabase's words for a code that did not go, or could not be checked.
+    nonisolated static func codeProblem(_ error: Error) -> String {
+        if error is URLError { return L10n.string("No connection. Check it and try again.") }
+        let message = error.localizedDescription.lowercased()
+        if message.contains("email rate limit") || message.contains("sms rate limit") {
+            return L10n.string("We can't send more codes just now. Try again in a while, or use another way to sign in.")
+        }
+        if message.contains("security purposes") || message.contains("rate") || message.contains("too many") {
+            return L10n.string("Too many tries. Wait a minute and try again.")
+        }
+        if message.contains("error sending") { return L10n.string("The code could not be sent. Try again in a moment.") }
+        return error.localizedDescription
+    }
+
+    /// Whether the answer was "wrong code" rather than "could not check it".
+    nonisolated static func isWrongCode(_ error: Error) -> Bool {
+        guard !(error is URLError) else { return false }
+        let message = error.localizedDescription.lowercased()
+        return message.contains("expired") || message.contains("invalid") || message.contains("token")
     }
 
     // MARK: - Validation
@@ -102,7 +159,7 @@ final class AuthStore {
             if message.contains("not confirmed") {
                 // Signed up before and never confirmed: their old code is long
                 // gone, so a fresh one is sent before the code screen asks for it.
-                state = .awaitingCode(.email(email, .confirmSignUp))
+                awaitCode(.email(email, .confirmSignUp), sent: false)
                 await resendCode()
             } else if message.contains("invalid login") || message.contains("credentials") {
                 errorMessage = L10n.string("Incorrect email or password. Try again, or get a code by email.")
@@ -142,7 +199,7 @@ final class AuthStore {
             if response.session != nil {
                 state = .signedIn // email confirmation is switched off
             } else {
-                state = .awaitingCode(.email(email, .confirmSignUp))
+                awaitCode(.email(email, .confirmSignUp), sent: true)
             }
         } catch {
             let message = error.localizedDescription.lowercased()
@@ -212,6 +269,7 @@ final class AuthStore {
             errorMessage = L10n.string("Enter your email first.")
             return
         }
+        guard !isAlreadyWaiting(for: .email(email, .signIn)) else { return }
         isWorking = true
         defer { isWorking = false }
         do {
@@ -220,9 +278,9 @@ final class AuthStore {
                 email: email,
                 redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
             )
-            state = .awaitingCode(.email(email, .signIn))
+            awaitCode(.email(email, .signIn), sent: true)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = Self.codeProblem(error)
         }
     }
 
@@ -238,11 +296,12 @@ final class AuthStore {
                 : L10n.string("That doesn't look like a \(country.name) mobile number.")
             return
         }
+        guard !isAlreadyWaiting(for: .phone(phone)) else { return }
         isWorking = true
         defer { isWorking = false }
         do {
             try await Supa.client.auth.signInWithOTP(phone: phone)
-            state = .awaitingCode(.phone(phone))
+            awaitCode(.phone(phone), sent: true)
         } catch {
             errorMessage = Self.phoneError(error)
         }
@@ -266,8 +325,13 @@ final class AuthStore {
         String(input.filter(\.isNumber).prefix(codeLength))
     }
 
-    func verifyCode(_ input: String) async {
-        guard case .awaitingCode(let destination) = state else { return }
+    /// True when the code should be cleared to type again; false when it could
+    /// not be checked and is worth pressing Continue on.
+    @discardableResult
+    func verifyCode(_ input: String) async -> Bool {
+        guard case .awaitingCode(let destination) = state, !isWorking else { return false }
+        pendingCode?.unlockIfDue(at: .now)
+        guard (pendingCode?.lockedFor(at: .now) ?? 0) == 0 else { return true }
         let code = Self.normalizedCode(input)
         clearMessages()
         guard code.count == Self.codeLength else {
@@ -276,7 +340,7 @@ final class AuthStore {
             } else {
                 errorMessage = L10n.string("Enter the \(Self.codeLength) digits from the email.")
             }
-            return
+            return false
         }
         isWorking = true
         defer { isWorking = false }
@@ -288,19 +352,26 @@ final class AuthStore {
                 try await Supa.client.auth.verifyOTP(phone: phone, token: code, type: .sms)
             }
             Self.rememberSignedInBefore()
+            pendingCode = nil
             state = .signedIn
+            return true
         } catch {
-            let message = error.localizedDescription.lowercased()
-            errorMessage =
-                message.contains("expired") || message.contains("invalid")
-                ? L10n.string("That code didn't work. It may have expired, so send a new one.")
-                : error.localizedDescription
+            guard Self.isWrongCode(error) else {
+                errorMessage = Self.codeProblem(error)
+                return false
+            }
+            pendingCode?.wrongCode(at: .now)
+            errorMessage = L10n.string("That code didn't work. It may have expired, so send a new one.")
+            return true
         }
     }
 
     /// Sends another code for whichever flow is waiting.
     func resendCode() async {
-        guard case .awaitingCode(let destination) = state else { return }
+        guard case .awaitingCode(let destination) = state, !isWorking else { return }
+        // The button is off until then; this holds whatever calls it.
+        guard (pendingCode?.resendIn(at: .now) ?? 0) == 0 else { return }
+        let again = pendingCode?.sentAt != nil
         clearMessages()
         isWorking = true
         defer { isWorking = false }
@@ -320,9 +391,10 @@ final class AuthStore {
                     emailRedirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
                 )
             }
+            pendingCode?.sent(at: .now, again: again)
             notice = L10n.string("Sent again. It can take a minute to arrive.")
         } catch {
-            errorMessage = error.localizedDescription
+            if case .phone = destination { errorMessage = Self.phoneError(error) } else { errorMessage = Self.codeProblem(error) }
         }
     }
 
@@ -335,6 +407,7 @@ final class AuthStore {
         // otherwise — they are on disk in the app group, and the widget would go
         // on showing them to whoever signs in next.
         ChartCache.shared.clear()
+        pendingCode = nil
         clearMessages()
         state = .signedOut
     }

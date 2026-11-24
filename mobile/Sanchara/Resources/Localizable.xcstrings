@@ -12597,6 +12597,230 @@
           }
         }
       }
+    },
+    "Code expires in %@": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કોડ %@ માં પૂરો થશે"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कोड %@ में खत्म होगा"
+          }
+        }
+      }
+    },
+    "This code has expired. Send a new one.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "આ કોડ જૂનો થઈ ગયો. નવો મોકલો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह कोड पुराना हो गया। नया भेजें।"
+          }
+        }
+      }
+    },
+    "Too many tries. You can try again in %@.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ઘણા પ્રયત્ન થઈ ગયા. તમે %@ માં ફરી પ્રયત્ન કરી શકો છો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बहुत बार कोशिश हो गई। आप %@ में फिर कोशिश कर सकते हैं।"
+          }
+        }
+      }
+    },
+    "Tries left: %lld.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "બાકી પ્રયત્ન: %lld."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बची कोशिशें: %lld।"
+          }
+        }
+      }
+    },
+    "Send a new code in %@": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ માં નવો કોડ મોકલો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ में नया कोड भेजें"
+          }
+        }
+      }
+    },
+    "Still no luck?": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "હજુ પણ નથી થયું?"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अब भी नहीं हुआ?"
+          }
+        }
+      }
+    },
+    "Check that the number above is right and has signal. You can also sign in by email or with Apple.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "જુઓ કે ઉપરનો નંબર સાચો છે અને નેટવર્ક છે. તમે ઇમેઇલ કે Apple થી પણ સાઇન ઇન કરી શકો છો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "देखें कि ऊपर का नंबर सही है और नेटवर्क है। आप ईमेल या Apple से भी साइन इन कर सकते हैं।"
+          }
+        }
+      }
+    },
+    "Check spam and promotions, and that the address above is right. You can also sign in by phone or with Apple.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "સ્પામ અને પ્રમોશન જુઓ, અને ઉપરનું સરનામું સાચું છે કે નહીં તે પણ. તમે ફોન કે Apple થી પણ સાઇન ઇન કરી શકો છો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्पैम और प्रमोशन देखें, और यह भी कि ऊपर का पता सही है। आप फ़ोन या Apple से भी साइन इन कर सकते हैं।"
+          }
+        }
+      }
+    },
+    "Other ways to sign in": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "સાઇન ઇન કરવાની બીજી રીતો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "साइन इन के दूसरे तरीके"
+          }
+        }
+      }
+    },
+    "Nothing there? Check spam, or send a new code.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "નથી મળ્યો? સ્પામ જુઓ, અથવા નવો કોડ મોકલો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "नहीं मिला? स्पैम देखें, या नया कोड भेजें।"
+          }
+        }
+      }
+    },
+    "No connection. Check it and try again.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કનેક્શન નથી. તપાસીને ફરી પ્રયત્ન કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कनेक्शन नहीं है। जाँचकर फिर कोशिश करें।"
+          }
+        }
+      }
+    },
+    "We can't send more codes just now. Try again in a while, or use another way to sign in.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "હમણાં અમે વધુ કોડ મોકલી શકતા નથી. થોડી વાર પછી પ્રયત્ન કરો, અથવા બીજી રીતે સાઇન ઇન કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अभी हम और कोड नहीं भेज सकते। थोड़ी देर बाद कोशिश करें, या किसी दूसरे तरीके से साइन इन करें।"
+          }
+        }
+      }
+    },
+    "Too many tries. Wait a minute and try again.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ઘણા પ્રયત્ન થઈ ગયા. એક મિનિટ રાહ જોઈને ફરી પ્રયત્ન કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बहुत बार कोशिश हो गई। एक मिनट रुककर फिर कोशिश करें।"
+          }
+        }
+      }
+    },
+    "The code could not be sent. Try again in a moment.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કોડ મોકલી શકાયો નહીં. થોડી વારમાં ફરી પ્રયત્ન કરો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कोड भेजा नहीं जा सका। थोड़ी देर में फिर कोशिश करें।"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

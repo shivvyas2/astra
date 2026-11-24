@@ -30,9 +30,9 @@ OTP length), which is what both code screens expect.
 
 ## How the website uses it
 
-`sendEmailCode`, `verifyEmailCode` and `resendEmailCode` in
+`sendEmailCode`, `verifyCode` and `resendCode` in
 `app/(auth)/actions.ts`, entered on `/verify-email`. The address waits in an
-httpOnly cookie (`lib/auth/pendingEmail.ts`). A sign-up for an address that
+httpOnly cookie (`lib/auth/pendingCode.ts`). A sign-up for an address that
 already has an account is a wrong password, not a wait: Supabase sends nothing.
 An unconfirmed account gets a fresh code when it signs in.
 
@@ -49,3 +49,23 @@ An unconfirmed account gets a fresh code when it signs in.
 
 Codes expire after an hour by default; "Send a new code" re-sends through the
 same path.
+
+## The code screen and its limits
+
+`components/CodeScreen.tsx` on the web, `VerifyCodeView` on iPhone. Both: six
+boxes over one real field (typing, paste, keyboard autofill), sent off at the
+sixth digit; a countdown to another code (60s, 60s, 2 min, 5 min) and to this
+one running out; tries left; a lock with a countdown; another way in after two
+resends or three wrong codes. A code that could not be *checked* (no connection,
+server trouble) is kept and costs no try. iPhone keeps the screen across a
+relaunch.
+
+Spam, on the web: `lib/auth/throttle.ts` counts per address or number and per
+visitor (codes sent, codes tried, passwords tried) in `auth_throttle`,
+**migration 0019**, as one-way hashes. Until it is applied, and if the database
+is unreachable, each server instance counts in memory. Plus a hidden field that
+only scripts fill, and a short list of throwaway inboxes.
+
+The iPhone talks to Supabase directly, so for it, and for anyone calling
+Supabase without our site, the limits are Supabase's own (Auth > Rate Limits)
+and its CAPTCHA, which is off.

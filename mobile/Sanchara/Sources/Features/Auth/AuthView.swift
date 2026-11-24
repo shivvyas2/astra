@@ -339,6 +339,8 @@ struct VerifyCodeView: View {
 
     @Environment(AuthStore.self) private var auth
     @State private var code = ""
+    /// The last code sent off by itself, so one that failed is not sent twice.
+    @State private var tried = ""
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -367,69 +369,9 @@ struct VerifyCodeView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 10)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Code").eyebrow()
-                        TextField("", text: $code, prompt: Text("000000").foregroundStyle(Theme.muted.opacity(0.5)))
-                            .font(.brutMono(36, weight: .semibold))
-                            .tracking(14)
-                            .foregroundStyle(Theme.fg)
-                            .keyboardType(.numberPad)
-                            // iOS offers the code from the email or text above the keyboard.
-                            .textContentType(.oneTimeCode)
-                            .focused($focused)
-                            .padding(.vertical, 8)
-                            .onChange(of: code) { _, entered in
-                                let digits = AuthStore.normalizedCode(entered)
-                                if digits != entered { code = digits }
-                                // Six digits is the whole code; making them press a
-                                // button as well would be ceremony.
-                                if digits.count == AuthStore.codeLength {
-                                    focused = false
-                                    Task { await auth.verifyCode(digits) }
-                                }
-                            }
-                        Rectangle()
-                            .fill(focused ? Theme.accent : Theme.line)
-                            .frame(height: focused ? 2 : 1)
-                            .animation(Theme.snap, value: focused)
-                    }
-                    .padding(.top, 32)
-
-                    if let error = auth.errorMessage {
-                        BrutNotice(text: error)
-                            .padding(.top, 16)
-                    }
-                    if let notice = auth.notice {
-                        BrutNotice(text: notice, tone: .info)
-                            .padding(.top, 16)
-                    }
-
-                    HStack(alignment: .center, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Button("Send a new code") { Task { await auth.resendCode() } }
-                                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
-                                .frame(minHeight: 44)
-                            Button(isPhone ? L10n.string("Use a different number") : L10n.string("Use a different email")) {
-                                Task { await auth.signOut() }
-                            }
-                                .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
-                                .frame(minHeight: 44)
-                        }
-
-                        Spacer(minLength: 0)
-
-                        if auth.isWorking {
-                            ProgressView()
-                                .tint(Theme.ink)
-                                .frame(width: 60, height: 60)
-                                .background(Circle().fill(Theme.accent))
-                                .accessibilityLabel("Working")
-                        } else {
-                            CircleButton(systemImage: "arrow.right", label: L10n.string("Continue"), fill: .accent, size: 60) {
-                                focused = false
-                                Task { await auth.verifyCode(code) }
-                            }
-                        }
+                    // Redrawn each second for the countdowns, and only here.
+                    SwiftUI.TimelineView(.periodic(from: .now, by: 1)) { tick in
+                        entry(at: tick.date)
                     }
                     .padding(.top, 32)
 
@@ -444,9 +386,154 @@ struct VerifyCodeView: View {
         .onAppear { focused = true }
     }
 
-    private var isPhone: Bool {
-        if case .phone = destination { return true }
-        return false
+    private var pending: PendingCode { auth.pendingCode ?? PendingCode(destination: destination) }
+
+    @ViewBuilder
+    private func entry(at now: Date) -> some View {
+        let pending = pending
+        let locked = pending.lockedFor(at: now)
+        let expired = pending.isExpired(at: now)
+        let resendIn = pending.resendIn(at: now)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Code").eyebrow()
+            boxes(disabled: locked > 0 || expired || auth.isWorking)
+                .padding(.top, 10)
+            Group {
+                if expired {
+                    Text("This code has expired. Send a new one.")
+                } else if pending.sentAt != nil {
+                    Text(verbatim: L10n.string("Code expires in \(PendingCode.clock(pending.expiresIn(at: now)))"))
+                        .monospacedDigit()
+                }
+            }
+            .font(.brutBody(13))
+            .foregroundStyle(Theme.muted)
+            .padding(.top, 10)
+
+            if locked > 0 {
+                BrutNotice(text: L10n.string("Too many tries. You can try again in \(PendingCode.clock(locked))."))
+                    .padding(.top, 16)
+            } else if let error = auth.errorMessage {
+                BrutNotice(text: pending.tries > 0 && pending.triesLeft > 0
+                    ? error + " " + L10n.string("Tries left: \(pending.triesLeft).")
+                    : error)
+                    .padding(.top, 16)
+            } else if let notice = auth.notice {
+                BrutNotice(text: notice, tone: .info)
+                    .padding(.top, 16)
+            }
+
+            SancharaPrimaryButton(title: L10n.string("Continue"), isLoading: auth.isWorking) { submit(code) }
+                .disabled(code.count < AuthStore.codeLength || locked > 0 || expired || auth.isWorking)
+                .opacity(code.count < AuthStore.codeLength || locked > 0 || expired ? 0.4 : 1)
+                .padding(.top, 24)
+            SancharaSecondaryButton(title: resendIn > 0
+                ? L10n.string("Send a new code in \(PendingCode.clock(resendIn))")
+                : L10n.string("Send a new code")) {
+                Task {
+                    await auth.resendCode()
+                    code = ""
+                    tried = ""
+                    focused = true
+                }
+            }
+            .disabled(resendIn > 0 || auth.isWorking)
+            .opacity(resendIn > 0 ? 0.5 : 1)
+            .padding(.top, 10)
+
+            if pending.isStuck {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Still no luck?")
+                        .font(.brutTitle(16))
+                        .foregroundStyle(Theme.fg)
+                    Text(pending.isPhone
+                        ? L10n.string("Check that the number above is right and has signal. You can also sign in by email or with Apple.")
+                        : L10n.string("Check spam and promotions, and that the address above is right. You can also sign in by phone or with Apple."))
+                        .font(.brutBody(14))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("Other ways to sign in") { auth.leaveCodeScreen() }
+                        .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+                        .frame(minHeight: 44)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .brutBordered()
+                .padding(.top, 20)
+            } else if !pending.isPhone {
+                Text("Nothing there? Check spam, or send a new code.")
+                    .font(.brutBody(13))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.top, 16)
+            }
+
+            Button(pending.isPhone ? L10n.string("Use a different number") : L10n.string("Use a different email")) {
+                auth.leaveCodeScreen()
+            }
+            .buttonStyle(BrutButtonStyle(kind: .quiet, fullWidth: false))
+            .frame(minHeight: 44)
+            .padding(.top, 12)
+        }
+        .onChange(of: locked == 0) { _, open in
+            if open { focused = true }
+        }
+    }
+
+    /// Six boxes over one real field, so typing, pasting and the code iOS
+    /// offers above the keyboard all work.
+    private func boxes(disabled: Bool) -> some View {
+        let digits = Array(code)
+        return HStack(spacing: 8) {
+            ForEach(0..<AuthStore.codeLength, id: \.self) { index in
+                let here = focused && !disabled && index == min(digits.count, AuthStore.codeLength - 1)
+                Text(index < digits.count ? String(digits[index]) : " ")
+                    .font(.brutMono(26, weight: .semibold))
+                    .foregroundStyle(Theme.fg)
+                    .frame(maxWidth: .infinity, minHeight: 58)
+                    .background {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(here ? Theme.accent.opacity(0.1) : Theme.fg.opacity(0.03))
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(here ? Theme.accent : index < digits.count ? Theme.fg : Theme.line, lineWidth: here ? 1.5 : 1)
+                    }
+            }
+        }
+        .accessibilityHidden(true)
+        .opacity(disabled && !auth.isWorking ? 0.5 : 1)
+        .overlay {
+            TextField("", text: $code)
+                .keyboardType(.numberPad)
+                // iOS offers the code from the email or text above the keyboard.
+                .textContentType(.oneTimeCode)
+                .focused($focused)
+                .foregroundStyle(.clear)
+                .tint(.clear)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .disabled(disabled)
+                .accessibilityLabel("Code")
+                .onChange(of: code) { _, entered in
+                    let digits = AuthStore.normalizedCode(entered)
+                    if digits != entered { code = digits }
+                    // Six digits is the whole code; making them press a
+                    // button as well would be ceremony.
+                    if digits.count == AuthStore.codeLength, digits != tried { submit(digits) }
+                }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { focused = true }
+    }
+
+    private func submit(_ digits: String) {
+        tried = digits
+        focused = false
+        Task {
+            if await auth.verifyCode(digits) {
+                code = ""
+                tried = ""
+                focused = true
+            }
+        }
     }
 
     private var eyebrow: String {

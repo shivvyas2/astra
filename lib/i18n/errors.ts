@@ -22,6 +22,11 @@ export function authErrorMessage(i: I18n, raw: string): string {
   if (raw === "emailExpired") return e.emailExpired;
   if (raw === "emailCodeLength") return e.emailCodeLength;
   if (raw === "linkExpired") return e.linkExpired;
+  if (raw === "emailDisposable") return e.emailDisposable;
+  if (raw === "codeGone") return e.codeGone;
+  if (raw === "sendBusy") return e.sendBusy;
+  if (raw === "sendFailed") return e.sendFailed;
+  if (raw === "verifyFailed") return e.verifyFailed;
   const m = raw.toLowerCase();
   if (m.includes("rate limit") || m.includes("too many")) return i.locale === "en" ? raw : e.rateLimit;
   if (m.includes("password should be")) return i.locale === "en" ? raw : e.weakPassword;
