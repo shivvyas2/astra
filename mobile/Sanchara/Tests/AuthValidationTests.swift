@@ -39,4 +39,10 @@ final class AuthValidationTests: XCTestCase {
         XCTAssertEqual(AppleSignIn.sha256(a), AppleSignIn.sha256(a))
         XCTAssertNotEqual(AppleSignIn.sha256(a), AppleSignIn.sha256(b))
     }
+
+    func testAMadeUpUserMeansTheAccountExists() {
+        XCTAssertTrue(AuthStore.isExistingAccount(identities: 0))
+        XCTAssertFalse(AuthStore.isExistingAccount(identities: 1))
+        XCTAssertFalse(AuthStore.isExistingAccount(identities: nil))
+    }
 }

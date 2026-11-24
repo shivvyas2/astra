@@ -18,6 +18,10 @@ export function authErrorMessage(i: I18n, raw: string): string {
   if (raw === "phoneExpired") return e.phoneExpired;
   if (raw === "codeLength") return e.codeLength;
   if (raw === "codeInvalid") return e.codeInvalid;
+  if (raw === "emailInvalid") return e.emailInvalid;
+  if (raw === "emailExpired") return e.emailExpired;
+  if (raw === "emailCodeLength") return e.emailCodeLength;
+  if (raw === "linkExpired") return e.linkExpired;
   const m = raw.toLowerCase();
   if (m.includes("rate limit") || m.includes("too many")) return i.locale === "en" ? raw : e.rateLimit;
   if (m.includes("password should be")) return i.locale === "en" ? raw : e.weakPassword;

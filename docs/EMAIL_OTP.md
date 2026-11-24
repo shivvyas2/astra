@@ -18,10 +18,9 @@ Add `{{ .Token }}` to two templates at
 
 ```html
 <h2>Your Astrya code</h2>
-<p>Enter this code in the app:</p>
+<p>Enter this code in Astrya:</p>
 <p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
 <p>It expires in an hour and can be used once.</p>
-<p>Prefer a link? <a href="{{ .ConfirmationURL }}">Open Astrya</a>.</p>
 ```
 
 ### Confirm signup — used after a sign-up with a password
@@ -30,11 +29,22 @@ Add `{{ .Token }}` to two templates at
 <h2>Confirm your email</h2>
 <p>Enter this code in Astrya to finish setting up your account:</p>
 <p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
-<p>Prefer a link? <a href="{{ .ConfirmationURL }}">Confirm your email</a>.</p>
+<p>It expires in an hour and can be used once.</p>
 ```
 
-Keeping the link in both is deliberate: anyone who taps it still lands in the
-app through the Universal Link, and the web app keeps working unchanged.
+Neither has a link. A link only works in the browser that asked for it, so one
+opened from a mail app often failed, and a mail scanner can use it up first.
+Links in emails sent before this still work, or say why they do not
+(`app/auth/callback`). The code must be six digits (Auth > Providers > Email >
+OTP length), which is what both code screens expect.
+
+## How the website uses it
+
+`sendEmailCode`, `verifyEmailCode` and `resendEmailCode` in
+`app/(auth)/actions.ts`, entered on `/verify-email`. The address waits in an
+httpOnly cookie (`lib/auth/pendingEmail.ts`). A sign-up for an address that
+already has an account is a wrong password, not a wait: Supabase sends nothing.
+An unconfirmed account gets a fresh code when it signs in.
 
 ## How the app uses it
 

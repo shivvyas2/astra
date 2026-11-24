@@ -3,9 +3,30 @@ import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isSupportedE164, toE164, type PhoneCountry } from "@/lib/auth/phone";
+import {
+  codeDigits,
+  decodePendingEmail,
+  emailCodeError,
+  encodePendingEmail,
+  isExistingAccount,
+  looksLikeEmail,
+  PENDING_EMAIL,
+  PENDING_EMAIL_MAX_AGE,
+  type PendingEmail,
+} from "@/lib/auth/pendingEmail";
+
+async function awaitEmailCode(pending: PendingEmail): Promise<void> {
+  (await cookies()).set(PENDING_EMAIL, encodePendingEmail(pending), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: PENDING_EMAIL_MAX_AGE,
+  });
+}
 
 // Smart auth: one form for both. Existing account with the right password logs
-// in; a new email creates an account (then confirm-email screen); an existing
+// in; a new email creates an account (then the code screen); an existing
 // email with a wrong password shows an incorrect-password error.
 export async function authenticate(formData: FormData) {
   const supabase = await createServerSupabase();
@@ -24,7 +45,10 @@ export async function authenticate(formData: FormData) {
 
   const signInMsg = (signIn.error?.message ?? "").toLowerCase();
   if (signInMsg.includes("not confirmed")) {
-    redirect(`/check-email?email=${encodeURIComponent(email)}`);
+    // Signed up before and never confirmed: their old code is long gone.
+    const { error } = await supabase.auth.resend({ type: "signup", email, options: { emailRedirectTo: `${origin}/auth/callback` } });
+    await awaitEmailCode({ email, purpose: "signUp" });
+    redirect(error ? `/verify-email?error=${emailCodeError(error.message)}` : "/verify-email");
   }
 
   // 2) Sign-in failed. Try to create the account.
@@ -43,30 +67,54 @@ export async function authenticate(formData: FormData) {
 
   // New account created.
   if (signUp.data.session) redirect("/app"); // confirmation disabled
-  redirect(`/check-email?email=${encodeURIComponent(email)}`); // needs email confirmation
+  // An account is already there, so this was a wrong password and no email is coming.
+  if (isExistingAccount(signUp.data.user)) return back("password");
+  await awaitEmailCode({ email, purpose: "signUp" });
+  redirect("/verify-email");
 }
 
-export async function sendMagicLink(formData: FormData) {
+// Email codes: the same shape as the texted ones below. `emailRedirectTo` is
+// kept so a link in an older email template still lands somewhere sensible.
+export async function sendEmailCode(formData: FormData) {
+  const email = String(formData.get("email") ?? "").trim();
+  const from = String(formData.get("from")) === "signup" ? "/signup" : "/login";
+  if (!looksLikeEmail(email)) redirect(`${from}?error=emailInvalid`);
   const supabase = await createServerSupabase();
-  const origin = (await headers()).get("origin")!;
-  const { error } = await supabase.auth.signInWithOtp({
-    email: String(formData.get("email")),
-    options: { emailRedirectTo: `${origin}/auth/callback` },
-  });
-  const q = error ? `error=${encodeURIComponent(error.message)}` : "sent=1";
-  redirect(`/login?${q}`);
-}
-
-export async function resendConfirmation(formData: FormData) {
-  const supabase = await createServerSupabase();
-  const email = String(formData.get("email"));
   const origin = (await headers()).get("origin") ?? "";
-  await supabase.auth.resend({
-    type: "signup",
-    email,
-    options: { emailRedirectTo: `${origin}/auth/callback` },
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback` } });
+  if (error) redirect(`${from}?error=${emailCodeError(error.message)}`);
+  await awaitEmailCode({ email, purpose: "signIn" });
+  redirect("/verify-email");
+}
+
+export async function verifyEmailCode(formData: FormData) {
+  const jar = await cookies();
+  const pending = decodePendingEmail(jar.get(PENDING_EMAIL)?.value);
+  if (!pending) redirect("/login?error=emailExpired");
+  const token = codeDigits(formData.get("code"));
+  if (token.length !== 6) redirect("/verify-email?error=emailCodeLength");
+
+  const supabase = await createServerSupabase();
+  const { error } = await supabase.auth.verifyOtp({
+    email: pending.email,
+    token,
+    type: pending.purpose === "signUp" ? "signup" : "email",
   });
-  redirect(`/check-email?email=${encodeURIComponent(email)}&resent=1`);
+  if (error) redirect(`/verify-email?error=${emailCodeError(error.message, "codeInvalid")}`);
+  jar.delete(PENDING_EMAIL);
+  redirect("/app");
+}
+
+export async function resendEmailCode() {
+  const pending = decodePendingEmail((await cookies()).get(PENDING_EMAIL)?.value);
+  if (!pending) redirect("/login?error=emailExpired");
+  const supabase = await createServerSupabase();
+  const options = { emailRedirectTo: `${(await headers()).get("origin") ?? ""}/auth/callback` };
+  const { error } =
+    pending.purpose === "signUp"
+      ? await supabase.auth.resend({ type: "signup", email: pending.email, options })
+      : await supabase.auth.signInWithOtp({ email: pending.email, options });
+  redirect(error ? `/verify-email?error=${emailCodeError(error.message)}` : "/verify-email?resent=1");
 }
 
 // Phone: one path for sign-in and sign-up. Supabase texts a six-digit code

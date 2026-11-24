@@ -11,19 +11,19 @@ export async function AuthForm({
   subtitle,
   primaryLabel,
   primaryAction,
-  magicAction,
+  codeAction,
   phoneAction,
   from,
   method = "email",
   footer,
   error,
-  notice,
 }: {
   title: string;
   subtitle?: string;
   primaryLabel: string;
   primaryAction: (fd: FormData) => void;
-  magicAction?: (fd: FormData) => void;
+  /** Emails a six-digit code in place of a password. */
+  codeAction?: (fd: FormData) => void;
   /** Sends a texted code; with it, an Email | Phone switch appears. */
   phoneAction?: (fd: FormData) => void;
   /** Which page this is, so the method switch and errors come back here. */
@@ -31,7 +31,6 @@ export async function AuthForm({
   method?: "email" | "phone";
   footer: React.ReactNode;
   error?: string;
-  notice?: string;
 }) {
   const { t } = await getI18n();
   // US visitors start on +1; everyone else on +91, where most readers are.
@@ -50,7 +49,6 @@ export async function AuthForm({
           <p className="mt-3 text-[15px] leading-relaxed text-muted">{phone ? t.auth.phoneSubtitle : subtitle}</p>
         )}
         {error && <Notice className="mt-5">{error}</Notice>}
-        {notice && <Notice tone="info" className="mt-5">{notice}</Notice>}
         {phoneAction && (
           // Plain links, so the switch works without JavaScript.
           <div className="mt-8 flex items-center gap-3" role="group" aria-label={t.auth.methodEmail + " / " + t.auth.methodPhone}>
@@ -104,6 +102,7 @@ export async function AuthForm({
           </form>
         ) : (
           <form className={`${phoneAction ? "mt-6" : "mt-8"} space-y-6`}>
+            <input type="hidden" name="from" value={from ?? "login"} />
             <label className="block">
               <span className="eyebrow block">{t.auth.email}</span>
               <input name="email" type="email" required placeholder={t.auth.emailPlaceholder} className="brut-field" />
@@ -113,9 +112,9 @@ export async function AuthForm({
               <input name="password" type="password" placeholder={t.auth.passwordPlaceholder} className="brut-field" />
             </label>
             <button formAction={primaryAction} className="brut-btn brut-btn-primary brut-btn-arrow mt-2 min-h-[54px] w-full">{primaryLabel}</button>
-            {magicAction && (
-              <button formAction={magicAction} className="brut-btn brut-btn-secondary min-h-[48px] w-full text-sm">
-                {t.auth.magicLink}
+            {codeAction && (
+              <button formAction={codeAction} className="brut-btn brut-btn-secondary min-h-[48px] w-full text-sm">
+                {t.auth.emailMeCode}
               </button>
             )}
           </form>

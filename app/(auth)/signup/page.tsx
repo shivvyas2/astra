@@ -1,7 +1,7 @@
 import { AuthForm } from "@/components/AuthForm";
 import { getI18n } from "@/lib/i18n/server";
 import { authErrorMessage } from "@/lib/i18n/errors";
-import { authenticate, sendMagicLink, sendPhoneCode } from "../actions";
+import { authenticate, sendEmailCode, sendPhoneCode } from "../actions";
 
 export default async function SignupPage({
   searchParams,
@@ -17,7 +17,7 @@ export default async function SignupPage({
       subtitle={t.auth.signupSubtitle}
       primaryLabel={t.auth.continue}
       primaryAction={authenticate}
-      magicAction={sendMagicLink}
+      codeAction={sendEmailCode}
       phoneAction={sendPhoneCode}
       from="signup"
       method={sp.method === "phone" ? "phone" : "email"}

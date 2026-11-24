@@ -4896,22 +4896,6 @@
         }
       }
     },
-    "Incorrect email or password. Try again, or use a magic link.": {
-      "localizations": {
-        "gu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ઈમેલ અથવા પાસવર્ડ ખોટો છે. ફરી પ્રયાસ કરો, અથવા ઈમેલ કોડથી સાઇન ઇન કરો."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ईमेल या पासवर्ड गलत है। फिर कोशिश करें, या ईमेल कोड से साइन इन करें।"
-          }
-        }
-      }
-    },
     "Increase contrast": {
       "localizations": {
         "gu": {
@@ -8978,22 +8962,6 @@
         }
       }
     },
-    "That link has expired. Request a new one.": {
-      "localizations": {
-        "gu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "આ લિંકની મુદત પૂરી થઈ ગઈ છે. નવી લિંક મંગાવો."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस लिंक की समय-सीमा खत्म हो गई है। नया लिंक मँगाएँ।"
-          }
-        }
-      }
-    },
     "That month": {
       "localizations": {
         "gu": {
@@ -12594,6 +12562,38 @@
           "stringUnit": {
             "state": "translated",
             "value": "फिर से बनाएं"
+          }
+        }
+      }
+    },
+    "Incorrect email or password. Try again, or get a code by email.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ઇમેઇલ કે પાસવર્ડ ખોટો છે. ફરી પ્રયત્ન કરો, અથવા ઇમેઇલ પર કોડ મેળવો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ईमेल या पासवर्ड गलत है। फिर कोशिश करें, या ईमेल पर कोड पाएं।"
+          }
+        }
+      }
+    },
+    "That link has expired. Enter your email and get a code instead.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "તે લિંક જૂની થઈ ગઈ છે. તમારો ઇમેઇલ લખો અને કોડ મેળવો."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "वह लिंक पुराना हो गया है। अपना ईमेल लिखें और कोड पाएं।"
           }
         }
       }

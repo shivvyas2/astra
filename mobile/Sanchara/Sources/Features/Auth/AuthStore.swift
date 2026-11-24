@@ -100,9 +100,12 @@ final class AuthStore {
         } catch {
             let message = error.localizedDescription.lowercased()
             if message.contains("not confirmed") {
+                // Signed up before and never confirmed: their old code is long
+                // gone, so a fresh one is sent before the code screen asks for it.
                 state = .awaitingCode(.email(email, .confirmSignUp))
+                await resendCode()
             } else if message.contains("invalid login") || message.contains("credentials") {
-                errorMessage = L10n.string("Incorrect email or password. Try again, or use a magic link.")
+                errorMessage = L10n.string("Incorrect email or password. Try again, or get a code by email.")
             } else {
                 errorMessage = error.localizedDescription
             }
@@ -127,6 +130,14 @@ final class AuthStore {
                 password: password,
                 redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
             )
+            // Supabase answers for an address that already has an account with
+            // a made-up user and sends nothing, so nobody can probe for
+            // accounts. Waiting for a code here would be waiting for ever.
+            if response.session == nil, Self.isExistingAccount(identities: response.user.identities?.count) {
+                errorMessage = L10n.string("You already have an account with this email. Sign in instead.")
+                shouldSwitchToSignIn = true
+                return
+            }
             Self.rememberSignedInBefore()
             if response.session != nil {
                 state = .signedIn // email confirmation is switched off
@@ -145,6 +156,9 @@ final class AuthStore {
             }
         }
     }
+
+    /// The made-up user has no identities; a new one has its email identity.
+    nonisolated static func isExistingAccount(identities: Int?) -> Bool { identities == 0 }
 
     // MARK: - Sign in with Apple
 
@@ -201,8 +215,7 @@ final class AuthStore {
         isWorking = true
         defer { isWorking = false }
         do {
-            // `redirectTo` keeps the link in the email working as a fallback for
-            // anyone who taps it instead of typing the code.
+            // `redirectTo` gives a link in an older email template somewhere to land.
             try await Supa.client.auth.signInWithOTP(
                 email: email,
                 redirectTo: AppConfig.apiBaseURL.appendingPathComponent("auth/callback")
@@ -326,14 +339,14 @@ final class AuthStore {
         state = .signedOut
     }
 
-    /// Handles the Universal Link opened from a confirmation or magic-link email.
+    /// Handles a link from an older email. Codes are what we send now.
     func handle(url: URL) async {
         do {
             try await Supa.client.auth.session(from: url)
             Self.rememberSignedInBefore()
             state = .signedIn
         } catch {
-            errorMessage = L10n.string("That link has expired. Request a new one.")
+            errorMessage = L10n.string("That link has expired. Enter your email and get a code instead.")
         }
     }
 
