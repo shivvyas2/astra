@@ -5,14 +5,29 @@ import SwiftUI
 /// computed on the server before the sheet closes.
 struct PersonFormView: View {
     let people: PeopleStore
+    /// What a confirm card already knows (`MatchCardView`).
+    var prefill: MatchCard?
     let onSaved: (Person) -> Void
+
+    init(
+        people: PeopleStore,
+        prefill: MatchCard? = nil,
+        relationship: Relationship = .partner,
+        onSaved: @escaping (Person) -> Void
+    ) {
+        self.people = people
+        self.prefill = prefill
+        self.onSaved = onSaved
+        _relationship = State(initialValue: relationship)
+    }
 
     @State private var form: IntakeStore = {
         let store = IntakeStore()
         store.requiresLastName = false
         return store
     }()
-    @State private var relationship: Relationship = .partner
+    @State private var relationship: Relationship
+    @State private var didPrefill = false
     @State private var isSaving = false
     @Environment(\.dismiss) private var dismiss
 
@@ -77,6 +92,11 @@ struct PersonFormView: View {
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
         }
         .presentationBackground(Theme.bg)
+        .onAppear {
+            guard let prefill, !didPrefill else { return }
+            didPrefill = true
+            form.prefill(from: prefill)
+        }
     }
 
     private func save() async {
@@ -88,6 +108,9 @@ struct PersonFormView: View {
             relationship: relationship,
             birth: form.birthInput(for: place)
         )
-        if let person = await people.add(draft) { onSaved(person) }
+        if let person = await people.add(draft) {
+            if prefill != nil { dismiss() }
+            onSaved(person)
+        }
     }
 }

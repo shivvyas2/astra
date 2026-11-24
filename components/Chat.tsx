@@ -7,14 +7,19 @@ import type { ChatMode } from "@/lib/astrology/types";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { splitReading } from "@/lib/astrology/reading";
 import { useI18n } from "@/lib/i18n/client";
+import dynamic from "next/dynamic";
+import { splitCard, type MatchCard as Card } from "@/lib/compat/matchCard";
 
-type Msg = { role: "user" | "assistant"; content: string };
+type Msg = { role: "user" | "assistant"; content: string; card?: Card | null };
 
 const MODES: { key: ChatMode; chip: string }[] = [
   { key: "vedic", chip: "var(--ember)" },
   { key: "western", chip: "var(--violet)" },
   { key: "numerology", chip: "var(--accent)" },
 ];
+
+// Loaded when a match is first raised: it brings the birth form with it.
+const MatchCard = dynamic(() => import("@/components/MatchCard").then((m) => m.MatchCard));
 
 // How close to the bottom (px) still counts as "following the stream".
 const NEAR_BOTTOM_PX = 80;
@@ -52,7 +57,7 @@ export function Chat({
   const countRef = useRef(messages.length);
   const started = useRef(false);
 
-  async function send(textArg?: string, silent = false) {
+  async function send(textArg?: string, silent = false, personId?: string) {
     const text = (textArg ?? input).trim();
     if (!text || busy) return;
     if (!silent) setInput("");
@@ -80,8 +85,10 @@ export function Chat({
           tradition,
           message: text,
           deep,
-          // Only the first turn carries it; the conversation keeps it after.
-          personId: convId.current ? undefined : matchWith?.id,
+          // The first turn of a match, or the one a confirm card sends; the
+          // conversation keeps the person after that.
+          personId: personId ?? (convId.current ? undefined : matchWith?.id),
+          cards: true,
         }),
       });
       convId.current = res.headers.get("x-conversation-id") ?? convId.current;
@@ -91,13 +98,15 @@ export function Chat({
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      let raw = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
+        raw += decoder.decode(value, { stream: true });
+        const { text: shown, card } = splitCard(raw);
         setMessages((m) => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: copy[copy.length - 1].content + chunk };
+          copy[copy.length - 1] = { role: "assistant", content: shown, card };
           return copy;
         });
       }
@@ -256,6 +265,15 @@ export function Chat({
                     <span aria-hidden className="w-0.5 shrink-0 rounded-full bg-accent" />
                     <div className="min-w-0 flex-1">
                     <AssistantTurn content={m.content} streaming={streaming} />
+                    {/* Only the newest reply's card can still be answered. */}
+                    {m.card && !busy && i === messages.length - 1 && (
+                      <MatchCard
+                        card={m.card}
+                        busy={busy}
+                        onMatched={(personId, question) => void send(question, false, personId)}
+                        onDismiss={() => setMessages((all) => all.map((x, j) => (j === i ? { ...x, card: null } : x)))}
+                      />
+                    )}
                     </div>
                   </div>
                 );

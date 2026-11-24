@@ -320,6 +320,31 @@ export const en = {
     // Sent as the first message of a new account's first reading; it shows
     // when that reading is reopened, so it is in the reader's language.
     welcome: "Welcome me with a short reading for today based on my chart. Two or three short sections.",
+    // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
+    match: {
+      intro: "Is this right?",
+      reply: "Reply \"yes\" and I will match your charts, or tell me what to change.",
+      tapCard: "Check the details below, then I will match your charts.",
+      fill: "Whose chart should I match with yours? Add their birth details below.",
+      askPerson: "Tell me their name, birth date, birth time and birthplace, and I will match your charts.",
+      ask: "To match your charts I still need {missing}.",
+      missingName: "their name",
+      missingDate: "their birth date with the year",
+      missingTime: "their birth time (or say you don't know it)",
+      missingPlace: "their birthplace",
+      placeUnknown: "I could not find {place}. Tell me the nearest larger town, with its state or country.",
+      placeOther: "If that is not the right place, tell me the state or country.",
+      whichDate: "Is the birth date {first} or {second}?",
+      cardLabel: "Match details",
+      born: "Born",
+      place: "Place",
+      choose: "Choose one",
+      confirm: "Match our charts",
+      edit: "Edit",
+      notNow: "Not now",
+      saving: "Matching…",
+      saveError: "Could not save those details. Check them and try again.",
+    },
   },
 
   intake: {

@@ -73,6 +73,8 @@ struct ChatMessage: Identifiable {
     let role: Role
     var content: String
     var source: Source = .server
+    /// Someone's details to confirm, under this reply. Never stored.
+    var card: MatchCard?
 }
 
 /// A past reading, read straight from Supabase under the owner-only RLS policy.

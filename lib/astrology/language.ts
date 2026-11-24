@@ -62,6 +62,23 @@ export function languageRule(language: ReadingLanguage, opts: { structured?: boo
   }
 }
 
+/**
+ * Ask's language rule: the setting, plus following what they actually type.
+ * Someone who set nothing and writes Hinglish gets Hinglish back. Someone who
+ * chose Hindi or Gujarati keeps it when they type in English, since an English
+ * keyboard is not a request for English.
+ */
+export function chatLanguageRule(language: ReadingLanguage): string {
+  const chosen = language === "hindi" || language === "gujarati";
+  return (
+    languageRule(language) +
+    `\n\nLANGUAGE OF THEIR MESSAGE
+English, Hindi, Gujarati, and Hindi or Gujarati typed in English letters (Hinglish, Gujlish) are all welcome; never ask them to switch. Write the whole answer in the language and script of their newest message${
+      chosen ? ", except that a message in plain English is answered in the language set above" : ""
+    }. When that message is too short to tell (a name, a date, "ok"), keep the language you were already using. Section titles: **${SIMPLE_TITLE.english}** and **${BASIS_TITLE.english}** for anything in English letters, **${SIMPLE_TITLE.hindi}** and **${BASIS_TITLE.hindi}** for Hindi, **${SIMPLE_TITLE.gujarati}** and **${BASIS_TITLE.gujarati}** for Gujarati.`
+  );
+}
+
 type LanguageDb = { from(table: string): any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /**

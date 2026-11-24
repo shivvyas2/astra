@@ -194,6 +194,8 @@ enum SancharaAPI {
         /// next turn so the server keeps appending to the same conversation.
         case conversationId(String)
         case text(String)
+        /// Someone's birth details to confirm, after the text.
+        case card(MatchCard)
     }
 
     /// Streams a reading from `POST /api/chat`.
@@ -229,7 +231,8 @@ enum SancharaAPI {
                             message: message,
                             deep: deep,
                             memory: memory,
-                            personId: personId
+                            personId: personId,
+                            cards: true
                         )
                     )
                     // Readings can think for a while before the first byte.
@@ -250,14 +253,16 @@ enum SancharaAPI {
                     }
 
                     var decoder = IncrementalUTF8()
+                    var splitter = CardSplitter()
                     for try await chunk in chunks {
-                        if let text = decoder.decode(chunk), !text.isEmpty {
+                        if let decoded = decoder.decode(chunk), let text = splitter.text(from: decoded), !text.isEmpty {
                             continuation.yield(.text(text))
                         }
                     }
-                    if let tail = decoder.flush(), !tail.isEmpty {
+                    if let decoded = decoder.flush(), let tail = splitter.text(from: decoded), !tail.isEmpty {
                         continuation.yield(.text(tail))
                     }
+                    if let card = splitter.card() { continuation.yield(.card(card)) }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -274,8 +279,10 @@ enum SancharaAPI {
         let deep: Bool
         /// Omitted from the JSON when nil.
         let memory: String?
-        /// A new match reading's saved person. Omitted when nil.
+        /// The saved person this becomes a match reading about. Omitted when nil.
         let personId: String?
+        /// This app draws the confirm card (`MatchCardView`).
+        let cards: Bool
     }
 
     static func check(_ response: URLResponse, _ data: Data) throws {

@@ -12469,6 +12469,86 @@
     },
     "—": {
       "shouldTranslate": false
+    },
+    "Match our charts": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કુંડળી મેળવો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कुंडली मिलाएं"
+          }
+        }
+      }
+    },
+    "Edit details": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "વિગતો બદલો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विवरण बदलें"
+          }
+        }
+      }
+    },
+    "Match details": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "મેળાપની વિગતો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मिलान का विवरण"
+          }
+        }
+      }
+    },
+    "Add their birth details": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "તેમની જન્મ વિગતો ઉમેરો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "उनका जन्म विवरण जोड़ें"
+          }
+        }
+      }
+    },
+    "Time unknown": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "સમય અજ્ઞાત"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "समय अज्ञात"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

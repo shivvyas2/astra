@@ -177,6 +177,16 @@ final class IntakeStore {
         existingAvatarURL = details.avatarUrl.flatMap(URL.init(string:))
     }
 
+    /// Fills in what a confirm card knows about someone; the rest is theirs to
+    /// add. A place or date that could be read two ways is left to them.
+    func prefill(from card: MatchCard) {
+        firstName = card.name
+        if let raw = card.birthDate, let date = Self.dateFormatter.date(from: raw) { birthDate = date }
+        if let raw = card.birthTime, let time = Self.timeFormatter.date(from: raw) { birthTime = time }
+        birthTimeKnown = card.timeKnown
+        place = card.placeAmbiguous ? nil : card.places.first
+    }
+
     private func loadPickedPhoto() async {
         guard let photoItem else { return }
         isLoadingPhoto = true

@@ -29,11 +29,15 @@ import {
 } from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
 import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
-import { getOrCreateConversation, getConversationPerson, appendMessage, getMessages } from "@/lib/data/chat";
-import { getPerson } from "@/lib/profiles/store";
+import { getOrCreateConversation, getConversationPerson, setConversationPerson, appendMessage, getMessages } from "@/lib/data/chat";
+import { createPerson, getPerson, listPeople, parsePersonInput } from "@/lib/profiles/store";
+import type { PersonRow } from "@/lib/profiles/types";
+import { CARD_SEPARATOR, parseDetailsLine, plain, readProposal, reply as matchReply, resolvePlaces, type Reply } from "@/lib/compat/chatMatch";
+import { describeSavedPeople, MATCH_TOOLS } from "@/lib/compat/chatTools";
+import { geocodePlace } from "@/lib/geo";
 import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
 import { describeMatchForPrompt } from "@/lib/compat/prompt";
-import { isReadingLanguage, languageRule, loadReadingLanguage } from "@/lib/astrology/language";
+import { chatLanguageRule, isReadingLanguage, loadReadingLanguage, type ReadingLanguage } from "@/lib/astrology/language";
 import { localeForLanguage } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/dictionaries";
 import { selectHistory, HISTORY_BUDGET_CHARS } from "@/lib/data/history";
@@ -45,6 +49,7 @@ import { loadFacts } from "@/lib/facts/store";
 import { loadMemories, loadPredictions } from "@/lib/memory/store";
 import { selectMemory } from "@/lib/memory/select";
 import { rememberTurn } from "@/lib/memory/extract";
+import { addUsage } from "@/lib/usage/add";
 import { recordUsage, type UsageLike } from "@/lib/usage/record";
 import { answerKey, claimAnswer, reuseAnswer } from "@/lib/usage/dedupe";
 import { guardUsage, limitResponse } from "@/lib/usage/limits";
@@ -60,6 +65,9 @@ export const runtime = "nodejs";
  */
 const WORDS_STANDARD = 190;
 const WORDS_DEEP = 360;
+
+/** Model calls one message may make: one to raise a match, one to recover from a tool error, one to answer. */
+const MATCH_ROUNDS = 3;
 
 /**
  * How far ahead the sky is sampled for the UPCOMING block, in days. Four
@@ -91,15 +99,19 @@ export async function POST(request: Request) {
      */
     memory?: string;
     /**
-     * Starts a match reading about the user and this saved person. Only read
-     * for a new conversation; an existing one keeps the person it began with.
+     * Makes this a match reading about the user and this saved person: a new
+     * conversation starts with them, an existing one takes them on (the
+     * confirm card). Without it a conversation keeps the person it has.
      */
     personId?: string;
+    /** This client draws the confirm card (lib/compat/matchCard.ts). */
+    cards?: boolean;
     /** Overrides the stored reading language for this turn. */
     language?: string;
   };
   if (!body.message?.trim()) return new Response("Empty message", { status: 400 });
-  const newPersonId = !body.conversationId && UUID.test(body.personId ?? "") ? body.personId! : null;
+  const askedPersonId = UUID.test(body.personId ?? "") ? body.personId! : null;
+  const newPersonId = body.conversationId ? null : askedPersonId;
   if (!["vedic", "western", "numerology"].includes(body.tradition)) {
     return new Response("Invalid mode", { status: 400 });
   }
@@ -112,7 +124,7 @@ export async function POST(request: Request) {
     tradition: body.tradition,
     deep: body.deep,
     message: body.message,
-    personId: newPersonId,
+    personId: askedPersonId,
   });
   const reused = await reuseAnswer(dedupeKey);
   if (reused) {
@@ -153,6 +165,11 @@ export async function POST(request: Request) {
   // the reply their new message is answering.
   let localDate = "";
   let previousReply: string | null = null;
+  // Bringing a second chart into the conversation (lib/compat/chatTools.ts).
+  // Null in numerology, which has no charts to match.
+  let matchWith: ((person: PersonRow) => string | null) | null = null;
+  let attachPersonId: string | null = null;
+  let replyLanguage: ReadingLanguage = "english";
 
   try {
     const { data: loaded, error: profileError } = await supabase
@@ -280,27 +297,34 @@ export async function POST(request: Request) {
       // A match reading: the other person's chart and the scores from the
       // two, after the user's own. A person deleted since, or a database
       // without migration 0015, leaves an ordinary reading.
-      const personId = body.conversationId
-        ? await getConversationPerson(body.conversationId, supabase)
-        : newPersonId;
+      const you = profile;
+      matchWith = (person) => {
+        if (!person.chart) return null;
+        const theirs = person.chart as unknown as ChartPair;
+        const name = person.label || person.first_name;
+        const compat = computeCompatibility({
+          you: { name: you.first_name, chart: you.chart as unknown as ChartPair },
+          them: { name, relationship: person.relationship, chart: theirs },
+          groom: "you",
+        });
+        const theirChart = tradition === "western" && theirs.western ? theirs.western : theirs.vedic;
+        return describeMatchForPrompt({
+          you: you.first_name,
+          them: { name, relationship: person.relationship, chart: theirChart },
+          tradition,
+          compat,
+        });
+      };
+      const personId = askedPersonId ?? (body.conversationId ? await getConversationPerson(body.conversationId, supabase) : null);
+      let personInPrompt: string | null = null;
       if (personId) {
         try {
           const { person } = await getPerson(supabase, personId);
-          if (person?.chart) {
-            const theirs = person.chart as unknown as ChartPair;
-            const name = person.label || person.first_name;
-            const compat = computeCompatibility({
-              you: { name: profile.first_name, chart: profile.chart as unknown as ChartPair },
-              them: { name, relationship: person.relationship, chart: theirs },
-              groom: "you",
-            });
-            const theirChart = tradition === "western" && theirs.western ? theirs.western : theirs.vedic;
-            stableSystem += describeMatchForPrompt({
-              you: profile.first_name,
-              them: { name, relationship: person.relationship, chart: theirChart },
-              tradition,
-              compat,
-            });
+          const block = person ? matchWith(person) : null;
+          if (block) {
+            stableSystem += block;
+            personInPrompt = personId;
+            if (body.conversationId && askedPersonId) attachPersonId = personId;
           }
         } catch (err) {
           console.error("chat match context skipped", err);
@@ -316,12 +340,16 @@ export async function POST(request: Request) {
       const upcoming = [upcomingTransits, upcomingPeriods].filter(Boolean).join("\n");
 
       todaySystem = buildTodaySystem({ today, age, transits, upcoming, maxWords });
+      // Saved people change, so they sit with the day, after the cached chart.
+      const { people } = await listPeople(supabase);
+      todaySystem += describeSavedPeople(people, personInPrompt);
     }
 
     // Last in the volatile block: changing language never invalidates the
     // cached chart above it.
     const language = isReadingLanguage(body.language) ? body.language : await loadReadingLanguage(supabase);
-    todaySystem += languageRule(language);
+    replyLanguage = language;
+    todaySystem += chatLanguageRule(language);
     streamError = messagesFor(localeForLanguage(language)).chat.streamError;
 
     const [{ facts }, { memories }, { predictions }] = await memoryLoad;
@@ -346,6 +374,8 @@ export async function POST(request: Request) {
       },
       supabase,
     );
+
+    if (attachPersonId) await setConversationPerson({ userId: user.id, conversationId, personId: attachPersonId }, supabase);
 
     // Build history from persisted messages, then append the new user turn.
     // The budget bounds what a long conversation costs to resend each turn.
@@ -410,33 +440,81 @@ export async function POST(request: Request) {
       let full = "";
       let finished = false;
       try {
-        const s = anthropic().messages.stream({
-          model,
-          // A ceiling, not a target — the length rule in the prompt is what
-          // actually governs how much is generated, and output is the
-          // expensive half of a reading.
-          max_tokens: body.deep ? 3000 : 1600,
-          // Only the deep (Opus) model supports adaptive thinking; Haiku rejects it.
-          // The installed SDK's types predate "adaptive", so cast through unknown to
-          // keep the runtime value exact while satisfying the older union at compile time.
-          ...(supportsAdaptiveThinking(model)
-            ? { thinking: { type: "adaptive" } as unknown as Anthropic.ThinkingConfigParam }
-            : {}),
-          // Routine readings think at medium; Deep at high.
-          ...(body.deep ? DEEP_EFFORT : READING_EFFORT),
-          // Chart (cached for an hour), then what Astrya remembers, then the
-          // day. See systemBlocks in lib/astrology/prompt.ts.
-          system: systemBlocks({ stable: stableSystem, memory: memorySystem, today: todaySystem }),
-          messages,
-        });
-        for await (const event of s) {
-          if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-            full += event.delta.text;
-            controller.enqueue(encoder.encode(event.delta.text));
+        // Usually one call. A match adds a second, with the other chart in a
+        // tool result; the last round may not call a tool, so it must answer.
+        const turns = [...messages];
+        for (let round = 1; round <= MATCH_ROUNDS; round++) {
+          const s = anthropic().messages.stream({
+            model,
+            // A ceiling, not a target — the length rule in the prompt is what
+            // actually governs how much is generated, and output is the
+            // expensive half of a reading.
+            max_tokens: body.deep ? 3000 : 1600,
+            // Only the deep (Opus) model supports adaptive thinking; Haiku rejects it.
+            // The installed SDK's types predate "adaptive", so cast through unknown to
+            // keep the runtime value exact while satisfying the older union at compile time.
+            ...(supportsAdaptiveThinking(model)
+              ? { thinking: { type: "adaptive" } as unknown as Anthropic.ThinkingConfigParam }
+              : {}),
+            // Routine readings think at medium; Deep at high.
+            ...(body.deep ? DEEP_EFFORT : READING_EFFORT),
+            ...(matchWith
+              ? {
+                  tools: MATCH_TOOLS,
+                  tool_choice:
+                    round < MATCH_ROUNDS
+                      ? { type: "auto" as const, disable_parallel_tool_use: true }
+                      : { type: "none" as const },
+                }
+              : {}),
+            // Chart (cached for an hour), then what Astrya remembers, then the
+            // day. See systemBlocks in lib/astrology/prompt.ts.
+            system: systemBlocks({ stable: stableSystem, memory: memorySystem, today: todaySystem }),
+            messages: turns,
+          });
+          for await (const event of s) {
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+              full += event.delta.text;
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
           }
+          const final = await s.finalMessage();
+          readingUsage = addUsage(readingUsage, final.usage);
+          const call =
+            final.stop_reason === "tool_use"
+              ? final.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use")
+              : undefined;
+          if (!call || !matchWith) break;
+
+          const outcome = await runMatchTool(call, {
+            userId: user.id,
+            conversationId,
+            previousReply,
+            cards: body.cards === true,
+            language: replyLanguage,
+            describe: matchWith,
+            db: supabase,
+          });
+          if (outcome.kind === "reply") {
+            const text = `${full.trim() ? "\n\n" : ""}${outcome.reply.text}`;
+            full += text;
+            controller.enqueue(encoder.encode(text));
+            if (outcome.reply.card) {
+              controller.enqueue(encoder.encode(CARD_SEPARATOR + JSON.stringify(outcome.reply.card)));
+            }
+            break;
+          }
+          turns.push(
+            { role: "assistant", content: final.content },
+            {
+              role: "user",
+              content: [
+                { type: "tool_result", tool_use_id: call.id, content: outcome.content, ...(outcome.error ? { is_error: true } : {}) },
+              ],
+            },
+          );
         }
-        const usage = (await s.finalMessage()).usage;
-        readingUsage = usage;
+        const usage: UsageLike = readingUsage ?? {};
         finished = true;
         console.log(
           `chat usage conv=${conversationId} model=${model} in=${usage.input_tokens} ` +
@@ -503,4 +581,97 @@ export async function POST(request: Request) {
       "cache-control": "no-store",
     },
   });
+}
+
+type MatchOutcome =
+  /** The reply is complete: a read-back or a question, written by code. */
+  | { kind: "reply"; reply: Reply }
+  /** Hand this back to the model and let it answer. */
+  | { kind: "result"; content: string; error?: boolean };
+
+/** Runs one of MATCH_TOOLS. Never throws: a failure is told to the model. */
+async function runMatchTool(
+  call: Anthropic.ToolUseBlock,
+  ctx: {
+    userId: string;
+    conversationId: string;
+    previousReply: string | null;
+    cards: boolean;
+    language: ReadingLanguage;
+    describe: (person: PersonRow) => string | null;
+    db: Awaited<ReturnType<typeof createRouteSupabase>>;
+  },
+): Promise<MatchOutcome> {
+  const fail = (content: string): MatchOutcome => ({ kind: "result", content, error: true });
+  const find = (place: string) => resolvePlaces(place, geocodePlace);
+  const adopt = async (person: PersonRow): Promise<MatchOutcome> => {
+    const block = ctx.describe(person);
+    if (!block) return fail("Their chart could not be read. Say so plainly and ask them to check the details under People.");
+    await setConversationPerson({ userId: ctx.userId, conversationId: ctx.conversationId, personId: person.id }, ctx.db);
+    return { kind: "result", content: `${block}\n\nAnswer their question now, from both charts.` };
+  };
+
+  try {
+    if (call.name === "propose_match") {
+      const proposal = readProposal(call.input);
+      if (!proposal) return fail("Those details did not arrive in the right shape. Call propose_match again.");
+      const locale = localeForLanguage(ctx.language);
+      return { kind: "reply", reply: await matchReply(proposal, { cards: ctx.cards, locale, find }) };
+    }
+
+    if (call.name === "confirm_match") {
+      const details = parseDetailsLine(ctx.previousReply);
+      if (!details) return fail("Your last message did not read back any details, so there is nothing to confirm. Call propose_match with what they have told you.");
+      const place = (await find(details.place)).places[0];
+      if (!place || plain(place.name, 160) !== details.place) {
+        return fail("The birthplace could not be looked up again. Call propose_match with the same details.");
+      }
+      const parsed = parsePersonInput({
+        label: details.name,
+        relationship: details.relationship,
+        first_name: details.name,
+        birth_date: details.birthDate,
+        birth_time: details.birthTime ?? "",
+        birth_time_known: details.timeKnown,
+        place_name: place.name,
+        lat: place.lat,
+        lng: place.lng,
+        timezone: place.timezone,
+      });
+      if (!parsed.ok) return fail("Those details could not be saved. Call propose_match again.");
+      // A second "yes", or a retry, finds the person the first one saved.
+      const { people } = await listPeople(ctx.db);
+      const same = people.find(
+        (p) =>
+          p.first_name === parsed.value.firstName &&
+          String(p.birth_date) === parsed.value.birthDate &&
+          String(p.birth_time).slice(0, 5) === parsed.value.birthTime &&
+          p.place_name === parsed.value.placeName,
+      );
+      if (same) {
+        const { person } = await getPerson(ctx.db, same.id);
+        if (person) return await adopt(person);
+      }
+      const saved = await createPerson(ctx.db, ctx.userId, parsed.value);
+      if (!saved.ok) {
+        return fail(
+          saved.reason === "ceiling"
+            ? "They have saved as many people as one account can hold. Tell them to remove someone under People first."
+            : "The details could not be saved just now. Say so and ask them to try again in a moment.",
+        );
+      }
+      return await adopt(saved.person);
+    }
+
+    if (call.name === "use_saved_person") {
+      const id = String((call.input as { person_id?: unknown } | null)?.person_id ?? "");
+      const { person } = UUID.test(id) ? await getPerson(ctx.db, id) : { person: null };
+      if (!person) return fail("No saved person has that id. Use an id from OTHER PEOPLE, or call propose_match.");
+      return await adopt(person);
+    }
+    return fail("There is no such tool.");
+  } catch (err) {
+    console.error("chat match tool failed", call.name, err);
+    return fail("That did not work just now. Say so plainly and answer what you can from their own chart.");
+  }
 }

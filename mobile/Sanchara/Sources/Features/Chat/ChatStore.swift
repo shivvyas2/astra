@@ -126,6 +126,19 @@ final class ChatStore {
         send(question, forceServer: true)
     }
 
+    /// A confirmed card: the saved person joins this reading, and the match
+    /// question is asked at once. Follow-ups keep both charts.
+    func confirmMatch(with person: Person, question: String) {
+        guard !isStreaming else { return }
+        match = MatchContext(personId: person.id, name: person.label)
+        send(question, forceServer: true, personId: person.id)
+    }
+
+    func dismissCard(on messageId: UUID) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        messages[index].card = nil
+    }
+
     /// Sends the last locally-answered question to Claude after all, keeping the
     /// question visible and replacing only the answer.
     ///
@@ -175,8 +188,11 @@ final class ChatStore {
 
     /// `silent` hides the prompt itself — used for the opening reading, where
     /// the question is scaffolding the user never asked.
-    func send(_ text: String, silent: Bool = false, forceServer: Bool = false) {
+    func send(_ text: String, silent: Bool = false, forceServer: Bool = false, personId: String? = nil) {
         guard !isStreaming else { return }
+        // A yes, or a correction, to details just read back is the server's to answer.
+        let answersReadBack = messages.last.map { $0.role == .assistant && ($0.card != nil || MatchCard.isReadBack($0.content)) } ?? false
+        let forceServer = forceServer || answersReadBack
         errorMessage = nil
         isStreaming = true
         let wasNewConversation = conversationId == nil
@@ -226,7 +242,7 @@ final class ChatStore {
                     message: text,
                     deep: deep,
                     memory: rememberOnDevice ? "on-device" : nil,
-                    personId: wasNewConversation ? match?.personId : nil
+                    personId: personId ?? (wasNewConversation ? match?.personId : nil)
                 )
                 for try await event in stream {
                     guard thisGeneration == generation else { return }
@@ -235,6 +251,10 @@ final class ChatStore {
                         conversationId = id
                     case .text(let chunk):
                         enqueue(chunk)
+                    case .card(let card):
+                        if let last = messages.indices.last, messages[last].role == .assistant {
+                            messages[last].card = card
+                        }
                     }
                 }
             } catch is CancellationError {

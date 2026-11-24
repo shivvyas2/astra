@@ -397,6 +397,14 @@ struct ChatView: View {
                     if message.source == .onDevice {
                         onDeviceFooter(isLast: isLast)
                     }
+                    // Only the newest reply's card can still be answered.
+                    if let card = message.card, isLast, !chat.isStreaming {
+                        MatchCardView(
+                            card: card,
+                            onMatched: { person, question in chat.confirmMatch(with: person, question: question) },
+                            onDismiss: { chat.dismissCard(on: message.id) }
+                        )
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

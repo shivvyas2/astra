@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BASIS_TITLE, SIMPLE_TITLE, isReadingLanguage, languageRule } from "./language";
+import { chatLanguageRule, BASIS_TITLE, SIMPLE_TITLE, isReadingLanguage, languageRule } from "./language";
 import { splitReading } from "./reading";
 
 describe("languageRule", () => {
@@ -28,6 +28,15 @@ describe("languageRule", () => {
 
   it("never uses an em dash", () => {
     for (const l of ["hindi", "gujarati", "sanskrit"] as const) expect(languageRule(l)).not.toContain("—");
+  });
+});
+
+describe("chatLanguageRule", () => {
+  it("follows what they type, and keeps a chosen language for English typing", () => {
+    expect(chatLanguageRule("english")).toContain("Hinglish");
+    expect(chatLanguageRule("english")).not.toContain("plain English is answered");
+    expect(chatLanguageRule("gujarati")).toContain("plain English is answered in the language set above");
+    expect(chatLanguageRule("gujarati")).toContain(languageRule("gujarati"));
   });
 });
 

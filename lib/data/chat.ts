@@ -59,6 +59,20 @@ export async function getConversationPerson(conversationId: string, db?: Db): Pr
   return ((data as { person_id?: string | null } | null)?.person_id) ?? null;
 }
 
+/** Makes a conversation about a saved person from here on. Losing it costs the follow-ups their second chart, not the reading. */
+export async function setConversationPerson(
+  args: { userId: string; conversationId: string; personId: string },
+  db?: Db,
+): Promise<void> {
+  const supabase = db ?? (await createServerSupabase());
+  const { error } = await supabase
+    .from("conversations")
+    .update({ person_id: args.personId })
+    .eq("id", args.conversationId)
+    .eq("user_id", args.userId);
+  if (error && !isMissingPersonColumn(error)) console.error("conversation person write error", error);
+}
+
 /** Postgres's undefined column, or PostgREST's schema-cache miss: 0015 not applied. */
 function isMissingPersonColumn(error: { code?: string; message?: string }): boolean {
   return error.code === "42703" || error.code === "PGRST204" || /person_id/.test(error.message ?? "");
