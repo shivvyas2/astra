@@ -84,6 +84,10 @@ struct MainTabView: View {
     /// the keys instead of on top of the tabs.
     @State private var keyboardUp = false
 
+    /// A sheet over the pages: the tour, the notification ask, or You. Nothing
+    /// that plays once should play underneath one.
+    private var isCovered: Bool { showTour || showYou || notificationPrompt != nil }
+
     private var unreadCount: Int { daily.unreadCount + alerts.unreadCount }
     private var usesSidebar: Bool { sizeClass == .regular }
     /// Room the bottom bar takes from the pages: none beside a sidebar, and
@@ -116,6 +120,7 @@ struct MainTabView: View {
                         .opacity(selected ? 1 : 0)
                         .allowsHitTesting(selected)
                         .accessibilityHidden(!selected)
+                        .environment(\.pageIsShowing, selected && !isCovered)
                         .zIndex(selected ? 1 : 0)
                 }
             }

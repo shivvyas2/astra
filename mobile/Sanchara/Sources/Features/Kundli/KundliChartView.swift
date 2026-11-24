@@ -110,6 +110,9 @@ struct KundliChartView: View {
     @Binding var selected: KundliHouse?
     /// Glyphs for English, two-letter Sanskrit forms otherwise.
     var script: NameScript = .english
+    /// How much of the drawing shows: 0 while the reveal inks it in, 1 at rest.
+    /// The houses stay tappable and readable by VoiceOver throughout.
+    var rest: Double = 1
 
     /// Glyphs stay legible when Dynamic Type grows, but the diagram has fixed
     /// geometry, so the scaling is capped. The full table underneath the chart
@@ -126,11 +129,11 @@ struct KundliChartView: View {
             ZStack {
                 ForEach(chart.houses) { house in
                     HouseRegion(house: house.number)
-                        .fill(fill(for: house))
+                        .fill(fill(for: house).opacity(rest))
                         .overlay {
                             if house.isLagna || selected?.number == house.number {
                                 HouseRegion(house: house.number)
-                                    .stroke(stroke(for: house), lineWidth: selected?.number == house.number ? 1.5 : 1)
+                                    .stroke(stroke(for: house).opacity(rest), lineWidth: selected?.number == house.number ? 1.5 : 1)
                             }
                         }
                         .contentShape(HouseRegion(house: house.number))
@@ -143,11 +146,13 @@ struct KundliChartView: View {
 
                 KundliFrame()
                     .stroke(Theme.chartLine, lineWidth: Theme.lineWidth)
+                    .opacity(rest)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
 
                 ForEach(chart.houses) { house in
                     contents(house, side: side)
+                        .opacity(rest)
                         .position(
                             x: KundliGeometry.labelAnchor(house: house.number).x * side,
                             y: KundliGeometry.labelAnchor(house: house.number).y * side

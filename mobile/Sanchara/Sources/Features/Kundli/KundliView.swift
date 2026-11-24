@@ -36,6 +36,7 @@ struct KundliView: View {
         NavigationStack {
             ZStack {
                 Atmosphere(mood: .dusk)
+                ScrollViewReader { proxy in
                 ScrollView {
                     if wide {
                         // iPad: the chart and its reading side by side, so
@@ -62,6 +63,8 @@ struct KundliView: View {
                         .padding(.vertical, 24)
                         .readableColumn(480)
                     }
+                }
+                .task(id: pageIsShowing) { await bringInTheReveal(proxy) }
                 }
             }
             .clearsTabBar(active: embedded)
@@ -96,6 +99,21 @@ struct KundliView: View {
         }
         .sheet(item: $share) { payload in
             ShareSheet(items: [payload.url])
+        }
+    }
+
+    private static let chartAnchor = "rashi-chart"
+    @Environment(\.pageIsShowing) private var pageIsShowing
+
+    /// The first time a chart is seen it draws itself, and on a phone it
+    /// starts below the fold: bring it up, once. Never after that.
+    private func bringInTheReveal(_ proxy: ScrollViewProxy) async {
+        let key = KundliReveal.key(for: drawnChart)
+        guard pageIsShowing, !wide, MotionGate.shouldPlay(key, .onceEver) else { return }
+        try? await Task.sleep(for: .seconds(0.9))
+        guard !Task.isCancelled, MotionGate.shouldPlay(key, .onceEver) else { return }
+        withAnimation(Theme.motion(.easeInOut(duration: 0.8))) {
+            proxy.scrollTo(Self.chartAnchor, anchor: .center)
         }
     }
 
@@ -348,9 +366,10 @@ struct KundliView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(chart.isTimeKnown ? "Rashi chart" : "Chandra chart · houses from the Moon").eyebrow()
 
-            KundliChartView(chart: drawnChart, selected: $selectedHouse, script: script)
+            KundliChartMoment(chart: drawnChart, selected: $selectedHouse, script: script)
                 .padding(14)
                 .brutCard()
+                .id(Self.chartAnchor)
 
             // `charting-data.md › Designing effective charts`: "If you need to
             // create a chart that presents data in a novel way, help people

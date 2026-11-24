@@ -12581,6 +12581,22 @@
           }
         }
       }
+    },
+    "Draw it again": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ફરી દોરો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फिर से बनाएं"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

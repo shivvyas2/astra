@@ -366,12 +366,12 @@ private struct NowCard: View {
             StatRow(
                 label: L10n.string("Progress"),
                 systemImage: "chart.line.uptrend.xyaxis",
-                value: "\(percent)",
+                value: "\(counted ?? percent)",
                 unit: "%",
                 showsRule: false
             )
 
-            BrutProgressBar(progress: band.progress(today: today))
+            InkedProgressBar(progress: band.progress(today: today), key: "life.now.\(band.id)", onPlay: countUp)
                 .accessibilityHidden(true)
                 .padding(.bottom, 4)
 
@@ -413,6 +413,24 @@ private struct NowCard: View {
 
     private var percent: Int { Int(band.progress(today: today) * 100) }
 
+    /// Counts the figure up beside the bar. Never while VoiceOver is reading:
+    /// it should only ever hear the real one.
+    @State private var counted: Int?
+    private func countUp() {
+        guard !UIAccessibility.isVoiceOverRunning, percent > 0 else { return }
+        counted = 0
+        Task {
+            let began = Date.now
+            while let shown = counted, shown < percent {
+                try? await Task.sleep(for: .milliseconds(33))
+                let t = Ink.phase(Date.now.timeIntervalSince(began), LifeInk.barFrom, LifeInk.barTo)
+                counted = Int((Double(percent) * Ink.easeInOut(t)).rounded(.down))
+                if t >= 1 { break }
+            }
+            counted = nil
+        }
+    }
+
     /// Years until the main period ends, to one decimal: "6.4".
     private var yearsLeft: String {
         guard let end = TimelineDate.parse(band.end), let now = TimelineDate.parse(today) else {
@@ -449,6 +467,10 @@ private struct BandRow: View {
     let isExpanded: Bool
     let onToggle: () -> Void
     let onDelete: (LifeEvent) -> Void
+
+    /// The row inking itself: 0 while it does, 1 at rest.
+    @State private var rest: Double = 1
+    @State private var began: Date?
 
     /// Periods that have not happened yet recede rather than disappear: seeing
     /// the shape of the rest of your life is part of the point.
@@ -493,6 +515,40 @@ private struct BandRow: View {
     /// The continuous line down the left, with a round node at each period:
     /// lime and filled for the one running now, outlined otherwise.
     private var spine: some View {
+        restingSpine
+            .opacity(rest)
+            .overlay {
+                if let began {
+                    InkCanvas(start: began) { context, size, t in
+                        LifeInk.drawRow(in: context, size: size, at: t, current: band.isCurrent, seed: Double(band.lord.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 97))
+                    }
+                }
+            }
+            .frame(width: 20)
+            .padding(.trailing, 10)
+            .accessibilityHidden(true)
+            .background(alignment: .top) {
+                // The node's own height: a tall open band still starts as
+                // soon as its first lines are on screen.
+                Color.clear.frame(height: 40).onFirstVisible(1, ink)
+            }
+    }
+
+    private var momentKey: String { "life.band.\(band.id)" }
+
+    private func ink() {
+        guard MotionGate.shouldPlay(momentKey, .oncePerLaunch) else { return }
+        MotionGate.recordPlayed(momentKey, .oncePerLaunch)
+        rest = 0
+        began = .now
+        withAnimation(.easeInOut(duration: 0.4).delay(LifeInk.settleAt + 0.2)) { rest = 1 }
+        Task {
+            try? await Task.sleep(for: .seconds(LifeInk.duration))
+            began = nil
+        }
+    }
+
+    private var restingSpine: some View {
         ZStack(alignment: .top) {
             Rectangle()
                 .fill(Theme.line)
@@ -510,9 +566,6 @@ private struct BandRow: View {
             .frame(width: 10, height: 10)
             .padding(.top, 12)
         }
-        .frame(width: 20)
-        .padding(.trailing, 10)
-        .accessibilityHidden(true)
     }
 
     private var header: some View {
@@ -557,7 +610,7 @@ private struct BandRow: View {
     }
 
     private var progressBar: some View {
-        BrutProgressBar(progress: band.progress(today: today))
+        InkedProgressBar(progress: band.progress(today: today), key: "life.bar.\(band.id)")
             .accessibilityLabel(L10n.string("\(Int(band.progress(today: today) * 100)) percent through this period"))
     }
 
