@@ -6,6 +6,7 @@ import { computeChart } from "@/lib/astrology/chart";
 import { detectConditions, highestSeverity, type Condition, type Severity } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { composeAlert } from "./compose";
+import { AiUnavailable, GIVE_UP_AFTER } from "./unavailable";
 import { ApnsClient, isPushConfigured } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { isWakingHour } from "./slots";
@@ -97,6 +98,8 @@ export type DailyAlertSummary = {
   pushesSent: number;
   failures: number;
   pushConfigured: boolean;
+  aiFailures: number;
+  aiReason?: string;
 };
 
 /**
@@ -117,6 +120,7 @@ export async function runDailyAlerts(options: { limit?: number } = {}): Promise<
     pushesSent: 0,
     failures: 0,
     pushConfigured: isPushConfigured(),
+    aiFailures: 0,
   };
 
   try {
@@ -139,6 +143,12 @@ export async function runDailyAlerts(options: { limit?: number } = {}): Promise<
         if (result?.alerted) summary.alerted += 1;
         summary.pushesSent += result?.pushesSent ?? 0;
       } catch (err) {
+        if (err instanceof AiUnavailable) {
+          summary.aiFailures += 1;
+          summary.aiReason = err.reason;
+          if (summary.aiFailures >= GIVE_UP_AFTER && summary.alerted === 0) break;
+          continue;
+        }
         summary.failures += 1;
         console.error("alerts: user failed", profile.user_id, err);
       }
@@ -210,37 +220,7 @@ export async function runAlertsForUser(
 
   const today = nowLocal.toFormat("yyyy-LL-dd");
 
-  // Deliberately inserts the raw, unfiltered `started` — every detected row
-  // is recorded regardless of scope. Do not inline the natal filter here: that
-  // would silently stop natal rows being written, and the same condition
-  // would re-detect as "starting" forever.
-  if (started.length > 0) {
-    const { error } = await admin.from("transit_conditions").insert(
-      started.map((c) => ({
-        user_id: profile.user_id,
-        kind: c.kind,
-        signature: c.signature,
-        label: c.label,
-        severity: c.severity,
-        scope: c.scope,
-        detail: c.detail,
-        started_on: today,
-      })),
-    );
-    if (error) throw new Error(error.message);
-  }
-
-  // Same as above: closes the raw, unfiltered `ended`, not a natal-filtered
-  // subset. Filtering here would leave stale natal rows open forever.
-  if (ended.length > 0) {
-    const { error } = await admin
-      .from("transit_conditions")
-      .update({ ended_on: today })
-      .in("id", ended.map((row) => row.id));
-    if (error) throw new Error(error.message);
-  }
-
-  // Every row above is still inserted/closed regardless of scope — the natal
+  // Every row is still inserted/closed below regardless of scope: the natal
   // filter only decides what surfaces in the alert and push payloads.
   const { alert: startedToAlert } = partitionForAlerts({ conditions: started, hadNatalRows });
   const { alert: endedToAlert } = partitionForAlerts({ conditions: ended, hadNatalRows });
@@ -268,7 +248,45 @@ export async function runAlertsForUser(
     pushesSent: 0,
   };
 
-  if (startedWorth.length === 0 && endedWorth.length === 0) return result;
+  // Run once there is nothing left that can fail to be written: if the alert
+  // cannot be composed, these rows stay as they were and the next run finds
+  // the same change again.
+  const recordChanges = async () => {
+    // Deliberately inserts the raw, unfiltered `started` — every detected row
+    // is recorded regardless of scope. Do not inline the natal filter here: that
+    // would silently stop natal rows being written, and the same condition
+    // would re-detect as "starting" forever.
+    if (started.length > 0) {
+      const { error } = await admin.from("transit_conditions").insert(
+        started.map((c) => ({
+          user_id: profile.user_id,
+          kind: c.kind,
+          signature: c.signature,
+          label: c.label,
+          severity: c.severity,
+          scope: c.scope,
+          detail: c.detail,
+          started_on: today,
+        })),
+      );
+      if (error) throw new Error(error.message);
+    }
+
+    // Same as above: closes the raw, unfiltered `ended`, not a natal-filtered
+    // subset. Filtering here would leave stale natal rows open forever.
+    if (ended.length > 0) {
+      const { error } = await admin
+        .from("transit_conditions")
+        .update({ ended_on: today })
+        .in("id", ended.map((row) => row.id));
+      if (error) throw new Error(error.message);
+    }
+  };
+
+  if (startedWorth.length === 0 && endedWorth.length === 0) {
+    await recordChanges();
+    return result;
+  }
 
   const severity = highestSeverity(startedWorth.length > 0 ? startedWorth : endedWorth);
   const copy = await composeAlert({
@@ -281,6 +299,8 @@ export async function runAlertsForUser(
     userId: profile.user_id,
     language: languages.get(profile.user_id),
   });
+
+  await recordChanges();
 
   const { data: alertRow, error: alertError } = await admin
     .from("alerts")

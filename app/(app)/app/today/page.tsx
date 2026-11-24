@@ -1,5 +1,6 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { requireBirthProfile } from "@/lib/data/requireProfile";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { WebPushControls } from "@/components/WebPushControls";
@@ -21,6 +22,7 @@ function day(i: I18n, iso: string): string {
  * shows. Also where this browser turns notifications on.
  */
 export default async function TodayPage() {
+  await requireBirthProfile();
   const db = await createServerSupabase();
   const i18n = await getI18n();
   const { t, f } = i18n;

@@ -1,16 +1,16 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { signOut } from "@/app/(auth)/actions";
+import Link from "next/link";
 import { PRIVACY_PATH } from "@/lib/billing/copy";
 import { useI18n } from "@/lib/i18n/client";
 import { rich } from "@/lib/i18n/rich";
 
 /**
- * The AI consent screen, shown by the signed-in layout in place of the app
- * until the user agrees to the current notice. "Not now" is never a dead end:
- * it explains why readings need this and offers to review it again (or sign
- * out). Agreement is recorded by POST /api/consent, then the layout re-renders.
+ * The AI consent screen, shown in place of Ask until the user agrees to the
+ * current notice. "Not now" is never a dead end: the chart, key dates and
+ * matching stay open, and the notice can be reviewed again. Agreement is
+ * recorded by POST /api/consent, then the page re-renders.
  */
 export function AiConsentGate({ version }: { version: string }) {
   const router = useRouter();
@@ -43,8 +43,8 @@ export function AiConsentGate({ version }: { version: string }) {
   }
 
   return (
-    <div className="atmosphere atmosphere-dusk min-h-dvh overflow-y-auto text-fg">
-      <main className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col px-4 pb-8 pt-10 sm:px-6 sm:pt-16">
+    <div className="h-full overflow-y-auto text-fg">
+      <main className="relative mx-auto flex min-h-full w-full max-w-xl flex-col px-4 pb-8 pt-10 sm:px-6 sm:pt-16">
         {declined ? (
           <Declined onReview={() => setDeclined(false)} />
         ) : (
@@ -127,11 +127,9 @@ function Declined({ onReview }: { onReview: () => void }) {
         <button type="button" onClick={onReview} className="brut-btn brut-btn-primary brut-btn-arrow min-h-[54px] px-5">
           {CONSENT_COPY.reviewAgain}
         </button>
-        <form action={signOut}>
-          <button type="submit" className="brut-btn brut-btn-quiet w-full px-5 py-3 text-sm">
-            {t.common.signOut}
-          </button>
-        </form>
+        <Link href="/app" className="brut-btn brut-btn-quiet w-full px-5 py-3 text-center text-sm">
+          {CONSENT_COPY.keepExploring}
+        </Link>
       </div>
     </div>
   );

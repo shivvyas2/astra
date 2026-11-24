@@ -1,5 +1,6 @@
 import "server-only";
 import { getPlan, type Plan } from "@/lib/billing/plan";
+import { loadAiHealth } from "@/lib/health/ai";
 import { isMissingRelation } from "@/lib/usage/record";
 import type {
   AdminConversation,
@@ -297,6 +298,7 @@ export async function adminOverview(db: AdminDb, daysIn = 30, now: Date = new Da
   return {
     generatedAt: now.toISOString(),
     days,
+    ai: await loadAiHealth(db, now),
     totals: {
       users: users.length,
       newUsers: users.filter((u) => inWindow(u.created_at)).length,

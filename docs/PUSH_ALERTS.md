@@ -32,7 +32,8 @@ The reading is composed by Sonnet 5 at low effort, from the same cached chart
 prompt the chat uses, plus today's transits and any non-`info` conditions the
 dosha engine found — so the reading and the alerts never contradict each other.
 Morning looks forward; night reflects on the day and opens tomorrow. If the
-model call fails, a plain fallback is stored so the slot is never empty.
+model call fails, nothing is stored or sent, and the next run inside the window
+tries again.
 
 Because both runs use the same cached chart block, a user's two readings in one
 hour bill the second one's prompt at a tenth of the rate.
@@ -60,8 +61,8 @@ hour bill the second one's prompt at a tenth of the rate.
    conditions are recorded silently.
 6. **Claude** (`lib/alerts/compose.ts`, Opus) writes the copy — title, one-line
    body, and a short markdown reading with a remedy — from the facts it is
-   handed. It never decides whether a dosha exists; if the call fails, a
-   deterministic fallback still names the condition.
+   handed. It never decides whether a dosha exists; if the call fails, the
+   condition is left unrecorded, so the next run finds the change again.
 7. The alert is stored in `alerts` (visible in the app's bell inbox) and pushed
    to every registered device via APNs (`lib/push/apns.ts`).
 
@@ -150,7 +151,7 @@ a hash of the user and the local date, so every hourly run agrees and nothing
 is sent twice; the row is written to `alerts` with severity `info` and
 `kinds` starting with `discovery`, so it sits in the bell inbox like any other
 alert. Copy is written by Haiku 4.5 from the one fact, for a fraction of a
-cent, with a plain fallback if the call fails.
+cent; if the call fails, nothing is sent.
 
 ## Testing the job by hand
 

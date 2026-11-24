@@ -60,6 +60,19 @@ export function OverviewView({ o, limits, limitsStatus }: { o: Overview; limits?
         </span>
       </div>
 
+      {o.ai?.down && (
+        <section role="alert" className="adm-card mb-4" style={{ background: "#b3261e", color: "#fff" }}>
+          <h2 className="adm-card-title" style={{ color: "inherit" }}>AI is not answering</h2>
+          <p className="mt-2 text-sm">
+            {fmtInt(o.ai.unanswered)} {o.ai.unanswered === 1 ? "conversation is" : "conversations are"} waiting for a reply.{" "}
+            {o.ai.lastSuccessAt
+              ? `Last successful call: ${new Date(o.ai.lastSuccessAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" })} UTC.`
+              : "No successful call is on record."}{" "}
+            Check the production Anthropic key: its spend limit, then its credits.
+          </p>
+        </section>
+      )}
+
       {/* headline strip */}
       <section className="adm-card adm-card--white mb-4" aria-label="Headline numbers">
         <div className="adm-strip" style={{ "--cols": 5 } as React.CSSProperties}>

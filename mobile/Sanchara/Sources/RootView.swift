@@ -42,8 +42,8 @@ struct SignedInView: View {
     @State private var profile = ProfileStore()
 
     var body: some View {
-        // AI consent comes before intake and the first reading (Features/Consent).
-        ConsentGate {
+        // Birth details and the chart need no AI. The consent notice stands in
+        // front of Ask (MainTabView), and the server checks it on every AI route.
         Group {
             switch profile.state {
             case .loading:
@@ -68,8 +68,8 @@ struct SignedInView: View {
                 }
             }
         }
-        }
         .task { await profile.load() }
+        .task { await ConsentStore.shared.check() }
         // StoreKit: listen for transactions and sync the entitlement (Features/Billing).
         .task { if PlusStore.isEnabled { PlusStore.shared.start() } }
     }

@@ -4,6 +4,9 @@ import { listConversations, getMessages } from "@/lib/data/chat";
 import { Chat } from "@/components/Chat";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getPerson } from "@/lib/profiles/store";
+import { AiConsentGate } from "@/components/consent/AiConsentGate";
+import { CONSENT_VERSION } from "@/lib/billing/consent";
+import { webConsentAccepted } from "@/lib/billing/webConsent";
 import type { ChatMode } from "@/lib/astrology/types";
 
 export default async function ChatPage({
@@ -13,6 +16,9 @@ export default async function ChatPage({
 }) {
   const profile = await getBirthProfile();
   if (!profile?.chart) redirect("/app/intake");
+  // Nothing reaches the AI before the notice is agreed to. The chart, key
+  // dates and matching stay open either way.
+  if (!(await webConsentAccepted())) return <AiConsentGate version={CONSENT_VERSION} />;
 
   const { c, with: withId, ask } = await searchParams;
   const conversations = await listConversations();

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireBirthProfile } from "@/lib/data/requireProfile";
 import { IntakeForm } from "@/components/IntakeForm";
 import { PersonFields } from "@/components/PersonFields";
 import { createPersonAction } from "../actions";
@@ -7,6 +8,7 @@ import { getI18n } from "@/lib/i18n/server";
 import { formError } from "../errors";
 
 export default async function NewPersonPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  await requireBirthProfile();
   const { error } = await searchParams;
   const i18n = await getI18n();
   const { t } = i18n;

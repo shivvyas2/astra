@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// The AI consent screen: what is sent, to whom, what is kept, and the
-/// user's choices — then "Agree and continue" or "Not now". "Not now" is
-/// never a dead end: it explains why readings need this and offers the
-/// notice again (or signing out).
+/// user's choices, then "Agree and continue" or "Not now". "Not now" is
+/// never a dead end: the chart and the rest of the app stay open, and this
+/// explains why readings need it and offers the notice again.
 ///
 /// `mode: .review` is the same notice opened from Profile, with no decision
 /// to make.
@@ -14,7 +14,8 @@ struct ConsentView: View {
     var isSaving = false
     var errorMessage: String? = nil
     var onAgree: () -> Void = {}
-    var onSignOut: () -> Void = {}
+    /// Leaves Ask for the rest of the app.
+    var onNotNow: () -> Void = {}
 
     @State private var declined = false
     @State private var legalPage: LegalPage?
@@ -151,7 +152,7 @@ struct ConsentView: View {
             )
             VStack(spacing: 10) {
                 SancharaPrimaryButton(title: ConsentCopy.reviewAgain) { declined = false }
-                Button("Sign out", action: onSignOut)
+                Button("Keep exploring without readings", action: onNotNow)
                     .buttonStyle(BrutButtonStyle(kind: .quiet))
             }
             Spacer(minLength: 0)
@@ -163,11 +164,13 @@ struct ConsentView: View {
 }
 
 /// Shows the consent screen in place of `content` until the account has
-/// agreed to the current notice. Wraps the signed-in app in RootView.
+/// agreed to the current notice. Wraps Ask in MainTabView; the photo that
+/// opens You normally lives in Ask's header, so it is kept here too.
 struct ConsentGate<Content: View>: View {
+    var onNotNow: () -> Void
+    var onYou: () -> Void
     @ViewBuilder var content: () -> Content
 
-    @Environment(AuthStore.self) private var auth
     @State private var consent = ConsentStore.shared
 
     var body: some View {
@@ -180,12 +183,17 @@ struct ConsentGate<Content: View>: View {
                     isSaving: consent.isSaving,
                     errorMessage: consent.errorMessage,
                     onAgree: { Task { await consent.agree() } },
-                    onSignOut: { Task { await auth.signOut() } }
+                    onNotNow: onNotNow
                 )
+                .overlay(alignment: .topTrailing) {
+                    CircleButton(systemImage: "person", label: L10n.string("You"), size: 38, action: onYou)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                }
+                .clearsTabBar()
             case .accepted:
                 content()
             }
         }
-        .task { await consent.check() }
     }
 }

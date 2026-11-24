@@ -25,6 +25,14 @@ final class MatchCardTests: XCTestCase {
         XCTAssertNil(s.card())
     }
 
+    func testAFailedReplyIsNotACard() {
+        var s = CardSplitter()
+        XCTAssertEqual(s.text(from: "Half\u{1E}{\"type\":"), "Half")
+        XCTAssertNil(s.text(from: "\"failed\"}"))
+        XCTAssertTrue(s.failed)
+        XCTAssertNil(s.card())
+    }
+
     func testConfirmingSavesWhatWasShown() throws {
         let card = try JSONDecoder().decode(MatchCard.self, from: Data(json.utf8))
         XCTAssertFalse(card.isEmpty)

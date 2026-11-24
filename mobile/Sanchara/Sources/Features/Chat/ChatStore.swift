@@ -39,6 +39,9 @@ final class ChatStore {
         let name: String
     }
     private var streamTask: Task<Void, Never>?
+    /// What "Try again" asks, including a silent opening question.
+    private var lastAsk: (text: String, personId: String?)?
+    static var unanswered: String { L10n.string("Astrya could not answer this just now. Your question is saved.") }
 
     /// Text that has arrived but not yet been shown, and the timer that will
     /// show it. See `flushInterval`.
@@ -134,6 +137,15 @@ final class ChatStore {
         send(question, forceServer: true, personId: person.id)
     }
 
+    /// Asks the newest question again, in place of the reply that failed. The
+    /// server knows it is the same question and stores it once.
+    func tryAgain() {
+        guard !isStreaming, messages.last?.failed == true else { return }
+        guard let question = lastAsk?.text ?? messages.last(where: { $0.role == .user })?.content else { return }
+        messages.removeLast()
+        send(question, silent: true, forceServer: true, personId: lastAsk?.personId)
+    }
+
     func dismissCard(on messageId: UUID) {
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
         messages[index].card = nil
@@ -173,6 +185,13 @@ final class ChatStore {
             // The user may have moved on while the rows were loading.
             guard opened == generation else { return }
             messages = rows.map(\.asChatMessage)
+            lastAsk = nil
+            // The last question never got its answer: say so, and offer it again.
+            if messages.last?.role == .user {
+                var note = ChatMessage(role: .assistant, content: Self.unanswered)
+                note.failed = true
+                messages.append(note)
+            }
         } catch {
             guard opened == generation else { return }
             errorMessage = L10n.string("Could not load that reading.")
@@ -195,6 +214,7 @@ final class ChatStore {
         let forceServer = forceServer || answersReadBack
         errorMessage = nil
         isStreaming = true
+        lastAsk = (text, personId)
         let wasNewConversation = conversationId == nil
         let thisGeneration = generation
         if !silent { messages.append(ChatMessage(role: .user, content: text)) }
@@ -235,6 +255,7 @@ final class ChatStore {
             // remember from the turn and the server skips its Haiku pass.
             let rememberOnDevice = OnDeviceMemory.isAvailable
             var failure: String?
+            var failed = false
             do {
                 let stream = SancharaAPI.chatStream(
                     conversationId: conversationId,
@@ -255,6 +276,8 @@ final class ChatStore {
                         if let last = messages.indices.last, messages[last].role == .assistant {
                             messages[last].card = card
                         }
+                    case .failed:
+                        failed = true
                     }
                 }
             } catch is CancellationError {
@@ -262,6 +285,7 @@ final class ChatStore {
             } catch {
                 // 403 consent_required brings the AI consent screen back (Features/Consent).
                 failure = ConsentStore.handleChatError(error) ?? error.localizedDescription
+                failed = true
             }
 
             guard !Task.isCancelled, thisGeneration == generation else { return }
@@ -273,8 +297,14 @@ final class ChatStore {
                     errorMessage = failure
                 }
             }
+            if failed, let last = messages.indices.last, messages[last].role == .assistant {
+                if messages[last].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    messages[last].content = Self.unanswered
+                }
+                messages[last].failed = true
+            }
             isStreaming = false
-            if rememberOnDevice, failure == nil, let id = conversationId,
+            if rememberOnDevice, failure == nil, !failed, let id = conversationId,
                let reply = messages.last(where: { $0.role == .assistant })?.content,
                !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 remember(conversationId: id, message: text, reply: reply)

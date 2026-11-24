@@ -13,6 +13,8 @@ import { isMissingRelation, trackUsage } from "@/lib/usage/record";
 import { ApnsClient } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
+import { failureReason } from "@/lib/health/ai";
+import { AiUnavailable, GIVE_UP_AFTER } from "./unavailable";
 import { isWakingHour } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
 import { languageRule, loadReadingLanguages, type ReadingLanguage } from "@/lib/astrology/language";
@@ -132,12 +134,14 @@ export type DiscoverySummary = {
   pushesSent: number;
   skipped: number;
   failures: number;
+  aiFailures: number;
+  aiReason?: string;
 };
 
 export async function runDiscoveries(options: { limit?: number } = {}): Promise<DiscoverySummary> {
   const admin = createAdminSupabase();
   const apns = new ApnsClient();
-  const summary: DiscoverySummary = { considered: 0, written: 0, pushesSent: 0, skipped: 0, failures: 0 };
+  const summary: DiscoverySummary = { considered: 0, written: 0, pushesSent: 0, skipped: 0, failures: 0, aiFailures: 0 };
 
   try {
     const { data, error } = await admin
@@ -165,6 +169,12 @@ export async function runDiscoveries(options: { limit?: number } = {}): Promise<
           summary.pushesSent += sent;
         }
       } catch (err) {
+        if (err instanceof AiUnavailable) {
+          summary.aiFailures += 1;
+          summary.aiReason = err.reason;
+          if (summary.aiFailures >= GIVE_UP_AFTER && summary.written === 0) break;
+          continue;
+        }
         summary.failures += 1;
         console.error("discoveries: user failed", profile.user_id, err);
       }
@@ -348,19 +358,10 @@ three or four short sentences in markdown: what it is, what it tends to mean, on
       .join("");
     const parsed = parseAlertCopy(text);
     if (parsed) return parsed;
-    console.error("discovery compose: unparseable model output");
   } catch (err) {
     console.error("discovery compose error", err);
+    throw new AiUnavailable(failureReason(err));
   }
-  return fallbackDiscovery(args.fact);
-}
-
-/** The fact itself, plainly, when the model call fails. */
-export function fallbackDiscovery(fact: DiscoveryFact): AlertCopy {
-  const sentence = fact.text.split(/(?<=\.)\s/)[0] ?? fact.text;
-  return {
-    title: "Something in your chart",
-    body: sentence.length <= 140 ? sentence : `${sentence.slice(0, 137).trimEnd()}...`,
-    detail: `**Did you know**\n${fact.text}\n\n**In simple words**\nOpen Astrya to read what this means for you.`,
-  };
+  console.error("discovery compose: unparseable model output");
+  throw new AiUnavailable("unparseable reply");
 }

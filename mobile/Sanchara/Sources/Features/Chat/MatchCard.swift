@@ -58,6 +58,9 @@ struct CardSplitter {
         return text.isEmpty ? nil : text
     }
 
+    /// The reply failed and can be asked again.
+    var failed: Bool { json == #"{"type":"failed"}"# }
+
     /// The card, once the stream has ended. Nil when there was none or it was cut short.
     func card() -> MatchCard? {
         guard let json else { return nil }

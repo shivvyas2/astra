@@ -149,7 +149,7 @@ describe("admin API shapes", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("cache-control")).toBe("no-store");
     const body = await res.json();
-    expect(Object.keys(body).sort()).toEqual(["days", "generatedAt", "kinds", "models", "modes", "series", "topUsers", "totals"]);
+    expect(Object.keys(body).sort()).toEqual(["ai", "days", "generatedAt", "kinds", "models", "modes", "series", "topUsers", "totals"]);
     expect(Object.keys(body.totals).sort()).toEqual(
       [
         "users",

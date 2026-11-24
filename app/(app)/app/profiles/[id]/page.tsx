@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireBirthProfile } from "@/lib/data/requireProfile";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { getPerson } from "@/lib/profiles/store";
 import { approxFromTime } from "@/lib/profiles/birth";
@@ -21,6 +22,7 @@ export default async function PersonPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ error?: string; saved?: string }>;
 }) {
+  await requireBirthProfile();
   const { id } = await params;
   const { error, saved } = await searchParams;
   const db = await createServerSupabase();

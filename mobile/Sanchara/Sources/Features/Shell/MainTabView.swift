@@ -131,7 +131,12 @@ struct MainTabView: View {
                 ask: { question, send in ask(question, send: send) },
                 askAboutMatch: { personId, name, question in
                     tab = .ask
-                    chat.startMatch(personId: personId, name: name, question: question)
+                    if ConsentStore.shared.state == .accepted {
+                        chat.startMatch(personId: personId, name: name, question: question)
+                    } else {
+                        chat.newReading()
+                        chat.input = question
+                    }
                 },
                 open: { page in
                     if page == .you {
@@ -196,6 +201,8 @@ struct MainTabView: View {
         .onAppear {
             // A widget tap on a cold launch sets the destination before this
             // view exists, so `onChange` below never fires for it.
+            // Someone new sees their chart first; Ask opens with the AI notice.
+            openOnChart(if: ConsentStore.shared.state)
             handle(DeepLink.shared.pending)
             // Same for a notification tap that launched the app.
             openPushed(PushStore.shared.pending)
@@ -210,6 +217,9 @@ struct MainTabView: View {
                 await PushStore.shared.register()
             }
         }
+        .onChange(of: ConsentStore.shared.state) { old, new in
+            if old == .checking { openOnChart(if: new) }
+        }
         .onChange(of: DeepLink.shared.pending) { _, destination in
             handle(destination)
         }
@@ -219,6 +229,11 @@ struct MainTabView: View {
         .onReceive(NotificationCenter.default.publisher(for: WelcomeTour.didReset)) { _ in
             showTour = true
         }
+    }
+
+    private func openOnChart(if consent: ConsentStore.State) {
+        guard consent == .needed, tab == .ask else { return }
+        tab = .kundli
     }
 
     /// Opens the reading or alert a notification pointed at, on Today.
@@ -244,7 +259,9 @@ struct MainTabView: View {
         case .today:
             InboxView(daily: daily, alerts: alerts, tab: $inboxTab, onAsk: ask, embedded: true)
         case .ask:
-            ChatView(profile: profile, chat: chat)
+            ConsentGate(onNotNow: { withAnimation(Theme.snap) { tab = .kundli } }, onYou: { showYou = true }) {
+                ChatView(profile: profile, chat: chat)
+            }
         case .kundli:
             kundli
         case .life:
@@ -302,7 +319,8 @@ struct MainTabView: View {
     private func ask(_ question: String, send: Bool) {
         tab = .ask
         chat.newReading()
-        if send {
+        // Before the AI notice is agreed to, the question waits in the composer.
+        if send, ConsentStore.shared.state == .accepted {
             chat.send(question)
         } else {
             chat.input = question
@@ -321,7 +339,11 @@ struct MainTabView: View {
             // The question Siri declined to answer, asked here for real.
             tab = .ask
             chat.newReading()
-            chat.send(question, forceServer: true)
+            if ConsentStore.shared.state == .accepted {
+                chat.send(question, forceServer: true)
+            } else {
+                chat.input = question
+            }
         }
     }
 }

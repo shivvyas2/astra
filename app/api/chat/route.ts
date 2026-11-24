@@ -32,6 +32,7 @@ import type { Chart, Tradition, ChatMode } from "@/lib/astrology/types";
 import { getOrCreateConversation, getConversationPerson, setConversationPerson, appendMessage, getMessages } from "@/lib/data/chat";
 import { createPerson, getPerson, listPeople, parsePersonInput } from "@/lib/profiles/store";
 import type { PersonRow } from "@/lib/profiles/types";
+import { FAILED_MARK } from "@/lib/compat/matchCard";
 import { CARD_SEPARATOR, parseDetailsLine, plain, readProposal, reply as matchReply, resolvePlaces, type Reply } from "@/lib/compat/chatMatch";
 import { describeSavedPeople, MATCH_TOOLS } from "@/lib/compat/chatTools";
 import { geocodePlace } from "@/lib/geo";
@@ -379,11 +380,17 @@ export async function POST(request: Request) {
 
     // Build history from persisted messages, then append the new user turn.
     // The budget bounds what a long conversation costs to resend each turn.
+    const stored = (await getMessages(conversationId, supabase)).map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+    // The same question again after it went unanswered (Try again): already
+    // stored, so neither sent nor saved a second time.
+    const last = stored.at(-1);
+    const retrying = last?.role === "user" && last.content === body.message;
+    if (retrying) stored.pop();
     const history = selectHistory(
-      (await getMessages(conversationId, supabase)).map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
+      stored,
       HISTORY_BUDGET_CHARS,
       // Holds the window's first turn still across exchanges so long chats
       // keep reading their history from cache; keeps more, never less.
@@ -415,7 +422,7 @@ export async function POST(request: Request) {
           ]
         : body.message,
     });
-    await appendMessage(conversationId, "user", body.message, supabase);
+    if (!retrying) await appendMessage(conversationId, "user", body.message, supabase);
   } catch (err) {
     console.error("chat pre-stream error", err);
     claim.settle(null);
@@ -439,6 +446,15 @@ export async function POST(request: Request) {
     async start(controller) {
       let full = "";
       let finished = false;
+      // A reader who locks their phone closes the stream. The reading still
+      // finishes and is saved, so it is there when they come back.
+      const push = (text: string) => {
+        try {
+          controller.enqueue(encoder.encode(text));
+        } catch {
+          // The client has gone.
+        }
+      };
       try {
         // Usually one call. A match adds a second, with the other chart in a
         // tool result; the last round may not call a tool, so it must answer.
@@ -475,7 +491,7 @@ export async function POST(request: Request) {
           for await (const event of s) {
             if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
               full += event.delta.text;
-              controller.enqueue(encoder.encode(event.delta.text));
+              push(event.delta.text);
             }
           }
           const final = await s.finalMessage();
@@ -498,9 +514,9 @@ export async function POST(request: Request) {
           if (outcome.kind === "reply") {
             const text = `${full.trim() ? "\n\n" : ""}${outcome.reply.text}`;
             full += text;
-            controller.enqueue(encoder.encode(text));
+            push(text);
             if (outcome.reply.card) {
-              controller.enqueue(encoder.encode(CARD_SEPARATOR + JSON.stringify(outcome.reply.card)));
+              push(CARD_SEPARATOR + JSON.stringify(outcome.reply.card));
             }
             break;
           }
@@ -515,6 +531,7 @@ export async function POST(request: Request) {
           );
         }
         const usage: UsageLike = readingUsage ?? {};
+        if (!full.trim()) throw new Error("empty reading");
         finished = true;
         console.log(
           `chat usage conv=${conversationId} model=${model} in=${usage.input_tokens} ` +
@@ -523,16 +540,23 @@ export async function POST(request: Request) {
         );
       } catch (err) {
         console.error("chat stream error", err);
-        controller.enqueue(encoder.encode(`\n\n${streamError}`));
+        // A client that can offer Try again is told so; others get a line of text.
+        push(body.cards === true ? FAILED_MARK : `\n\n${streamError}`);
       } finally {
         try {
-          if (full.trim()) await appendMessage(conversationId, "assistant", full, supabase);
+          // Half a reading is not kept: the question stays unanswered, and
+          // Try again asks it afresh.
+          if (finished) await appendMessage(conversationId, "assistant", full, supabase);
         } finally {
           // Signalled first: close() throws if the client has already gone,
           // and the memory pass must not be left waiting on it.
-          readingDone(full.trim() ? full : "");
+          readingDone(finished ? full : "");
           claim.settle(finished && full.trim() ? { text: full, conversationId } : null);
-          controller.close();
+          try {
+            controller.close();
+          } catch {
+            // Already closed by the client.
+          }
         }
       }
     },

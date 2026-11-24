@@ -190,6 +190,35 @@ describe("someone already saved", () => {
   });
 });
 
+describe("a reply that fails", () => {
+  const breaks = () => ({
+    async *[Symbol.asyncIterator]() {
+      yield { type: "content_block_delta", delta: { type: "text_delta", text: "Half a" } };
+      throw new Error("down");
+    },
+    finalMessage: async () => ({}),
+  });
+  it("is marked for Try again, and half a reading is not kept", async () => {
+    script(breaks());
+    const raw = await ask("Will I move?", { cards: true });
+    expect(splitCard(raw)).toMatchObject({ text: "Half a", card: null, failed: true });
+    expect(h.appended).toEqual([{ role: "user", content: "Will I move?" }]);
+  });
+  it("is a plain line to an older client", async () => {
+    script(breaks());
+    const raw = await ask("Will I move?");
+    expect(raw).not.toContain(CARD_SEPARATOR);
+    expect(raw).toContain("momentarily clouded");
+  });
+  it("asked again is neither stored nor sent twice", async () => {
+    h.history = [{ role: "user", content: "Will I move?" }];
+    script(says("Yes."));
+    expect(await ask("Will I move?", { cards: true })).toBe("Yes.");
+    expect(h.appended).toEqual([{ role: "assistant", content: "Yes." }]);
+    expect(h.stream.mock.calls[0][0].messages).toHaveLength(1);
+  });
+});
+
 it("always ends in an answer: the last round may not call a tool", async () => {
   script(calls("use_saved_person", { person_id: "x" }), calls("use_saved_person", { person_id: "x" }), says("Plainly, no."));
   expect(await ask("him?")).toBe("Plainly, no.");

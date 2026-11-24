@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAlertCopy, parseAlertJson, fallbackCopy } from "./compose";
+import { parseAlertCopy, parseAlertJson } from "./compose";
 import type { Condition } from "@/lib/astrology/doshas";
 
 const sadeSati: Condition = {
@@ -47,19 +47,5 @@ describe("parseAlertJson", () => {
   it("rejects output missing a field", () => {
     expect(parseAlertJson('{"title":"x","body":"y"}')).toBeNull();
     expect(parseAlertJson("no json here")).toBeNull();
-  });
-});
-
-describe("fallbackCopy", () => {
-  it("still names the condition when the model call fails", () => {
-    const copy = fallbackCopy([sadeSati], []);
-    expect(copy.title).toContain("Sade Sati");
-    expect(copy.body.length).toBeLessThanOrEqual(200);
-    expect(copy.detail).toContain("In simple words");
-  });
-
-  it("reads as relief when a condition has ended", () => {
-    const copy = fallbackCopy([], [sadeSati]);
-    expect(copy.title).toContain("eased");
   });
 });

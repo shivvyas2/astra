@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requireBirthProfile } from "@/lib/data/requireProfile";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { listPeople } from "@/lib/profiles/store";
 import { getI18n } from "@/lib/i18n/server";
@@ -9,6 +10,7 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 export const dynamic = "force-dynamic";
 
 export default async function PeoplePage() {
+  await requireBirthProfile();
   const db = await createServerSupabase();
   const { people, available } = await listPeople(db);
   const i18n = await getI18n();

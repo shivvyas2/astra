@@ -75,6 +75,8 @@ struct ChatMessage: Identifiable {
     var source: Source = .server
     /// Someone's details to confirm, under this reply. Never stored.
     var card: MatchCard?
+    /// The reply broke off or never came; "Try again" asks the question afresh.
+    var failed = false
 }
 
 /// A past reading, read straight from Supabase under the owner-only RLS policy.

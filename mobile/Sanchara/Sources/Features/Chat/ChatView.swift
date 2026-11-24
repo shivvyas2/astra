@@ -397,6 +397,11 @@ struct ChatView: View {
                     if message.source == .onDevice {
                         onDeviceFooter(isLast: isLast)
                     }
+                    if message.failed, isLast, !chat.isStreaming {
+                        Button("Try again") { chat.tryAgain() }
+                            .buttonStyle(BrutButtonStyle(kind: .secondary))
+                            .frame(minHeight: 44)
+                    }
                     // Only the newest reply's card can still be answered.
                     if let card = message.card, isLast, !chat.isStreaming {
                         MatchCardView(

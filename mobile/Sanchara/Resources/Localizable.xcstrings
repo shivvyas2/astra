@@ -12549,6 +12549,38 @@
           }
         }
       }
+    },
+    "Keep exploring without readings": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "રીડિંગ વિના જોતા રહો"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रीडिंग के बिना देखते रहें"
+          }
+        }
+      }
+    },
+    "Astrya could not answer this just now. Your question is saved.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Astrya હમણાં આનો જવાબ આપી શક્યું નહીં. તમારો પ્રશ્ન સાચવ્યો છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Astrya अभी इसका जवाब नहीं दे सका। आपका सवाल सहेज लिया गया है।"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

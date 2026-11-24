@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n/client";
 /**
  * Profile entry for AI consent: what was agreed, a way to re-read it, and a
  * way to withdraw it. Withdrawing deletes the server record (DELETE
- * /api/consent); the signed-in layout then shows the consent screen again
+ * /api/consent); Ask then shows the consent screen again
  * before any further reading.
  *
  * Place on app/(app)/app/profile/page.tsx, e.g. under <KnowledgeList … />.

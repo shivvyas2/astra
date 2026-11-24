@@ -5,6 +5,8 @@ import type { Condition, Severity } from "@/lib/astrology/doshas";
 import { anthropic, DEEP_READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { NO_EM_DASH } from "@/lib/writing";
 import { languageRule, type ReadingLanguage } from "@/lib/astrology/language";
+import { failureReason } from "@/lib/health/ai";
+import { AiUnavailable } from "./unavailable";
 import { trackUsage } from "@/lib/usage/record";
 
 export type AlertCopy = {
@@ -100,12 +102,12 @@ markdown, 120-200 words: short bold headings, what changed, what to watch over t
       .join("");
     const parsed = parseAlertCopy(text);
     if (parsed) return parsed;
-    console.error("alert compose: unparseable model output");
   } catch (err) {
     console.error("alert compose error", err);
+    throw new AiUnavailable(failureReason(err));
   }
-
-  return fallbackCopy(args.started, args.ended);
+  console.error("alert compose: unparseable model output");
+  throw new AiUnavailable("unparseable reply");
 }
 
 /**
@@ -148,24 +150,4 @@ export function parseAlertJson(text: string): AlertCopy | null {
   } catch {
     return null;
   }
-}
-
-/** Used when the model call fails, so an alert still reaches the user. */
-export function fallbackCopy(started: Condition[], ended: Condition[]): AlertCopy {
-  const primary = started[0] ?? ended[0];
-  const startedNames = started.map((c) => c.label).join(", ");
-  const endedNames = ended.map((c) => c.label).join(", ");
-  const title = started.length > 0 ? `${primary.label} is active` : `${primary.label} has eased`;
-  const body =
-    started.length > 0
-      ? `${startedNames} now shows in your chart. Open Astrya for the reading.`
-      : `${endedNames} has passed. Open Astrya for the reading.`;
-  const detail = [
-    started.length > 0 ? `**Now active**\n${started.map((c) => `- ${c.label}: ${c.detail}`).join("\n")}` : "",
-    ended.length > 0 ? `**Eased**\n${ended.map((c) => `- ${c.label}: ${c.detail}`).join("\n")}` : "",
-    "**In simple words**\nSomething in your chart shifted today. Ask Astrya about it for the full reading.",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-  return { title: title.slice(0, 60), body: body.slice(0, 200), detail };
 }

@@ -196,6 +196,8 @@ enum SancharaAPI {
         case text(String)
         /// Someone's birth details to confirm, after the text.
         case card(MatchCard)
+        /// The reply broke off; the question is saved and can be asked again.
+        case failed
     }
 
     /// Streams a reading from `POST /api/chat`.
@@ -262,7 +264,11 @@ enum SancharaAPI {
                     if let decoded = decoder.flush(), let tail = splitter.text(from: decoded), !tail.isEmpty {
                         continuation.yield(.text(tail))
                     }
-                    if let card = splitter.card() { continuation.yield(.card(card)) }
+                    if splitter.failed {
+                        continuation.yield(.failed)
+                    } else if let card = splitter.card() {
+                        continuation.yield(.card(card))
+                    }
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)

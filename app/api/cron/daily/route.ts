@@ -1,4 +1,7 @@
 import { env } from "@/lib/env";
+import { GIVE_UP_AFTER } from "@/lib/alerts/unavailable";
+import { isAccountProblem, loadAiHealth } from "@/lib/health/ai";
+import { createAdminSupabase } from "@/lib/supabase/admin";
 import { runDailyAlerts } from "@/lib/alerts/run";
 import { runDuePredictions } from "@/lib/alerts/predictions";
 import { runDiscoveries } from "@/lib/alerts/discoveries";
@@ -26,7 +29,18 @@ export async function GET(request: Request) {
     const predictions = await runDuePredictions();
     const alerts = await runDailyAlerts();
     const discoveries = await runDiscoveries();
-    return Response.json({ predictions, alerts, discoveries });
+    const ai = await loadAiHealth(createAdminSupabase());
+    const worked = predictions.written + alerts.alerted + discoveries.written;
+    const failed = predictions.aiFailures + alerts.aiFailures + discoveries.aiFailures;
+    // One odd reply or a busy moment is not an outage; a refused key is.
+    const refused = [predictions, alerts, discoveries].some((s) => isAccountProblem(s.aiReason));
+    const down = worked === 0 && (refused || failed >= GIVE_UP_AFTER || ai?.down === true);
+    // 503 fails the workflow, and GitHub emails the owner: the outage alarm.
+    // The log is public, so this body is counts, a time and an error type.
+    return Response.json(
+      { ...(down ? { error: "AI is not answering" } : {}), ai, predictions, alerts, discoveries },
+      { status: down ? 503 : 200 },
+    );
   } catch (err) {
     console.error("daily cron failed", err);
     return Response.json({ error: "Daily run failed" }, { status: 500 });

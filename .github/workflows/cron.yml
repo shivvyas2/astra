@@ -5,6 +5,10 @@
 # The job decides per user, on their own clock, whether anything is due, so
 # most runs do nothing. The two crons in vercel.json remain as a backstop.
 #
+# It is also the outage alarm: the endpoint answers 503 when the AI is not
+# answering, the run fails, and GitHub emails whoever last edited this schedule.
+# The log is public, so the endpoint reports counts and error types only.
+#
 # Needs one repository secret, CRON_SECRET, with the same value as the
 # Vercel production variable (see docs/PUSH_ALERTS.md). An optional repository
 # variable CRON_URL overrides the endpoint.

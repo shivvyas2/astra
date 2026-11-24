@@ -23,10 +23,14 @@ export type MatchCard = {
 
 export const CARD_SEPARATOR = "\u001e";
 
-/** A reply's text and its card, from as much of the stream as has arrived. */
-export function splitCard(raw: string): { text: string; card: MatchCard | null } {
+/** The other thing that can follow the text: the reply failed and can be tried again. */
+export const FAILED_MARK = `${CARD_SEPARATOR}{"type":"failed"}`;
+
+/** A reply's text and what follows it, from as much of the stream as has arrived. */
+export function splitCard(raw: string): { text: string; card: MatchCard | null; failed?: boolean } {
   const at = raw.indexOf(CARD_SEPARATOR);
   if (at === -1) return { text: raw, card: null };
+  if (raw.slice(at) === FAILED_MARK) return { text: raw.slice(0, at), card: null, failed: true };
   const text = raw.slice(0, at);
   try {
     const card = JSON.parse(raw.slice(at + 1)) as MatchCard;

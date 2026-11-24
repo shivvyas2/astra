@@ -391,7 +391,7 @@ final class TimelineStore {
             // A scan that found nothing still counts as asked-and-answered, so
             // the offer does not reappear on the next open.
         } catch {
-            state = .failed(error.localizedDescription)
+            state = .failed(ConsentStore.handleChatError(error) ?? error.localizedDescription)
         }
     }
 

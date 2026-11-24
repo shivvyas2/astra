@@ -1,4 +1,5 @@
 import { createRouteSupabase } from "@/lib/supabase/route";
+import { hasOwnProfile } from "@/lib/data/hasOwnProfile";
 import { createPerson, listPeople, parsePersonInput, personForClient, WRITE_ERROR } from "@/lib/profiles/store";
 import { PEOPLE_CEILING } from "@/lib/profiles/types";
 import { readBody } from "@/lib/profiles/http";
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
 
   const body = await readBody(request);
   if (!body) return Response.json({ error: "Send the person's details as JSON." }, { status: 400 });
+  // Everyone has their own chart before anyone else's is added.
+  if (!(await hasOwnProfile(supabase))) return Response.json({ error: "Add your own birth details first." }, { status: 400 });
   const parsed = parsePersonInput(body);
   if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
 

@@ -4,7 +4,6 @@ import {
   discoveryPlan,
   chartFacts,
   numerologyFacts,
-  fallbackDiscovery,
   DISCOVERY_DAYS_IN_SEVEN,
   DISCOVERY_HOURS,
 } from "./discoveries";
@@ -77,15 +76,5 @@ describe("numerologyFacts", () => {
     expect(facts[0]).toMatch(/root number is \d and your destiny number is \d/);
     expect(facts[1]).toMatch(/personal year \d/);
     expect(facts.length).toBeGreaterThanOrEqual(2);
-  });
-});
-
-describe("fallbackDiscovery", () => {
-  it("keeps the body to a lock screen and the fact in the detail", () => {
-    const long = "A".repeat(200) + ". More.";
-    const copy = fallbackDiscovery({ topic: "chart", text: long });
-    expect(copy.body.length).toBeLessThanOrEqual(140);
-    expect(copy.detail).toContain(long);
-    expect(copy.detail).toContain("In simple words");
   });
 });

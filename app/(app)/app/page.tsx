@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getBirthProfile } from "@/lib/data/birthProfile";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { AccuracyCard } from "@/components/AccuracyCard";
@@ -84,24 +85,7 @@ export default async function AppHome() {
   const profile = await getBirthProfile();
   const { t } = await getI18n();
 
-  if (!profile) {
-    return (
-      <div className="h-full overflow-y-auto">
-        <div className="mx-auto flex min-h-full max-w-md flex-col justify-center px-5 py-8">
-          <ScreenHeader
-            eyebrow={t.home.firstEyebrow}
-            title={t.home.firstTitle}
-            arrow
-            size="xl"
-            blurb={t.home.firstBlurb}
-          />
-          <Link href="/app/intake" className="brut-btn brut-btn-accent brut-btn-arrow mt-8 min-h-[54px] w-full">
-            {t.home.enterDetails}
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!profile) redirect("/app/intake");
 
   // Astrya's record with this person, once a reading has made a prediction.
   const { predictions } = await loadPredictions(await createServerSupabase(), 100);

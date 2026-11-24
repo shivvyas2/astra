@@ -16,6 +16,8 @@ import { languageRule, loadReadingLanguages, type ReadingLanguage } from "@/lib/
 import { ApnsClient } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
 import { parseAlertCopy, type AlertCopy } from "./compose";
+import { AiUnavailable, GIVE_UP_AFTER } from "./unavailable";
+import { failureReason } from "@/lib/health/ai";
 import { trackUsage } from "@/lib/usage/record";
 import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
@@ -35,6 +37,10 @@ export type PredictionSummary = {
   pushesSent: number;
   skipped: number;
   failures: number;
+  /** Readings the AI could not write; left for the next run. */
+  aiFailures: number;
+  /** Why the last one failed, safe to log. */
+  aiReason?: string;
 };
 
 /**
@@ -49,7 +55,7 @@ export type PredictionSummary = {
 export async function runDuePredictions(options: { limit?: number } = {}): Promise<PredictionSummary> {
   const admin = createAdminSupabase();
   const apns = new ApnsClient();
-  const summary: PredictionSummary = { considered: 0, written: 0, pushesSent: 0, skipped: 0, failures: 0 };
+  const summary: PredictionSummary = { considered: 0, written: 0, pushesSent: 0, skipped: 0, failures: 0, aiFailures: 0 };
 
   try {
     const { data, error } = await admin
@@ -77,6 +83,13 @@ export async function runDuePredictions(options: { limit?: number } = {}): Promi
           summary.pushesSent += result;
         }
       } catch (err) {
+        if (err instanceof AiUnavailable) {
+          summary.aiFailures += 1;
+          summary.aiReason = err.reason;
+          // Not one person's problem: stop paying for calls that will fail.
+          if (summary.aiFailures >= GIVE_UP_AFTER && summary.written === 0) break;
+          continue;
+        }
         summary.failures += 1;
         console.error("predictions: user failed", profile.user_id, err);
       }
@@ -234,25 +247,10 @@ the reading itself in markdown, following the format rules above, ending with **
       .join("");
     const parsed = parseAlertCopy(text);
     if (parsed) return parsed;
-    console.error("prediction compose: unparseable model output");
   } catch (err) {
     console.error("prediction compose error", err);
+    throw new AiUnavailable(failureReason(err));
   }
-
-  return fallbackPrediction(args.slot, args.firstName);
-}
-
-/** Never leave the slot empty: a plain prompt to open the app still beats silence. */
-export function fallbackPrediction(slot: Slot, firstName: string): AlertCopy {
-  return slot === "morning"
-    ? {
-        title: "Your reading for today",
-        body: `Good morning, ${firstName}. Today's chart reading is ready in Astrya.`,
-        detail: "**Today**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astrya to see what today holds.",
-      }
-    : {
-        title: "Tonight's reading",
-        body: `Good evening, ${firstName}. Tonight's reading is ready in Astrya.`,
-        detail: "**Tonight**\nYour reading is ready in the app.\n\n**In simple words**\nOpen Astrya to see how today closed and what tomorrow opens with.",
-      };
+  console.error("prediction compose: unparseable model output");
+  throw new AiUnavailable("unparseable reply");
 }

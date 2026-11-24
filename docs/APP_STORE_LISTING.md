@@ -123,9 +123,9 @@ AI consent and Plus are left unset so the reviewer sees both flows.
 ```
 Astrya computes a real birth chart (Swiss Ephemeris, server-side) and an AI model by Anthropic interprets only the computed values.
 
-TO TRY IT: Tap Sign in and use the demo email and password above. The demo account already has a birth chart. To start fresh, sign up with any email and enter any birth date, time and city, agree to the AI consent screen, then ask a question in Chat.
+TO TRY IT: Tap Sign in and use the demo email and password above. The demo account already has a birth chart. To start fresh, sign up with any email and enter any birth date, time and city, see your chart, then open Ask: the AI consent screen appears before the first reading. Agree to it and ask a question.
 
-AI DATA: Before the first reading the app shows exactly what is sent to Anthropic and asks for consent. It can be withdrawn in Profile (tap your photo) > Withdraw consent. Data is not used to train models.
+AI DATA: Before the first reading, when Ask is first opened, the app shows exactly what is sent to Anthropic and asks for consent. It can be withdrawn in Profile (tap your photo) > Withdraw consent. Data is not used to train models.
 
 ASTRYA PLUS: Optional subscription (You > Astrya Plus). It does not gate or limit any reading; it adds alternate app icons (You > App icon) and a badge.
 

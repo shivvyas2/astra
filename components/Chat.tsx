@@ -10,7 +10,7 @@ import { useI18n } from "@/lib/i18n/client";
 import dynamic from "next/dynamic";
 import { splitCard, type MatchCard as Card } from "@/lib/compat/matchCard";
 
-type Msg = { role: "user" | "assistant"; content: string; card?: Card | null };
+type Msg = { role: "user" | "assistant"; content: string; card?: Card | null; failed?: boolean };
 
 const MODES: { key: ChatMode; chip: string }[] = [
   { key: "vedic", chip: "var(--ember)" },
@@ -57,10 +57,14 @@ export function Chat({
   const countRef = useRef(messages.length);
   const started = useRef(false);
 
+  // What to send again if the newest reply fails.
+  const lastAsk = useRef<{ text: string; personId?: string } | null>(null);
+
   async function send(textArg?: string, silent = false, personId?: string) {
     const text = (textArg ?? input).trim();
     if (!text || busy) return;
-    if (!silent) setInput("");
+    if (textArg === undefined) setInput("");
+    lastAsk.current = { text, personId };
     setBusy(true);
     const wasNew = !convId.current;
 
@@ -69,10 +73,10 @@ export function Chat({
         ? [...m, { role: "assistant", content: "" }]
         : [...m, { role: "user", content: text }, { role: "assistant", content: "" }],
     );
-    const setLast = (content: string) =>
+    const setLast = (content: string, failed = false) =>
       setMessages((m) => {
         const copy = [...m];
-        copy[copy.length - 1] = { role: "assistant", content };
+        copy[copy.length - 1] = { role: "assistant", content, failed };
         return copy;
       });
 
@@ -94,7 +98,7 @@ export function Chat({
       convId.current = res.headers.get("x-conversation-id") ?? convId.current;
       // 429: a daily limit (lib/usage/limits.ts); its body is the message to show.
       if (res.status === 429) return setLast((await res.text()) || t.chat.limitReached);
-      if (!res.ok || !res.body) return setLast(t.chat.error);
+      if (!res.ok || !res.body) return setLast(t.chat.unanswered, true);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -103,19 +107,28 @@ export function Chat({
         const { done, value } = await reader.read();
         if (done) break;
         raw += decoder.decode(value, { stream: true });
-        const { text: shown, card } = splitCard(raw);
+        const { text: shown, card, failed } = splitCard(raw);
         setMessages((m) => {
           const copy = [...m];
-          copy[copy.length - 1] = { role: "assistant", content: shown, card };
+          copy[copy.length - 1] = { role: "assistant", content: failed && !shown.trim() ? t.chat.unanswered : shown, card, failed };
           return copy;
         });
       }
     } catch {
-      setLast(t.chat.error);
+      setLast(t.chat.unanswered, true);
     } finally {
       setBusy(false);
       if (wasNew && convId.current) router.refresh(); // update sidebar with the new reading
     }
+  }
+
+  /** Asks the newest question again, in place of the reply that failed. */
+  function tryAgain() {
+    const last = messages.at(-1);
+    const question = lastAsk.current?.text ?? messages.filter((m) => m.role === "user").at(-1)?.content;
+    if (!question || busy) return;
+    if (last?.role === "assistant") setMessages((m) => m.slice(0, -1));
+    void send(question, true, lastAsk.current?.personId);
   }
 
   // Auto intro reading on first login (no prior readings).
@@ -265,6 +278,7 @@ export function Chat({
                     <span aria-hidden className="w-0.5 shrink-0 rounded-full bg-accent" />
                     <div className="min-w-0 flex-1">
                     <AssistantTurn content={m.content} streaming={streaming} />
+                    {m.failed && !busy && i === messages.length - 1 && <TryAgain onClick={tryAgain} />}
                     {/* Only the newest reply's card can still be answered. */}
                     {m.card && !busy && i === messages.length - 1 && (
                       <MatchCard
@@ -278,12 +292,31 @@ export function Chat({
                   </div>
                 );
               })}
+              {/* Reopened with the last question never answered. */}
+              {!busy && messages.at(-1)?.role === "user" && (
+                <div className="flex gap-3">
+                  <span aria-hidden className="w-0.5 shrink-0 rounded-full bg-accent" />
+                  <div>
+                    <p className="text-[15px] text-muted">{t.chat.unanswered}</p>
+                    <TryAgain onClick={tryAgain} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="px-4 pt-2" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>{composer}</div>
         </>
       )}
     </div>
+  );
+}
+
+function TryAgain({ onClick }: { onClick: () => void }) {
+  const { t } = useI18n();
+  return (
+    <button type="button" onClick={onClick} className="brut-btn brut-btn-secondary mt-3 min-h-[44px] px-4 text-sm">
+      {t.chat.tryAgain}
+    </button>
   );
 }
 

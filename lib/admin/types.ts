@@ -7,6 +7,8 @@
  * `| null` are ever null.
  */
 
+import type { AiHealth } from "@/lib/health/ai";
+
 export type Mode = "vedic" | "western" | "numerology";
 export type UsageKindName = "reading" | "deep_reading" | "memory" | "daily" | "alert" | "extraction" | "other";
 
@@ -42,6 +44,8 @@ export type Overview = {
   generatedAt: string;
   days: number;
   totals: OverviewTotals;
+  /** Whether the AI is answering; null when it cannot be told. */
+  ai: AiHealth | null;
   series: { day: string; signups: number; readings: number; costUsd: number; activeUsers: number }[];
   modes: { mode: Mode; readings: number }[];
   models: { model: string; calls: number; costUsd: number }[];

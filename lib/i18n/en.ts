@@ -314,6 +314,8 @@ export const en = {
     reading: "Reading your chart…",
     why: "Why Astrya said this",
     basisNote: "The facts from your computed chart this reading rests on.",
+    unanswered: "Astrya could not answer this just now. Your question is saved.",
+    tryAgain: "Try again",
     streamError: "[The stars are momentarily clouded. Please try again.]",
     limitReached: "You have reached today's readings. Astrya is free, so each account has a daily limit. You can ask again tomorrow.",
     limitPaused: "Readings are paused for a few hours because Astrya has reached its limit for today. Please try again later.",
@@ -465,6 +467,7 @@ export const en = {
     withdraw: "Withdraw consent",
     withdrawHint: "Stop sending your details to Anthropic.",
     withdrawError: "Could not withdraw that. Please try again.",
+    keepExploring: "Keep exploring without readings",
   },
 
   today: {
