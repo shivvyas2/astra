@@ -11,26 +11,16 @@ Supabase decides link-versus-code by **what the email template contains**. A
 template with only `{{ .ConfirmationURL }}` sends a link and no code — the app
 will show its code screen and the person will have nothing to type.
 
-Add `{{ .Token }}` to two templates at
+Set two templates at
 <https://supabase.com/dashboard/project/ekmsslcqkezxkeqjmvpi/auth/templates>:
 
-### Magic Link — used for passwordless sign-in and sign-up
+| Template | Subject | Body |
+|---|---|---|
+| **Magic Link** (a code to sign in) | `{{ .Token }} is your Astrya code` | all of [`docs/email/magic-link.html`](email/magic-link.html) |
+| **Confirm signup** (a new account) | `{{ .Token }} is your Astrya code` | all of [`docs/email/confirm-signup.html`](email/confirm-signup.html) |
 
-```html
-<h2>Your Astrya code</h2>
-<p>Enter this code in Astrya:</p>
-<p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
-<p>It expires in an hour and can be used once.</p>
-```
-
-### Confirm signup — used after a sign-up with a password
-
-```html
-<h2>Confirm your email</h2>
-<p>Enter this code in Astrya to finish setting up your account:</p>
-<p style="font-size:28px;letter-spacing:6px"><strong>{{ .Token }}</strong></p>
-<p>It expires in an hour and can be used once.</p>
-```
+The pictures are served from `public/images/email/`, so deploy the site before
+pasting. With images off, the email still reads and the code is plain text.
 
 Neither has a link. A link only works in the browser that asked for it, so one
 opened from a mail app often failed, and a mail scanner can use it up first.
