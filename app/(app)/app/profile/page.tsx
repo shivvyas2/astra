@@ -9,6 +9,7 @@ import { loadMemories, loadPredictions } from "@/lib/memory/store";
 import { saveIntake } from "../intake/actions";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { LanguagePicker } from "@/components/LanguagePicker";
+import { ChartNamesPicker } from "@/components/ChartNamesPicker";
 import { loadReadingLanguage } from "@/lib/astrology/language";
 import { getI18n } from "@/lib/i18n/server";
 
@@ -40,6 +41,7 @@ export default async function ProfilePage() {
             {t.profile.kundli}
           </a>
           <LanguagePicker initial={language} />
+          <ChartNamesPicker />
         </div>
         <div className="brut-card p-5 sm:p-6">
           <IntakeForm

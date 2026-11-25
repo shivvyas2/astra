@@ -1,4 +1,5 @@
 import type { Locale } from "./config";
+import type { NameScript } from "@/lib/astrology/nameScript";
 import { createI18n, type I18n } from "./core";
 import { en, type Messages } from "./en";
 import { gu } from "./gu";
@@ -20,6 +21,6 @@ export function messagesFor(locale: Locale): Messages {
 }
 
 /** An I18n for a known locale, as a route handler or a job builds it. */
-export function i18nFor(locale: Locale): I18n {
-  return createI18n(locale, DICTIONARIES[locale]);
+export function i18nFor(locale: Locale, names?: NameScript): I18n {
+  return createI18n(locale, DICTIONARIES[locale], names);
 }

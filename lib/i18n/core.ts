@@ -1,5 +1,6 @@
 import type { Messages } from "./en";
-import { intlLocale, type Locale } from "./config";
+import { intlLocale, languageForLocale, type Locale } from "./config";
+import { scriptForLanguage, type NameScript } from "@/lib/astrology/nameScript";
 
 /**
  * The small i18n layer: typed dictionaries (en.ts is the source of keys; hi
@@ -46,6 +47,8 @@ export function format(locale: Locale, template: string | Plural, params: Params
 
 export type I18n = {
   locale: Locale;
+  /** The names charts are drawn with. */
+  names: NameScript;
   t: Messages;
   /** `f(t.chat.askAbout, { name })`. */
   f: (template: string | Plural, params?: Params) => string;
@@ -55,9 +58,10 @@ export type I18n = {
   list: (items: string[]) => string;
 };
 
-export function createI18n(locale: Locale, t: Messages): I18n {
+export function createI18n(locale: Locale, t: Messages, names: NameScript = scriptForLanguage(languageForLocale(locale))): I18n {
   return {
     locale,
+    names,
     t,
     f: (template, params) => format(locale, template, params),
     date: (value, options, english) => {

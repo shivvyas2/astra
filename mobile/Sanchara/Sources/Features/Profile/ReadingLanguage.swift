@@ -35,8 +35,8 @@ enum ReadingLanguage: String, CaseIterable, Identifiable, Codable, Sendable {
         }
     }
 
-    /// The kundli's names follow the reading language, so a Gujarati reading
-    /// sits beside a chart in Gujarati script.
+    /// The names charts use until someone chooses others, so a Gujarati
+    /// reading sits beside a chart in Gujarati script.
     var nameScript: NameScript {
         switch self {
         case .english: .english
@@ -51,6 +51,31 @@ enum ReadingLanguage: String, CaseIterable, Identifiable, Codable, Sendable {
     /// Mirrors SIMPLE_TITLE and BASIS_TITLE in lib/astrology/language.ts.
     static let simpleTitles: Set<String> = ["in simple words", "सरल शब्दों में", "સરળ શબ્દોમાં"]
     static let basisTitles: Set<String> = ["chart basis", "कुंडली का आधार", "કુંડળીનો આધાર"]
+}
+
+extension NameScript {
+    /// The names that go with the language, while none have been chosen.
+    static var followingLanguage: NameScript {
+        let defaults = UserDefaults.standard
+        if let saved = defaults.string(forKey: ReadingLanguage.storageKey).flatMap(ReadingLanguage.init(rawValue:)) {
+            return saved.nameScript
+        }
+        return ReadingLanguage(uiCode: AppLanguage.shared.code).nameScript
+    }
+
+    private static let legacyKey = "kundli.nameScript"
+    private static let movedKey = "chart.names.moved"
+
+    /// Builds up to 1.2 wrote the names over again with the language, so a
+    /// stored value is a choice only where it differs from the language's own.
+    static func keepEarlierChoice(_ defaults: UserDefaults = .standard) {
+        guard !defaults.bool(forKey: movedKey) else { return }
+        defaults.set(true, forKey: movedKey)
+        guard defaults.object(forKey: storageKey) == nil,
+              let old = defaults.string(forKey: legacyKey).flatMap(NameScript.init(rawValue:)),
+              old != followingLanguage else { return }
+        defaults.set(old.rawValue, forKey: storageKey)
+    }
 }
 
 extension SancharaAPI {

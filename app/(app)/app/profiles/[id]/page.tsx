@@ -55,7 +55,7 @@ export default async function PersonPage({
         {vedic && (
           <section className="brut-card mt-5 p-5">
             <p className="eyebrow">{t.person.keyPlacements}</p>
-            {/* In English the Sanskrit name leads and the English sign sits beneath; in Hindi and Gujarati the sign's own name says both. */}
+            {/* Sanskrit names carry the English sign beneath; the others say it once. */}
             <dl className="mt-3 divide-y divide-[color:var(--muted)]/30">
               <Row
                 label={t.person.moon}
@@ -65,9 +65,9 @@ export default async function PersonPage({
                   return n ? nakshatra(i18n, n) : undefined;
                 })()}
               />
-              <Row label={t.person.sun} value={vedicSign(i18n, vedic.sunSign)} detail={en ? vedic.sunSign : undefined} />
+              <Row label={t.person.sun} value={vedicSign(i18n, vedic.sunSign)} detail={i18n.names === "sanskrit" ? vedic.sunSign : undefined} />
               {timeKnown ? (
-                <Row label={t.person.lagna} value={vedicSign(i18n, vedic.ascendant.sign)} detail={en ? vedic.ascendant.sign : undefined} />
+                <Row label={t.person.lagna} value={vedicSign(i18n, vedic.ascendant.sign)} detail={i18n.names === "sanskrit" ? vedic.ascendant.sign : undefined} />
               ) : (
                 <Row label={t.person.lagna} value={t.person.unknown} detail={t.person.noBirthTime} />
               )}

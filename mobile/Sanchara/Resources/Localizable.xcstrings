@@ -12949,6 +12949,182 @@
           }
         }
       }
+    },
+    "Chart names": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કુંડળીનાં નામ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कुंडली के नाम"
+          }
+        }
+      }
+    },
+    "How planets and signs are written on your charts. Your readings keep their own language.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "કુંડળીમાં ગ્રહ અને રાશિ કઈ લિપિમાં લખાય. રીડિંગની ભાષા અલગ રહે છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कुंडली में ग्रह और राशि किस लिपि में लिखे जाएँ। रीडिंग की भाषा अलग रहती है।"
+          }
+        }
+      }
+    },
+    "How to read this chart": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "આ કુંડળી કેવી રીતે વાંચવી"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह कुंडली कैसे पढ़ें"
+          }
+        }
+      }
+    },
+    "Houses never move: house 1 is the top diamond, and the rest run anticlockwise.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ભાવ પોતાની જગ્યા બદલતા નથી: પહેલો ભાવ ઉપરનો હીરો છે, બાકીના ઘડિયાળની ઊલટી દિશામાં ચાલે છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भाव अपनी जगह नहीं बदलते: पहला भाव ऊपर का हीरा है, बाकी घड़ी की उल्टी दिशा में चलते हैं।"
+          }
+        }
+      }
+    },
+    "The number in a house is the sign sitting in it:": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ભાવમાં લખેલો અંક એમાં બેઠેલી રાશિ છે:"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भाव में लिखा अंक उसमें बैठी राशि है:"
+          }
+        }
+      }
+    },
+    "Planets:": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ગ્રહ:"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ग्रह:"
+          }
+        }
+      }
+    },
+    "A small R means retrograde.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "નાનો R એટલે વક્રી."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "छोटा R यानी वक्री।"
+          }
+        }
+      }
+    },
+    "The large number is that house's points. 28 is average, 30 or more is strong, 25 or fewer is weak.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "મોટો અંક એ ભાવના બિંદુ છે. 28 સરેરાશ, 30 કે વધુ મજબૂત, 25 કે ઓછા નબળા."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बड़ा अंक उस भाव के बिंदु हैं। 28 औसत है, 30 या ज़्यादा मज़बूत, 25 या कम कमज़ोर।"
+          }
+        }
+      }
+    },
+    "Your birth time is not known, so the Moon's sign is counted as house 1.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "જન્મ સમય ખબર નથી, એટલે ચંદ્રની રાશિને પહેલો ભાવ ગણ્યો છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "जन्म समय पता नहीं है, इसलिए चंद्र की राशि को पहला भाव माना गया है।"
+          }
+        }
+      }
+    },
+    "Each bar is one main period of your life; a longer bar is a longer period. The bright one is now.": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "દરેક પટ્ટી જીવનની એક મહાદશા છે; લાંબી પટ્ટી એટલે લાંબી દશા. ચમકતી પટ્ટી હમણાં ચાલે છે."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हर पट्टी जीवन की एक महादशा है; लंबी पट्टी यानी लंबी दशा। चमकती पट्टी अभी चल रही है।"
+          }
+        }
+      }
+    },
+    "Closed": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "બંધ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बंद"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

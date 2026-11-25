@@ -7,6 +7,10 @@ struct SancharaApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var auth = AuthStore()
 
+    init() {
+        NameScript.keepEarlierChoice()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

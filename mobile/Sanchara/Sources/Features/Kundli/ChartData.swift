@@ -342,8 +342,8 @@ extension NatalChart {
 
 /// Which names a kundli is read in. Printed kundlis in India use the Sanskrit
 /// names — in Devanagari in the north, in Gujarati script in Gujarat — and
-/// most people who read one know Shani before they know Saturn. Chosen once,
-/// on the kundli screen, and remembered.
+/// most people who read one know Shani before they know Saturn. Follows the
+/// reading language until chosen, in Profile or on any chart.
 enum NameScript: String, CaseIterable, Identifiable, Sendable {
     /// Sanskrit names in Latin letters: Surya, Chandra, Mesha.
     case sanskrit
@@ -367,7 +367,7 @@ enum NameScript: String, CaseIterable, Identifiable, Sendable {
     }
 
     /// The `@AppStorage` key the choice is kept under.
-    static let storageKey = "kundli.nameScript"
+    static let storageKey = "chart.names"
 
     /// Indexed like `ChartPlanet.order`.
     fileprivate var planetNames: [String] {
@@ -379,14 +379,14 @@ enum NameScript: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// The short forms printed inside a kundli's houses. English keeps the
-    /// astronomical glyphs (see `ChartPlanet.glyph`).
-    fileprivate var planetAbbreviations: [String]? {
+    /// The short forms printed inside a kundli's houses: letters in every
+    /// script, since an astronomical glyph means nothing to most readers.
+    fileprivate var planetAbbreviations: [String] {
         switch self {
         case .sanskrit: ["Su", "Ch", "Ma", "Bu", "Gu", "Sk", "Sa", "Ra", "Ke"]
         case .hindi: ["सू", "चं", "मं", "बु", "गु", "शु", "श", "रा", "के"]
         case .gujarati: ["સૂ", "ચં", "મં", "બુ", "ગુ", "શુ", "શ", "રા", "કે"]
-        case .english: nil
+        case .english: ["Su", "Mo", "Ma", "Me", "Ju", "Ve", "Sa", "Ra", "Ke"]
         }
     }
 
@@ -418,11 +418,10 @@ extension ChartPlanet {
         return script.planetNames[index]
     }
 
-    /// What is printed inside the chart: a two-letter form, or the glyph.
+    /// What is printed inside the chart: a short form in `script`.
     func chartLabel(in script: NameScript) -> String {
-        guard let index = Self.order.firstIndex(of: name),
-              let short = script.planetAbbreviations else { return glyph }
-        return short[index]
+        guard let index = Self.order.firstIndex(of: name) else { return glyph }
+        return script.planetAbbreviations[index]
     }
 }
 

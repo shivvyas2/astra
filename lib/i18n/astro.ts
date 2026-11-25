@@ -1,5 +1,5 @@
 import { houseFrom } from "@/lib/astrology/constants";
-import { GRAHA_SANSKRIT, RASHI_SANSKRIT } from "@/lib/profiles/names";
+import { planetIn, signIn } from "@/lib/astrology/nameScript";
 import type { Compatibility, KootaForClient } from "@/lib/compat/compatibility";
 import type { DoshaException, DoshaNote, MangalResult } from "@/lib/compat/ashtakoot";
 import type { ElementPair, SynastryAspect } from "@/lib/compat/synastry";
@@ -34,9 +34,9 @@ export function ordinal(i: I18n, n: number): string {
   return (i.t.names.ordinals as unknown as Record<number, string>)[n] ?? String(n);
 }
 
-/** A sign as the Vedic pages show it: Sanskrit in English ("Vrishabha"), the native name otherwise. */
-export const vedicSign = (i: I18n, name: string) => (i.locale === "en" ? RASHI_SANSKRIT[name] ?? name : sign(i, name));
-export const vedicPlanet = (i: I18n, name: string) => (i.locale === "en" ? GRAHA_SANSKRIT[name] ?? name : planet(i, name));
+/** A sign as the Vedic pages show it, in the names they chose (lib/astrology/nameScript.ts). */
+export const vedicSign = (i: I18n, name: string) => signIn(i.names, name);
+export const vedicPlanet = (i: I18n, name: string) => planetIn(i.names, name);
 
 /** "12 Mar 2027", as the engine writes it. */
 export function shortDate(i: I18n, iso: string): string {

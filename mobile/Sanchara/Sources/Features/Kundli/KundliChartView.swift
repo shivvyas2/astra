@@ -108,7 +108,7 @@ private struct HouseRegion: Shape {
 struct KundliChartView: View {
     let chart: NatalChart
     @Binding var selected: KundliHouse?
-    /// Glyphs for English, two-letter Sanskrit forms otherwise.
+    /// The names the chart is drawn with.
     var script: NameScript = .english
     /// How much of the drawing shows: 0 while the reveal inks it in, 1 at rest.
     /// The houses stay tappable and readable by VoiceOver throughout.
@@ -198,7 +198,7 @@ struct KundliChartView: View {
         // Type, so labels that did would spill over the lines and out of the
         // frame. The table under the chart carries the full text sizes.
         let numeral = min(numeralSize, side * 0.034)
-        let label = min(glyphSize, side * (script == .english ? 0.046 : 0.04))
+        let label = min(glyphSize, side * 0.04)
         return VStack(spacing: 2) {
             // The rashi numeral is how a kundli is read — it identifies the sign
             // sitting in a fixed house. Set in the text face at medium weight,
@@ -218,7 +218,7 @@ struct KundliChartView: View {
                         HStack(spacing: 5) {
                             ForEach(row) { planet in
                                 Text(planet.chartLabel(in: script))
-                                    .font(.scaled(size: label, weight: script == .english ? .regular : .semibold))
+                                    .font(.scaled(size: label, weight: .semibold))
                                     .foregroundStyle(Theme.fg)
                                     .overlay(alignment: .topTrailing) {
                                         if planet.retrograde {

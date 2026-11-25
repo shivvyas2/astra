@@ -65,6 +65,16 @@ final class ChartBlockTests: XCTestCase {
         XCTAssertEqual(charts.count, 3)
         let natal = try XCTUnwrap(charts[0].natal)
         MotionGate.recordPlayed(KundliReveal.key(for: natal), .onceEver)
+        for script in NameScript.allCases {
+            let key = VStack(alignment: .leading, spacing: 8) {
+                KundliChartView(chart: natal, selected: .constant(nil), script: script).frame(width: 300, height: 300)
+                ChartKey(planets: natal.planets.map(\.name), hasRetrograde: true, script: script, open: true)
+            }.padding(16).background(Theme.bg)
+            let r = ImageRenderer(content: key); r.scale = 2
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("names-\(script.rawValue).png")
+            try XCTUnwrap(r.uiImage?.pngData()).write(to: url)
+            print("NAMES_PATH=\(url.path)")
+        }
         let view = VStack(spacing: 16) { ForEach(Array(charts.enumerated()), id: \.offset) { _, c in ChartBlockView(block: c) } }
             .frame(width: 360)
             .padding(16)

@@ -3,7 +3,8 @@ import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { isReadingLanguage, type ReadingLanguage } from "@/lib/astrology/language";
-import { LOCALE_COOKIE, resolveLocale, type Locale } from "./config";
+import { isNameScript, NAMES_COOKIE, scriptForLanguage, type NameScript } from "@/lib/astrology/nameScript";
+import { languageForLocale, LOCALE_COOKIE, resolveLocale, type Locale } from "./config";
 import type { I18n } from "./core";
 import { i18nFor, LEGAL } from "./dictionaries";
 
@@ -21,7 +22,7 @@ function hasSession(names: string[]): boolean {
  * "chose English" from "has not chosen", so a visitor's cookie still counts
  * until there is a profile.
  */
-async function storedLanguage(): Promise<ReadingLanguage | null> {
+const storedLanguage = cache(async (): Promise<ReadingLanguage | null> => {
   try {
     const db = await createServerSupabase();
     const { data, error } = await db.from("birth_profiles").select("reading_language").maybeSingle();
@@ -31,7 +32,7 @@ async function storedLanguage(): Promise<ReadingLanguage | null> {
   } catch {
     return null;
   }
-}
+});
 
 /** The active locale, worked out once per request. */
 export const getLocale = cache(async (): Promise<Locale> => {
@@ -47,8 +48,19 @@ export const getLocale = cache(async (): Promise<Locale> => {
   });
 });
 
+/** The names charts are drawn with: their own choice, else their language's. */
+export const getNames = cache(async (): Promise<NameScript> => {
+  const jar = await cookies();
+  const chosen = jar.get(NAMES_COOKIE)?.value;
+  if (isNameScript(chosen)) return chosen;
+  const locale = await getLocale();
+  // "Sanskrit terms" reads in English, so the locale alone cannot say it.
+  const stored = hasSession(jar.getAll().map((c) => c.name)) ? await storedLanguage() : null;
+  return stored === "sanskrit" ? "sanskrit" : scriptForLanguage(languageForLocale(locale));
+});
+
 /** `const { t, f } = await getI18n()` in a server component or route handler. */
-export const getI18n = cache(async (): Promise<I18n> => i18nFor(await getLocale()));
+export const getI18n = cache(async (): Promise<I18n> => i18nFor(await getLocale(), await getNames()));
 
 export async function getLegal() {
   const locale = await getLocale();

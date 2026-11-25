@@ -4,7 +4,8 @@ import SwiftUI
 /// seen, the ashtakavarga points, or the dasha timeline.
 struct ChartBlockView: View {
     let block: ChartBlock
-    @AppStorage(NameScript.storageKey) private var script: NameScript = .sanskrit
+    @AppStorage(NameScript.storageKey) private var chosenNames: NameScript?
+    private var script: NameScript { chosenNames ?? .followingLanguage }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -30,9 +31,21 @@ struct ChartBlockView: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(spoken(houses))
+                ChartKey(
+                    planets: houses.flatMap(\.items).map { $0.replacingOccurrences(of: " (R)", with: "") },
+                    hasRetrograde: houses.contains { $0.items.contains { $0.hasSuffix("(R)") } },
+                    points: block.id == "SAV",
+                    fromMoon: block.id == "Moon",
+                    script: script
+                )
             case .dasha(let periods):
                 dashas(periods)
+                Text("Each bar is one main period of your life; a longer bar is a longer period. The bright one is now.")
+                    .font(.brutBody(12))
+                    .foregroundStyle(Theme.muted)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            ChartNamesMenu()
         }
         .padding(14)
         .brutBordered(fill: Theme.fg.opacity(0.03))
@@ -87,9 +100,10 @@ struct ChartBlockView: View {
 
     private func spoken(_ houses: [ChartBlock.House]) -> String {
         houses.enumerated().map { index, house in
-            let place = L10n.string("House \(index + 1), \(house.rashi.sanskrit), \(house.rashi.english)")
+            let place = L10n.string("House \(index + 1), \(house.rashi.name(in: script)), \(house.rashi.english)")
             if block.id == "SAV" { return "\(place): \(house.items.first ?? "0")" }
-            return house.items.isEmpty ? L10n.string("\(place). Empty.") : "\(place): \(house.items.joined(separator: ", "))"
+            let names = house.items.map { ChartPlanet.name(english: $0.replacingOccurrences(of: " (R)", with: ""), in: script) }
+            return names.isEmpty ? L10n.string("\(place). Empty.") : "\(place): \(names.joined(separator: ", "))"
         }
         .joined(separator: ". ")
     }

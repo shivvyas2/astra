@@ -46,6 +46,20 @@ export const en = {
     goHome: "Go to Astrya",
   },
 
+  chartNames: {
+    label: "Chart names",
+    helper: "How planets and signs are written on your charts. Your readings keep their own language.",
+    change: "Names on this chart",
+    how: "How to read this chart",
+    houses: "Houses never move: house 1 is the top diamond, and the rest run anticlockwise.",
+    numbers: "The number in a house is the sign sitting in it:",
+    planets: "Planets:",
+    retro: "A small R means retrograde.",
+    points: "The large number is that house's points. 28 is average, 30 or more is strong, 25 or fewer is weak.",
+    moonFirst: "Your birth time is not known, so the Moon's sign is counted as house 1.",
+    dasha: "Each bar is one main period of your life; a longer bar is a longer period. The bright one is now.",
+  },
+
   language: {
     label: "Language",
     helper:
@@ -344,7 +358,6 @@ export const en = {
     // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
     chart: {
       titles: { D1: "Birth chart", Moon: "Chart from the Moon", SAV: "Ashtakavarga", Dasha: "Dasha timeline", D7: "D7 Saptamsa, children", D9: "D9 Navamsa, marriage", D10: "D10 Dasamsa, career" },
-      short: { Sun: "Su", Moon: "Mo", Mars: "Ma", Mercury: "Me", Jupiter: "Ju", Venus: "Ve", Saturn: "Sa", Rahu: "Ra", Ketu: "Ke" },
       divisional: "{id} chart",
       house: "House {n}, {sign}",
       points: "{count} points",

@@ -33,6 +33,20 @@ export const hi: Messages = {
     goHome: "Astrya पर जाएं",
   },
 
+  chartNames: {
+    label: "कुंडली के नाम",
+    helper: "कुंडली में ग्रह और राशि किस लिपि में लिखे जाएँ। रीडिंग की भाषा अलग रहती है।",
+    change: "इस कुंडली के नाम",
+    how: "यह कुंडली कैसे पढ़ें",
+    houses: "भाव अपनी जगह नहीं बदलते: पहला भाव ऊपर का हीरा है, बाकी घड़ी की उल्टी दिशा में चलते हैं।",
+    numbers: "भाव में लिखा अंक उसमें बैठी राशि है:",
+    planets: "ग्रह:",
+    retro: "छोटा R यानी वक्री।",
+    points: "बड़ा अंक उस भाव के बिंदु हैं। 28 औसत है, 30 या ज़्यादा मज़बूत, 25 या कम कमज़ोर।",
+    moonFirst: "जन्म समय पता नहीं है, इसलिए चंद्र की राशि को पहला भाव माना गया है।",
+    dasha: "हर पट्टी जीवन की एक महादशा है; लंबी पट्टी यानी लंबी दशा। चमकती पट्टी अभी चल रही है।",
+  },
+
   language: {
     label: "भाषा",
     helper:
@@ -328,7 +342,6 @@ export const hi: Messages = {
     // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
     chart: {
       titles: { D1: "जन्म कुंडली", Moon: "चंद्र कुंडली", SAV: "अष्टकवर्ग", Dasha: "दशा का क्रम", D7: "D7 सप्तमांश, संतान", D9: "D9 नवमांश, विवाह", D10: "D10 दशमांश, करियर" },
-      short: { Sun: "सू", Moon: "चं", Mars: "मं", Mercury: "बु", Jupiter: "गु", Venus: "शु", Saturn: "श", Rahu: "रा", Ketu: "के" },
       divisional: "{id} कुंडली",
       house: "भाव {n}, {sign}",
       points: "{count} बिंदु",

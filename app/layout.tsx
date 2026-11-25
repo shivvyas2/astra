@@ -24,11 +24,11 @@ export const viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // One language for the whole request (lib/i18n/server.ts); client
   // components read the same dictionary through the provider.
-  const { locale, t } = await getI18n();
+  const { locale, t, names } = await getI18n();
   return (
     <html lang={locale} className={`${gujarati.variable} ${devanagari.variable}`}>
       <body className="min-h-screen antialiased">
-        <I18nProvider locale={locale} messages={t}>
+        <I18nProvider locale={locale} messages={t} names={names}>
           {children}
         </I18nProvider>
       </body>

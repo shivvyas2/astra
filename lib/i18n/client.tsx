@@ -3,6 +3,7 @@ import { createContext, useContext, useMemo } from "react";
 import type { Locale } from "./config";
 import { createI18n, type I18n } from "./core";
 import type { Messages } from "./en";
+import type { NameScript } from "@/lib/astrology/nameScript";
 
 const I18nContext = createContext<I18n | null>(null);
 
@@ -11,8 +12,8 @@ const I18nContext = createContext<I18n | null>(null);
  * renders it with the one dictionary getLocale picked; a language change
  * refreshes the router, which renders it again with the new one.
  */
-export function I18nProvider({ locale, messages, children }: { locale: Locale; messages: Messages; children: React.ReactNode }) {
-  const value = useMemo(() => createI18n(locale, messages), [locale, messages]);
+export function I18nProvider({ locale, messages, names, children }: { locale: Locale; messages: Messages; names?: NameScript; children: React.ReactNode }) {
+  const value = useMemo(() => createI18n(locale, messages, names), [locale, messages, names]);
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
 

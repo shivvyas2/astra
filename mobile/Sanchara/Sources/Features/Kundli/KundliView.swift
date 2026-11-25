@@ -30,7 +30,8 @@ struct KundliView: View {
     @State private var showAddTime = false
     @Environment(\.navigator) private var navigator
     /// Sanskrit, Hindi, Gujarati or English names for grahas and rashis.
-    @AppStorage(NameScript.storageKey) private var script: NameScript = .sanskrit
+    @AppStorage(NameScript.storageKey) private var chosenNames: NameScript?
+    private var script: NameScript { chosenNames ?? .followingLanguage }
 
     var body: some View {
         NavigationStack {
@@ -332,7 +333,7 @@ struct KundliView: View {
     /// menu of the four, each written in its own script.
     private var namesMenu: some View {
         Menu {
-            Picker("Names", selection: $script) {
+            Picker("Names", selection: Binding(get: { script }, set: { chosenNames = $0 })) {
                 ForEach(NameScript.allCases) { option in
                     Text(option.label).tag(option)
                 }
@@ -381,6 +382,8 @@ struct KundliView: View {
                 .font(.brutBody(13))
                 .foregroundStyle(Theme.muted)
                 .fixedSize(horizontal: false, vertical: true)
+
+            ChartKey(planets: drawnChart.planets.map(\.name), hasRetrograde: drawnChart.planets.contains(where: \.retrograde), script: script)
         }
     }
 
@@ -540,7 +543,8 @@ struct HouseDetailSheet: View {
     var fromMoon = false
 
     @Environment(\.dismiss) private var dismiss
-    @AppStorage(NameScript.storageKey) private var script: NameScript = .sanskrit
+    @AppStorage(NameScript.storageKey) private var chosenNames: NameScript?
+    private var script: NameScript { chosenNames ?? .followingLanguage }
 
     /// "1st", "2nd", "7th", "11th".
     private var ordinal: String {

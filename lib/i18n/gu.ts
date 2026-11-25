@@ -33,6 +33,20 @@ export const gu: Messages = {
     goHome: "Astrya પર જાઓ",
   },
 
+  chartNames: {
+    label: "કુંડળીનાં નામ",
+    helper: "કુંડળીમાં ગ્રહ અને રાશિ કઈ લિપિમાં લખાય. રીડિંગની ભાષા અલગ રહે છે.",
+    change: "આ કુંડળીનાં નામ",
+    how: "આ કુંડળી કેવી રીતે વાંચવી",
+    houses: "ભાવ પોતાની જગ્યા બદલતા નથી: પહેલો ભાવ ઉપરનો હીરો છે, બાકીના ઘડિયાળની ઊલટી દિશામાં ચાલે છે.",
+    numbers: "ભાવમાં લખેલો અંક એમાં બેઠેલી રાશિ છે:",
+    planets: "ગ્રહ:",
+    retro: "નાનો R એટલે વક્રી.",
+    points: "મોટો અંક એ ભાવના બિંદુ છે. 28 સરેરાશ, 30 કે વધુ મજબૂત, 25 કે ઓછા નબળા.",
+    moonFirst: "જન્મ સમય ખબર નથી, એટલે ચંદ્રની રાશિને પહેલો ભાવ ગણ્યો છે.",
+    dasha: "દરેક પટ્ટી જીવનની એક મહાદશા છે; લાંબી પટ્ટી એટલે લાંબી દશા. ચમકતી પટ્ટી હમણાં ચાલે છે.",
+  },
+
   language: {
     label: "ભાષા",
     helper:
@@ -328,7 +342,6 @@ export const gu: Messages = {
     // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
     chart: {
       titles: { D1: "જન્મ કુંડળી", Moon: "ચંદ્ર કુંડળી", SAV: "અષ્ટકવર્ગ", Dasha: "દશાનો ક્રમ", D7: "D7 સપ્તમાંશ, સંતાન", D9: "D9 નવમાંશ, લગ્ન", D10: "D10 દશમાંશ, કારકિર્દી" },
-      short: { Sun: "સૂ", Moon: "ચં", Mars: "મં", Mercury: "બુ", Jupiter: "ગુ", Venus: "શુ", Saturn: "શ", Rahu: "રા", Ketu: "કે" },
       divisional: "{id} કુંડળી",
       house: "ભાવ {n}, {sign}",
       points: "{count} બિંદુ",

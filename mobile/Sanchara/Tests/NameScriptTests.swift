@@ -34,9 +34,33 @@ final class NameScriptTests: XCTestCase {
         XCTAssertEqual(Rashi.mesha.name(in: .english), "Aries")
     }
 
-    func testEnglishKeepsTheGlyphsAndUnknownNamesPassThrough() {
-        XCTAssertEqual(planet("Sun").chartLabel(in: .english), "☉")
+    func testEveryScriptUsesLettersAndUnknownNamesPassThrough() {
+        XCTAssertEqual(planet("Sun").chartLabel(in: .english), "Su")
+        XCTAssertEqual(planet("Moon").chartLabel(in: .english), "Mo")
+        for script in NameScript.allCases {
+            XCTAssertEqual(Set(ChartPlanet.order.map { planet($0).chartLabel(in: script) }).count, 9, "\(script)")
+        }
         XCTAssertEqual(planet("Sun").chartLabel(in: .sanskrit), "Su")
         XCTAssertEqual(ChartPlanet.name(english: "Pluto", in: .hindi), "Pluto")
+    }
+
+    func testAnEarlierChoiceSurvivesAndAnEchoOfTheLanguageDoesNot() throws {
+        let d = try XCTUnwrap(UserDefaults(suiteName: "names-test"))
+        d.removePersistentDomain(forName: "names-test")
+        let echo = NameScript.followingLanguage
+        let other = try XCTUnwrap(NameScript.allCases.first { $0 != echo })
+        d.set(echo.rawValue, forKey: "kundli.nameScript")
+        NameScript.keepEarlierChoice(d)
+        XCTAssertNil(d.string(forKey: NameScript.storageKey))
+
+        d.removePersistentDomain(forName: "names-test")
+        d.set(other.rawValue, forKey: "kundli.nameScript")
+        NameScript.keepEarlierChoice(d)
+        XCTAssertEqual(d.string(forKey: NameScript.storageKey), other.rawValue)
+        // Once only: a later change of mind is not undone.
+        d.removeObject(forKey: NameScript.storageKey)
+        NameScript.keepEarlierChoice(d)
+        XCTAssertNil(d.string(forKey: NameScript.storageKey))
+        d.removePersistentDomain(forName: "names-test")
     }
 }

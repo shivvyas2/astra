@@ -39,3 +39,15 @@ ashtakavarga, muhurat and a drawn chart, and were told Astrya does not have them
 ## Not included
 Western and numerology look-ups, night muhurats and lagna shuddhi, birth-time
 rectification, regional muhurat rules.
+
+## Chart names (added 2026-11-25)
+Asked for: charts anyone can read, in Hindi script, Vedic or Western names,
+changed in settings.
+- One setting, **Chart names**: English, Sanskrit, Hindi, Gujarati. In Profile and
+  on every chart, on web and iPhone. Follows the language until chosen, and a
+  later language change or a visit to Profile no longer undoes the choice.
+- Letters in every script: English drew astronomical glyphs, which few can read.
+- "How to read this chart" under each: houses, the sign behind each number, and
+  every planet's short form, with the English beside the others.
+- Kept per device (a cookie on the web), so no migration. The PDF still carries
+  Sanskrit and English: its fonts cannot set Hindi or Gujarati.

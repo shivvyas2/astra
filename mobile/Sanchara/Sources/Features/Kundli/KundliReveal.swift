@@ -65,7 +65,7 @@ enum KundliReveal {
         frame(at, in: context, at: t, hand: hand, opacity: ink)
 
         let numeral = min(numeralSize, side * 0.034)
-        let label = min(glyphSize, side * (script == .english ? 0.046 : 0.04))
+        let label = min(glyphSize, side * 0.04)
         let rings = rings(chart.planets)
         for house in chart.houses {
             let places = slots(house, script: script, numeral: numeral, label: label, anchor: at(KundliGeometry.labelAnchor(house: house.number)), in: context)
@@ -158,7 +158,7 @@ enum KundliReveal {
             let styled = Text(verbatim: text).font(font(points, weight, in: context))
             return context.resolve(styled).measure(in: room)
         }
-        let weight: Font.Weight = script == .english ? .regular : .semibold
+        let weight: Font.Weight = .semibold
         let top: CGSize = size("\(house.rashi.number)", numeral, .medium)
         let labels: [CGSize] = house.planets.map { size($0.chartLabel(in: script), label, weight) }
         let rows = stride(from: 0, to: labels.count, by: 2).map { Array($0..<min($0 + 2, labels.count)) }

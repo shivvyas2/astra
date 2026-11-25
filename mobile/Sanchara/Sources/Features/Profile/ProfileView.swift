@@ -21,7 +21,7 @@ struct ProfileView: View {
     @State private var legalPage: LegalPage?
     /// Nil until the person picks a chip; the app then follows iOS's language.
     @AppStorage(ReadingLanguage.storageKey) private var chosenLanguage: ReadingLanguage?
-    @AppStorage(NameScript.storageKey) private var nameScript: NameScript = .sanskrit
+    @AppStorage(NameScript.storageKey) private var chosenNames: NameScript?
     @State private var languageError: String?
     @State private var photoItem: PhotosPickerItem?
     @State private var isUploadingPhoto = false
@@ -75,6 +75,8 @@ struct ProfileView: View {
                         }
 
                         languageBlock
+
+                        chartNamesBlock
                         accessibilityBlock
                         memoryBlock
                         if PlusStore.isEnabled { PlanRow() }
@@ -206,7 +208,7 @@ struct ProfileView: View {
 
     /// The one language setting: the app's own words and the readings both
     /// follow it. Saved on the server, since the morning and evening readings
-    /// and alerts are written there; the chart's names follow it too.
+    /// and alerts are written there.
     private var languageBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Language").eyebrow()
@@ -236,6 +238,27 @@ struct ProfileView: View {
         }
     }
 
+    /// The names charts are drawn with, apart from the language: anyone can
+    /// read in English beside a chart in Hindi.
+    private var chartNamesBlock: some View {
+        let current = chosenNames ?? .followingLanguage
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Chart names").eyebrow()
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(NameScript.allCases) { option in
+                        BrutChip(text: option.label, active: current == option) { chosenNames = option }
+                            .accessibilityAddTraits(current == option ? .isSelected : [])
+                    }
+                }
+            }
+            Text(verbatim: "\(ChartPlanet.name(english: "Sun", in: current)), \(Rashi.mesha.name(in: current)). \(L10n.string("How planets and signs are written on your charts. Your readings keep their own language."))")
+                .font(.brutBody(13))
+                .foregroundStyle(Theme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     /// The chosen chip, or the one matching the language the app is showing.
     private var language: ReadingLanguage {
         chosenLanguage ?? ReadingLanguage(uiCode: AppLanguage.shared.code)
@@ -257,11 +280,10 @@ struct ProfileView: View {
         }
     }
 
-    /// Stores the language and switches the app, the kundli's names and the
-    /// widgets to it.
+    /// Stores the language and switches the app and the widgets to it. Chart
+    /// names follow it too, unless they were chosen.
     private func adopt(_ option: ReadingLanguage) {
         chosenLanguage = option
-        nameScript = option.nameScript
         AppLanguage.shared.apply(code: option.uiCode)
         WidgetRefresh.reloadAll()
     }
