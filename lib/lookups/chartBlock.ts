@@ -88,3 +88,11 @@ export function withoutCharts(content: string): string {
     .map((part) => (typeof part === "string" ? part.trim() : `[The app drew ${part.name}'s ${part.id} chart here.]`))
     .join("\n\n");
 }
+
+/**
+ * Whether a house can hold its planets' full names, one to a row: four in a
+ * kite (1, 4, 7, 10), two in a triangle. Mirrored on iOS by `KundliLabels`.
+ */
+export function fitsFullNames(house: number, planets: number): boolean {
+  return planets <= (house % 3 === 1 ? 4 : 2);
+}

@@ -68,7 +68,10 @@ enum KundliReveal {
         let label = min(glyphSize, side * 0.04)
         let rings = rings(chart.planets)
         for house in chart.houses {
-            let places = slots(house, script: script, numeral: numeral, label: label, anchor: at(KundliGeometry.labelAnchor(house: house.number)), in: context)
+            let labels = KundliLabels(house, script: script, side: side, glyphSize: glyphSize, typeSize: context.environment.dynamicTypeSize)
+            let base = at(KundliGeometry.labelAnchor(house: house.number))
+            let anchor = CGPoint(x: base.x + labels.offset.width, y: base.y + labels.offset.height)
+            let places = slots(house, labels: labels, numeral: numeral, anchor: anchor, in: context)
             let shown = Ink.phase(t, 2.9 + Double(house.number) * 0.03, 3.2 + Double(house.number) * 0.03)
             let tint: Color = house.isLagna ? Theme.accent : Theme.muted
             let figure = Text(verbatim: "\(house.rashi.number)")
@@ -152,16 +155,16 @@ enum KundliReveal {
 
     /// Where the chart's own layout puts a house's numeral and planets, so the
     /// ink lands on the labels it becomes. Mirrors `KundliChartView.contents`.
-    private static func slots(_ house: KundliHouse, script: NameScript, numeral: CGFloat, label: CGFloat, anchor: CGPoint, in context: GraphicsContext) -> (numeral: CGPoint, planets: [CGPoint]) {
+    private static func slots(_ house: KundliHouse, labels layout: KundliLabels, numeral: CGFloat, anchor: CGPoint, in context: GraphicsContext) -> (numeral: CGPoint, planets: [CGPoint]) {
         let room = CGSize(width: 400, height: 400)
         func size(_ text: String, _ points: CGFloat, _ weight: Font.Weight) -> CGSize {
             let styled = Text(verbatim: text).font(font(points, weight, in: context))
             return context.resolve(styled).measure(in: room)
         }
-        let weight: Font.Weight = .semibold
         let top: CGSize = size("\(house.rashi.number)", numeral, .medium)
-        let labels: [CGSize] = house.planets.map { size($0.chartLabel(in: script), label, weight) }
-        let rows = stride(from: 0, to: labels.count, by: 2).map { Array($0..<min($0 + 2, labels.count)) }
+        let labels: [CGSize] = house.planets.map { size(layout.text($0), layout.size, .semibold) }
+        let per = layout.full ? 1 : 2
+        let rows = stride(from: 0, to: labels.count, by: per).map { Array($0..<min($0 + per, labels.count)) }
         let heights: [CGFloat] = rows.map { row in row.map { labels[$0].height }.max() ?? 0 }
         var total: CGFloat = top.height
         if !rows.isEmpty { total += 2 + heights.reduce(0, +) + CGFloat(rows.count - 1) }

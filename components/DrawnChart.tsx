@@ -2,6 +2,7 @@
 import { NAME_SCRIPT_LABEL, NAME_SCRIPTS, planetIn, planetShortIn, signIn, signsIn, type NameScript } from "@/lib/astrology/nameScript";
 import { signIndex } from "@/lib/astrology/constants";
 import { useChartNames } from "@/components/ChartNamesPicker";
+import { fitsFullNames } from "@/lib/lookups/chartBlock";
 import { useI18n } from "@/lib/i18n/client";
 import type { ChartBlock } from "@/lib/lookups/chartBlock";
 
@@ -53,7 +54,8 @@ function Kundli({ block, names }: { block: Extract<ChartBlock, { kind: "chart" }
   const { t, f } = useI18n();
   const c = t.chat.chart;
   const points = block.id === "SAV";
-  const label = (item: string) => (points ? item : planetShortIn(names, bare(item)) + (item.endsWith("(R)") ? "ᴿ" : ""));
+  const written = (item: string, full: boolean) =>
+    points ? item : (full ? planetIn(names, bare(item)) : planetShortIn(names, bare(item))) + (item.endsWith("(R)") ? "ᴿ" : "");
   const spoken = block.houses
     .map((h) => {
       const what = points ? f(c.points, { count: h.items[0] ?? "0" }) : h.items.map((x) => planetIn(names, bare(x))).join(", ") || c.empty;
@@ -65,11 +67,19 @@ function Kundli({ block, names }: { block: Extract<ChartBlock, { kind: "chart" }
       <path d="M50 1L74.5 25.5L50 50L25.5 25.5Z" fill="var(--accent)" opacity="0.1" />
       <path className="chart-ink" pathLength={1} d="M1 1H99V99H1ZM1 1L99 99M99 1L1 99M50 1L99 50L50 99L1 50Z" fill="none" stroke="currentColor" strokeOpacity="0.55" strokeWidth="0.5" strokeLinejoin="round" />
       {block.houses.map((h, i) => {
-        const [x, y] = ANCHOR[i];
-        // Two to a row, so a crowded house stays inside its lines.
+        // Full names, one to a row, where the house has room. A crowded house
+        // takes the short forms two to a row, so it stays inside its lines.
+        const full = fitsFullNames(h.house, h.items.length);
+        const per = full ? 1 : 2;
         const rows: string[] = [];
-        for (let k = 0; k < h.items.length; k += 2) rows.push(h.items.slice(k, k + 2).map(label).join(" "));
-        const size = rows.length > 1 ? 3.8 : 4.5;
+        for (let k = 0; k < h.items.length; k += per) rows.push(h.items.slice(k, k + per).map((x) => written(x, full)).join(" "));
+        // In a triangle, full names sit towards its wide outer edge.
+        const triangle = h.house % 3 !== 1;
+        const out = full && triangle && rows.length > 1 ? 1.4 : 0;
+        const [ax, ay] = ANCHOR[i];
+        const x = ax + (ax < 20 ? -out / 2 : ax > 80 ? out / 2 : 0);
+        const y = ay + (ay < 20 ? -out : ay > 80 ? out : 0);
+        const size = points ? 4.5 : full ? (triangle ? 3.3 : 3.6) : rows.length > 1 ? 3.8 : 4.5;
         const line = size + 0.3;
         const top = y - (rows.length * line) / 2;
         return (
@@ -92,7 +102,7 @@ function Key({ block, names }: { block: ChartBlock; names: NameScript }) {
   if (block.kind === "dasha") return <p className="pb-3 leading-relaxed">{k.dasha}</p>;
   const planets = block.id === "SAV" ? [] : block.houses.flatMap((h) => h.items);
   // English names sit beside the others, so any reader can match them up.
-  const full = (name: string) => (names === "english" ? name : `${planetIn(names, name)} (${name})`);
+  const spelled = (name: string) => (names === "english" ? name : `${planetIn(names, name)} (${name})`);
   const signs = signsIn(names);
   const western = signsIn("english");
   return (
@@ -114,7 +124,7 @@ function Key({ block, names }: { block: ChartBlock; names: NameScript }) {
           <p>{k.planets}</p>
           <ul className="grid grid-cols-2 gap-x-3">
             {planets.map((p) => (
-              <li key={p}><span className="font-medium text-fg">{planetShortIn(names, bare(p))}</span> {full(bare(p))}</li>
+              <li key={p}><span className="font-medium text-fg">{planetShortIn(names, bare(p))}</span> {spelled(bare(p))}</li>
             ))}
           </ul>
           {planets.some((p) => p.endsWith("(R)")) && <p>{k.retro}</p>}

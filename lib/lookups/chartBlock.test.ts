@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SIGNS } from "@/lib/astrology/constants";
-import { splitCharts, withoutCharts, writeChart, writeDasha, type ChartBlock } from "./chartBlock";
+import { fitsFullNames, splitCharts, withoutCharts, writeChart, writeDasha, type ChartBlock } from "./chartBlock";
 import { parseDetailsLine } from "@/lib/compat/chatMatch";
 import { splitReading } from "@/lib/astrology/reading";
 
@@ -43,4 +43,9 @@ describe("a drawn chart", () => {
     expect(text).toBe("[The app drew Asha's D9 chart here.]\n\n**Love**\nYes.");
     expect(withoutCharts("**Love**\nYes.")).toBe("**Love**\nYes.");
   });
+});
+
+it("writes full names where a house has room for them", () => {
+  for (const kite of [1, 4, 7, 10]) expect([4, 5].map((n) => fitsFullNames(kite, n))).toEqual([true, false]);
+  for (const triangle of [2, 3, 5, 6, 8, 9, 11, 12]) expect([2, 3].map((n) => fitsFullNames(triangle, n))).toEqual([true, false]);
 });

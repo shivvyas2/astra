@@ -65,9 +65,10 @@ final class ChartBlockTests: XCTestCase {
         XCTAssertEqual(charts.count, 3)
         let natal = try XCTUnwrap(charts[0].natal)
         MotionGate.recordPlayed(KundliReveal.key(for: natal), .onceEver)
+        let crowded = try XCTUnwrap(ChartBlock.split(block(items: [1: "Moon, Venus, Sun, Mercury (R)", 2: "Mars, Jupiter (R)", 3: "Mercury (R), Saturn", 4: "Sun, Moon, Mars, Mercury, Jupiter", 5: "Mercury, Jupiter (R)", 6: "Mercury (R), Jupiter", 7: "Saturn, Rahu", 9: "Jupiter (R), Mercury (R)", 11: "Sun, Moon, Venus", 12: "Mercury (R), Jupiter (R)"])).charts.first?.natal)
         for script in NameScript.allCases {
             let key = VStack(alignment: .leading, spacing: 8) {
-                KundliChartView(chart: natal, selected: .constant(nil), script: script).frame(width: 300, height: 300)
+                KundliChartView(chart: crowded, selected: .constant(nil), script: script).frame(width: 300, height: 300)
                 ChartKey(planets: natal.planets.map(\.name), hasRetrograde: true, script: script, open: true)
             }.padding(16).background(Theme.bg)
             let r = ImageRenderer(content: key); r.scale = 2

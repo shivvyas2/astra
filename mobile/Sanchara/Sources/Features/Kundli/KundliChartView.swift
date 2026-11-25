@@ -103,6 +103,42 @@ private struct HouseRegion: Shape {
     func path(in rect: CGRect) -> Path { KundliGeometry.path(house: house, in: rect) }
 }
 
+// MARK: - Labels
+
+/// How one house writes its planets: full names one to a row where it has
+/// room, short forms two to a row where it does not. Shared by the chart and
+/// the drawing that becomes it. Mirrors `fitsFullNames` in
+/// lib/lookups/chartBlock.ts.
+struct KundliLabels {
+    let full: Bool
+    let rows: [[ChartPlanet]]
+    let size: CGFloat
+    /// Two rows or more in a triangle sit towards its wide outer edge.
+    let offset: CGSize
+    private let script: NameScript
+
+    /// The houses do not grow with Dynamic Type, so the accessibility sizes
+    /// keep the short forms.
+    init(_ house: KundliHouse, script: NameScript, side: CGFloat, glyphSize: CGFloat, typeSize: DynamicTypeSize) {
+        let kite = house.number % 3 == 1
+        full = !typeSize.isAccessibilitySize && house.planets.count <= (kite ? 4 : 2)
+        size = min(glyphSize, side * (kite ? (full ? 0.036 : 0.04) : (full ? 0.032 : 0.036)))
+        let per = full ? 1 : 2
+        rows = stride(from: 0, to: house.planets.count, by: per).map {
+            Array(house.planets[$0..<min($0 + per, house.planets.count)])
+        }
+        self.script = script
+        let anchor = KundliGeometry.labelAnchor(house: house.number)
+        let out = !kite && rows.count > 1
+        let push = { (v: CGFloat, by: CGFloat) -> CGFloat in !out ? 0 : v < 0.2 ? -by * side : v > 0.8 ? by * side : 0 }
+        offset = CGSize(width: push(anchor.x, 0.022), height: push(anchor.y, 0.038))
+    }
+
+    func text(_ planet: ChartPlanet) -> String {
+        full ? planet.name(in: script) : planet.chartLabel(in: script)
+    }
+}
+
 // MARK: - The chart
 
 struct KundliChartView: View {
@@ -119,6 +155,7 @@ struct KundliChartView: View {
     /// carries unbounded Dynamic Type — no one has to read the diagram to get
     /// at the numbers.
     @ScaledMetric(relativeTo: .footnote) private var glyphSize: CGFloat = 15
+    @Environment(\.dynamicTypeSize) private var typeSize
     @ScaledMetric(relativeTo: .caption2) private var numeralSize: CGFloat = 11
 
     var body: some View {
@@ -154,8 +191,8 @@ struct KundliChartView: View {
                     contents(house, side: side)
                         .opacity(rest)
                         .position(
-                            x: KundliGeometry.labelAnchor(house: house.number).x * side,
-                            y: KundliGeometry.labelAnchor(house: house.number).y * side
+                            x: KundliGeometry.labelAnchor(house: house.number).x * side + labels(house, side: side).offset.width,
+                            y: KundliGeometry.labelAnchor(house: house.number).y * side + labels(house, side: side).offset.height
                         )
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -193,12 +230,16 @@ struct KundliChartView: View {
         return house.number.isMultiple(of: 2) ? Theme.fg.opacity(0.03) : .clear
     }
 
+    private func labels(_ house: KundliHouse, side: CGFloat) -> KundliLabels {
+        KundliLabels(house, script: script, side: side, glyphSize: glyphSize, typeSize: typeSize)
+    }
+
     private func contents(_ house: KundliHouse, side: CGFloat) -> some View {
         // Capped by the chart's own size: the houses do not grow with Dynamic
         // Type, so labels that did would spill over the lines and out of the
         // frame. The table under the chart carries the full text sizes.
         let numeral = min(numeralSize, side * 0.034)
-        let label = min(glyphSize, side * 0.04)
+        let labels = labels(house, side: side)
         return VStack(spacing: 2) {
             // The rashi numeral is how a kundli is read — it identifies the sign
             // sitting in a fixed house. Set in the text face at medium weight,
@@ -208,17 +249,12 @@ struct KundliChartView: View {
                 .foregroundStyle(house.isLagna ? Theme.accent : Theme.muted)
 
             if !house.planets.isEmpty {
-                // Two per row keeps a four-planet house inside the narrowest
-                // triangle without shrinking the glyphs below legibility.
-                let rows = stride(from: 0, to: house.planets.count, by: 2).map {
-                    Array(house.planets[$0..<min($0 + 2, house.planets.count)])
-                }
                 VStack(spacing: 1) {
-                    ForEach(rows, id: \.first?.id) { row in
+                    ForEach(labels.rows, id: \.first?.id) { row in
                         HStack(spacing: 5) {
                             ForEach(row) { planet in
-                                Text(planet.chartLabel(in: script))
-                                    .font(.scaled(size: label, weight: .semibold))
+                                Text(labels.text(planet))
+                                    .font(.scaled(size: labels.size, weight: .semibold))
                                     .foregroundStyle(Theme.fg)
                                     .overlay(alignment: .topTrailing) {
                                         if planet.retrograde {

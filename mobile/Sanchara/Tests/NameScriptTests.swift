@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Sanchara
 
@@ -42,6 +43,19 @@ final class NameScriptTests: XCTestCase {
         }
         XCTAssertEqual(planet("Sun").chartLabel(in: .sanskrit), "Su")
         XCTAssertEqual(ChartPlanet.name(english: "Pluto", in: .hindi), "Pluto")
+    }
+
+    func testAHouseWritesFullNamesWhereItHasRoom() {
+        func labels(_ number: Int, _ count: Int, _ type: DynamicTypeSize = .large) -> KundliLabels {
+            let planets = ChartPlanet.order.prefix(count).map { planet($0) }
+            return KundliLabels(KundliHouse(number: number, rashi: .mesha, planets: planets), script: .english, side: 320, glyphSize: 15, typeSize: type)
+        }
+        for kite in [1, 4, 7, 10] { XCTAssertEqual([4, 5].map { labels(kite, $0).full }, [true, false]) }
+        for triangle in [2, 3, 5, 6, 8, 9, 11, 12] { XCTAssertEqual([2, 3].map { labels(triangle, $0).full }, [true, false]) }
+        XCTAssertEqual(labels(1, 2).rows.count, 2)
+        XCTAssertEqual(labels(1, 2).text(planet("Mercury")), "Mercury")
+        XCTAssertEqual(labels(2, 3).text(planet("Mercury")), "Me")
+        XCTAssertFalse(labels(1, 1, .accessibility1).full)
     }
 
     func testAnEarlierChoiceSurvivesAndAnEchoOfTheLanguageDoesNot() throws {
