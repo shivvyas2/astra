@@ -54,6 +54,32 @@ export type Overview = {
   topUsers: { id: string; name: string; email: string; costUsd30d: number; readings30d: number; heavy: boolean }[];
 };
 
+/** The way in, in order. */
+export const STAGES = ["signed_up", "signed_in", "profile", "consented", "asked", "returned"] as const;
+export type Stage = (typeof STAGES)[number];
+
+export type Flagged = { id: string; name: string; email: string; reasons: string[] };
+
+/** The web admin's growth, funnel, failures and flags. Not part of the iOS contract. */
+export type Pulse = {
+  days: number;
+  /** Daily opens are being counted (migration 0021). */
+  counting: boolean;
+  totals: { users: number; joinedToday: number; joined7: number; activeToday: number; active7: number; active30: number };
+  series: { day: string; total: number; joined: number; active: number }[];
+  funnel: { stage: Stage; reached: number; lost: number }[];
+  /** The step that loses the most people. */
+  worst: Stage | null;
+  failures: {
+    questions: number;
+    unanswered: number;
+    people: number;
+    recent: { conversationId: string; userId: string; name: string; at: string }[];
+    neverConfirmed: number;
+  };
+  flags: { offTopic7: number; instructions7: number; abuse7: number; users: Flagged[] };
+};
+
 export type AdminUserRow = {
   id: string;
   email: string;
@@ -71,6 +97,8 @@ export type AdminUserRow = {
   isAdmin: boolean;
   /** Extra to the original contract: flagged "Heavy use". */
   heavy: boolean;
+  /** Extra to the original contract: how far they got. Absent for admins. */
+  stage?: Stage;
 };
 
 export type AdminUsers = { users: AdminUserRow[]; total: number };

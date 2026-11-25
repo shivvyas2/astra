@@ -105,13 +105,13 @@ describe("an ordinary question", () => {
     script(says("A reading."));
     expect(await ask("Will I change jobs?", { cards: true })).toBe("A reading.");
     expect(h.stream).toHaveBeenCalledTimes(1);
-    expect(h.stream.mock.calls[0][0].tools.map((t: { name: string }) => t.name)).toEqual(["propose_match", "confirm_match", "use_saved_person", "look_up"]);
+    expect(h.stream.mock.calls[0][0].tools.map((t: { name: string }) => t.name)).toEqual(["propose_match", "confirm_match", "use_saved_person", "look_up", "out_of_scope"]);
     expect(system()).toContain(`Kabir (spouse) [${KABIR}]`);
   });
-  it("offers no tools in numerology", async () => {
+  it("offers nothing but the way out of scope in numerology", async () => {
     script(says("Numbers."));
     await ask("My number?", { tradition: "numerology" });
-    expect(h.stream.mock.calls[0][0].tools).toBeUndefined();
+    expect(h.stream.mock.calls[0][0].tools.map((t: { name: string }) => t.name)).toEqual(["out_of_scope"]);
   });
 });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HEAVY_USE } from "@/lib/admin/stats";
-import type { Overview } from "@/lib/admin/types";
+import type { Overview, Pulse } from "@/lib/admin/types";
+import { PulseCards } from "@/components/admin/PulseCards";
 import type { LimitsState } from "@/lib/admin/limits";
 import { LimitsCard } from "@/components/admin/LimitsCard";
 import { AdminShell } from "@/components/AdminShell";
@@ -21,7 +22,7 @@ const KIND_LABEL: Record<string, string> = {
   other: "Other",
 };
 
-export function OverviewView({ o, limits, limitsStatus }: { o: Overview; limits?: LimitsState; limitsStatus?: string }) {
+export function OverviewView({ o, pulse, limits, limitsStatus }: { o: Overview; pulse?: Pulse; limits?: LimitsState; limitsStatus?: string }) {
   const days = o.days;
   const t = o.totals;
   const sum = (k: "readings" | "signups" | "costUsd") => o.series.reduce((s, d) => s + d[k], 0);
@@ -72,6 +73,8 @@ export function OverviewView({ o, limits, limitsStatus }: { o: Overview; limits?
           </p>
         </section>
       )}
+
+      {pulse && <PulseCards p={pulse} />}
 
       {/* headline strip */}
       <section className="adm-card adm-card--white mb-4" aria-label="Headline numbers">

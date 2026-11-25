@@ -2,7 +2,8 @@ import Link from "next/link";
 import { AdminShell } from "@/components/AdminShell";
 import { IconSearch } from "@/components/admin/icons";
 import { fmtAgo, fmtInt, fmtUsd, initials } from "@/lib/admin/format";
-import type { AdminUserRow } from "@/lib/admin/types";
+import { STAGES, type AdminUserRow, type Stage } from "@/lib/admin/types";
+import { STOPPED_AT } from "@/components/admin/stages";
 
 export const PAGE = 50;
 
@@ -10,6 +11,7 @@ function Badges({ u }: { u: AdminUserRow }) {
   return (
     <span className="flex flex-wrap items-center gap-1.5">
       <span className={`adm-chip ${u.plan === "plus" ? "adm-chip--dark" : "adm-chip--white"}`}>{u.plan === "plus" ? "Plus" : "Free"}</span>
+      {u.stage && u.stage !== "returned" && <span className="adm-chip adm-chip--outline">{STOPPED_AT[u.stage]}</span>}
       {u.heavy && <span className="adm-chip adm-chip--lime">Heavy use</span>}
       {u.isAdmin && <span className="adm-chip adm-chip--outline">Admin</span>}
     </span>
@@ -25,9 +27,9 @@ function Push({ on }: { on: boolean }) {
   );
 }
 
-export function UsersView({ users, total, q, page }: { users: AdminUserRow[]; total: number; q: string; page: number }) {
+export function UsersView({ users, total, q, page, stage }: { users: AdminUserRow[]; total: number; q: string; page: number; stage?: Stage }) {
   const pages = Math.max(1, Math.ceil(total / PAGE));
-  const href = (p: number) => `/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), page: String(p) })}`;
+  const href = (p: number) => `/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), ...(stage ? { stage } : {}), page: String(p) })}`;
 
   return (
     <AdminShell title="Users">
@@ -39,16 +41,30 @@ export function UsersView({ users, total, q, page }: { users: AdminUserRow[]; to
           <label htmlFor="q" className="sr-only">
             Search by email or name
           </label>
+          {stage && <input type="hidden" name="stage" value={stage} />}
           <input id="q" name="q" defaultValue={q} placeholder="Search email or name" className="adm-input" />
         </form>
         <span className="adm-label">
-          {fmtInt(total)} {q ? "matching" : "total"} · newest active first
+          {fmtInt(total)} {q || stage ? "matching" : "total"} · newest active first
         </span>
       </div>
 
+      <nav className="mb-5 flex flex-wrap gap-2" aria-label="Where they stopped">
+        {[undefined, ...STAGES].map((s) => (
+          <Link
+            key={s ?? "all"}
+            href={`/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), ...(s ? { stage: s } : {}) })}`}
+            className="adm-pill adm-pill--sm"
+            aria-current={s === stage ? "page" : undefined}
+          >
+            {s ? STOPPED_AT[s] : "Everyone"}
+          </Link>
+        ))}
+      </nav>
+
       {users.length === 0 ? (
         <div className="adm-card">
-          <p className="adm-muted text-sm">{q ? `No one matches “${q}”.` : "No users yet."}</p>
+          <p className="adm-muted text-sm">{q ? `No one matches “${q}”.` : stage ? "No one is at this step." : "No users yet."}</p>
         </div>
       ) : (
         <>

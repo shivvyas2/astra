@@ -47,7 +47,7 @@ final class ChartBlockTests: XCTestCase {
     }
 
     func testLookupsAreTheServersToAnswer() {
-        for q in ["D9 dekh kr btao", "What does my navamsa say", "Give my dasha timeline chart", "When is my sade sati ending", "draw my kundli", "kundli dikhao", "my d-7"] {
+        for q in ["D9 dekh kr btao", "What does my navamsa say", "Give my dasha timeline chart", "When is my sade sati ending", "draw my kundli", "kundli dikhao", "my d-7", "I want to die, what does my moon say", "mujhe jeena nahi hai"] {
             XCTAssertTrue(OnDeviceReasoner.needsLookup(q), q)
         }
         for q in ["which planet rules my chart", "what is my moon sign", "is anything exalted in my chart", "who is my 10th lord"] {

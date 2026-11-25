@@ -62,6 +62,9 @@ final class OnDeviceReasoner {
     /// chart, a timeline, Sade Sati dates, a muhurat. Never answered from the table.
     nonisolated static func needsLookup(_ question: String) -> Bool {
         let lower = question.lowercased()
+        // Words of someone who may be in danger always reach the server, which
+        // answers with care and a local number (lib/guard/crisis.ts).
+        if lower.range(of: #"suicid|kill myself|end (my|this) life|want to die|don'?t want to live|self.?harm|hurt myself|jeena nahi|jivvu nathi|marna hai|marvu"#, options: .regularExpression) != nil { return true }
         if lower.range(of: #"\bd[- ]?(2|3|4|7|9|10|12|16|20|24|27|30|40|45|60)\b"#, options: .regularExpression) != nil { return true }
         if lower.range(of: #"(draw|show|make|create|give|banao|dikhao).{0,25}(chart|kundl|timeline)|(chart|kundl\w+|timeline).{0,15}(banao|dikhao|batao)"#, options: .regularExpression) != nil { return true }
         return ["navam", "saptamsa", "dasamsa", "dashamsha", "divisional", "ashtak", "sade sati", "sadesati", "dhaiya", "muhur", "murat",

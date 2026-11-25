@@ -9,6 +9,7 @@ import type {
   AdminUsers,
   Mode,
   Overview,
+  Stage,
   TimelineEvent,
   UsageKindName,
 } from "./types";
@@ -43,7 +44,7 @@ const MODES: Mode[] = ["vedic", "western", "numerology"];
 const KINDS: UsageKindName[] = ["reading", "deep_reading", "memory", "daily", "alert", "extraction", "other"];
 const PAGE = 1000;
 const MAX_ROWS = 200_000;
-const DAY_MS = 86_400_000;
+export const DAY_MS = 86_400_000;
 
 // ---------------------------------------------------------------- reading helpers
 
@@ -61,10 +62,10 @@ export function resetAdminLogForTests(): void {
   warned.clear();
 }
 
-type Build = (q: any) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
+export type Build = (q: any) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** Every row of a query, a page at a time. Empty on any error. */
-async function rows<T = Record<string, unknown>>(db: AdminDb, table: string, columns: string, build: Build = (q) => q): Promise<T[]> {
+export async function rows<T = Record<string, unknown>>(db: AdminDb, table: string, columns: string, build: Build = (q) => q): Promise<T[]> {
   const out: T[] = [];
   try {
     for (let from = 0; from < MAX_ROWS; from += PAGE) {
@@ -95,7 +96,7 @@ async function tryRows<T>(db: AdminDb, table: string, columns: string, build: Bu
 }
 
 /** A row count. 0 on any error. */
-async function count(db: AdminDb, table: string, build: Build = (q) => q): Promise<number> {
+export async function count(db: AdminDb, table: string, build: Build = (q) => q): Promise<number> {
   try {
     const { count: n, error } = await build(db.from(table).select("*", { count: "exact", head: true }));
     if (error) {
@@ -109,9 +110,9 @@ async function count(db: AdminDb, table: string, build: Build = (q) => q): Promi
   }
 }
 
-type AuthUser = { id: string; email?: string | null; created_at: string; last_sign_in_at?: string | null };
+export type AuthUser = { id: string; email?: string | null; created_at: string; last_sign_in_at?: string | null; email_confirmed_at?: string | null; phone_confirmed_at?: string | null; app_metadata?: { providers?: string[] } };
 
-async function authUsers(db: AdminDb): Promise<AuthUser[]> {
+export async function authUsers(db: AdminDb): Promise<AuthUser[]> {
   const out: AuthUser[] = [];
   try {
     for (let page = 1; page <= 50; page++) {
@@ -131,16 +132,16 @@ async function authUsers(db: AdminDb): Promise<AuthUser[]> {
 
 const money = (n: number) => Math.round(n * 1e6) / 1e6;
 const ratio = (n: number) => Math.round(n * 1e4) / 1e4;
-const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
-const utcDayStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+export const dayKey = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+export const utcDayStart = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 const str = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
-const iso = (v: unknown) => {
+export const iso = (v: unknown) => {
   const s = str(v);
   if (!s) return "";
   const d = new Date(s);
   return Number.isNaN(d.getTime()) ? s : d.toISOString();
 };
-const later = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b);
+export const later = (a: string | null, b: string | null) => (!a ? b : !b ? a : a > b ? a : b);
 const asMode = (v: unknown): Mode => (MODES.includes(v as Mode) ? (v as Mode) : "vedic");
 
 function daysBetween(start: Date, end: Date): string[] {
@@ -149,15 +150,15 @@ function daysBetween(start: Date, end: Date): string[] {
   return out;
 }
 
-function fullName(p: { first_name?: unknown; last_name?: unknown } | undefined): string {
+export function fullName(p: { first_name?: unknown; last_name?: unknown } | undefined): string {
   if (!p) return "";
   return [str(p.first_name), str(p.last_name)].filter(Boolean).join(" ").trim();
 }
 
-type Conv = { id: string; user_id: string; tradition: string; title: string | null; created_at: string };
-type Msg = { conversation_id: string; role: string; created_at: string; content?: string };
-type Usage = { user_id: string | null; kind: string; model: string; cost_usd: number | string | null; created_at: string; conversation_id?: string | null };
-type Profile = { user_id: string; first_name?: string; last_name?: string; place_name?: string };
+export type Conv = { id: string; user_id: string; tradition: string; title: string | null; created_at: string };
+export type Msg = { conversation_id: string; role: string; created_at: string; content?: string };
+export type Usage = { user_id: string | null; kind: string; model: string; cost_usd: number | string | null; created_at: string; conversation_id?: string | null };
+export type Profile = { user_id: string; first_name?: string; last_name?: string; place_name?: string };
 
 /** Per-user spend and reading pattern over the last 30 days, and the "Heavy use" flag. */
 function heavyUse(convUser: Map<string, string>, msgs30: Msg[], usage30: Usage[]) {
@@ -343,7 +344,7 @@ export async function adminOverview(db: AdminDb, daysIn = 30, now: Date = new Da
 
 export async function adminUsers(
   db: AdminDb,
-  opts: { q?: string; limit?: number; offset?: number } = {},
+  opts: { q?: string; limit?: number; offset?: number; stage?: Stage; stages?: Map<string, Stage>; seen?: Map<string, string> } = {},
   now: Date = new Date(),
 ): Promise<AdminUsers> {
   const limit = Math.min(200, Math.max(1, Math.floor(opts.limit ?? 50)));
@@ -401,7 +402,7 @@ export async function adminUsers(
         name: fullName(p),
         place: str(p?.place_name),
         createdAt: iso(u.created_at),
-        lastActiveAt: later(r?.last ?? null, u.last_sign_in_at ? iso(u.last_sign_in_at) : null),
+        lastActiveAt: later(later(r?.last ?? null, u.last_sign_in_at ? iso(u.last_sign_in_at) : null), opts.seen?.get(u.id) ?? null),
         plan: "free" as Plan,
         readings: r?.all ?? 0,
         readings7d: r?.week ?? 0,
@@ -411,8 +412,10 @@ export async function adminUsers(
         hasPush: pushSet.has(u.id),
         isAdmin: adminSet.has(u.id),
         heavy: h?.heavy ?? false,
-      } satisfies AdminUserRow;
+        ...(opts.stages?.has(u.id) ? { stage: opts.stages.get(u.id)! } : {}),
+      } satisfies AdminUserRow as AdminUserRow;
     })
+    .filter((u) => !opts.stage || u.stage === opts.stage)
     .filter((u) => !q || u.email.toLowerCase().includes(q) || u.name.toLowerCase().includes(q))
     .sort((a, b) => (b.lastActiveAt ?? b.createdAt).localeCompare(a.lastActiveAt ?? a.createdAt));
 

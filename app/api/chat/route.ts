@@ -38,6 +38,9 @@ import { describeSavedPeople, MATCH_TOOLS } from "@/lib/compat/chatTools";
 import { geocodePlace } from "@/lib/geo";
 import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
 import { describeMatchForPrompt } from "@/lib/compat/prompt";
+import { crisisRules, hasHelpline, helplineLine, isCrisis, localHelp } from "@/lib/guard/crisis";
+import { recordFlag } from "@/lib/guard/flags";
+import { readScope, SCOPE_RULES, SCOPE_TOOL, type FlagKind } from "@/lib/guard/scope";
 import { withoutCharts } from "@/lib/lookups/chartBlock";
 import { readLookup, runLookup, type Subject } from "@/lib/lookups/run";
 import { LOOKUP_RULES, LOOKUP_TOOL } from "@/lib/lookups/tool";
@@ -146,9 +149,15 @@ export async function POST(request: Request) {
   // The daily limits set in the admin (lib/usage/limits.ts). After the reuse
   // above, so a retry of an answer already paid for is never refused.
   const limit = await guardUsage(user.id, { reading: true });
-  if (limit.block) return limitResponse(limit.block, body.language ?? limit.language);
+  // Never between someone in danger and an answer.
+  if (limit.block && !isCrisis(body.message)) return limitResponse(limit.block, body.language ?? limit.language);
 
   const claim = claimAnswer(dedupeKey);
+
+  // Someone who may be in danger is answered with care and a number for where
+  // they are now, which the connection says and the birthplace does not.
+  const crisis = isCrisis(body.message);
+  const country = request.headers.get("x-vercel-ip-country");
 
   let conversationId: string;
   let messages: Anthropic.MessageParam[];
@@ -362,6 +371,9 @@ export async function POST(request: Request) {
       todaySystem += `\n\nTheir saved birth year, ${String(profile.birth_date).slice(0, 4)}, makes them ${age}, so it is almost certainly a slip and this chart is not theirs. Open by saying so in one sentence and asking them to correct the birth date in their profile. Keep the rest short and state no age.`;
     }
 
+    stableSystem += SCOPE_RULES;
+    todaySystem += crisis ? crisisRules(country) : localHelp(country);
+
     // Last in the volatile block: changing language never invalidates the
     // cached chart above it.
     const language = isReadingLanguage(body.language) ? body.language : await loadReadingLanguage(supabase);
@@ -462,6 +474,9 @@ export async function POST(request: Request) {
     readingDone = resolve;
   });
 
+  // A message turned away: which kind, for the admin's spam flags.
+  let flagged: FlagKind | null = null;
+
   // The reading's billed usage, recorded to model_usage once it is out.
   let readingUsage: UsageLike | null = null;
 
@@ -500,15 +515,11 @@ export async function POST(request: Request) {
               : {}),
             // Routine readings think at medium; Deep at high.
             ...(body.deep ? DEEP_EFFORT : READING_EFFORT),
-            ...(matchWith
-              ? {
-                  tools: lookups ? [...MATCH_TOOLS, LOOKUP_TOOL] : MATCH_TOOLS,
-                  tool_choice:
-                    round < TOOL_ROUNDS
-                      ? { type: "auto" as const, disable_parallel_tool_use: true }
-                      : { type: "none" as const },
-                }
-              : {}),
+            tools: [...(matchWith ? MATCH_TOOLS : []), ...(lookups ? [LOOKUP_TOOL] : []), SCOPE_TOOL],
+            tool_choice:
+              round < TOOL_ROUNDS && !crisis
+                ? { type: "auto" as const, disable_parallel_tool_use: true }
+                : { type: "none" as const },
             // Chart (cached for an hour), then what Astrya remembers, then the
             // day. See systemBlocks in lib/astrology/prompt.ts.
             system: systemBlocks({ stable: stableSystem, memory: memorySystem, today: todaySystem }),
@@ -527,7 +538,17 @@ export async function POST(request: Request) {
             final.stop_reason === "tool_use"
               ? final.content.find((block): block is Anthropic.ToolUseBlock => block.type === "tool_use")
               : undefined;
-          if (!call || !matchWith) break;
+          if (!call) break;
+          if (call.name === SCOPE_TOOL.name) {
+            const { kind, reply } = readScope(call.input);
+            const text = `${full.trim() ? "\n\n" : ""}${reply}`;
+            full += text;
+            spoke = true;
+            flagged = kind;
+            push(text);
+            break;
+          }
+          if (!matchWith) break;
 
           const outcome = call.name === LOOKUP_TOOL.name && lookups ? await lookUp(call, lookups, localDate) : await runMatchTool(call, {
             userId: user.id,
@@ -568,6 +589,12 @@ export async function POST(request: Request) {
         }
         const usage: UsageLike = readingUsage ?? {};
         if (!spoke) throw new Error("empty reading");
+        // The number is never left to the model.
+        if (crisis && !hasHelpline(full, country)) {
+          const line = `\n\n${helplineLine(country, full)}`;
+          full += line;
+          push(line);
+        }
         finished = true;
         console.log(
           `chat usage conv=${conversationId} model=${model} in=${usage.input_tokens} ` +
@@ -576,8 +603,16 @@ export async function POST(request: Request) {
         );
       } catch (err) {
         console.error("chat stream error", err);
-        // A client that can offer Try again is told so; others get a line of text.
-        push(body.cards === true ? FAILED_MARK : `\n\n${streamError}`);
+        if (crisis) {
+          // The AI being down is no reason to leave them with nothing.
+          const line = `${full.trim() ? "\n\n" : ""}${helplineLine(country, body.message)}`;
+          full += line;
+          push(line);
+          finished = true;
+        } else {
+          // A client that can offer Try again is told so; others get a line of text.
+          push(body.cards === true ? FAILED_MARK : `\n\n${streamError}`);
+        }
       } finally {
         try {
           // Half a reading is not kept: the question stays unanswered, and
@@ -616,7 +651,9 @@ export async function POST(request: Request) {
         conversationId,
       });
     }
-    if (!reply || onDevice) return;
+    if (flagged) await recordFlag({ userId: user.id, conversationId, kind: flagged });
+    // Nothing is learned from a message turned away, or from someone's worst hour.
+    if (!reply || onDevice || flagged || crisis) return;
     await rememberTurn({
       db: supabase,
       userId: user.id,
