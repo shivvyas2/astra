@@ -1,11 +1,11 @@
-# Runs the readings, alerts and discoveries job every hour.
+# The outage alarm, and the backstop for the hourly job.
 #
-# Vercel's Hobby plan only fires a cron once a day, and a morning reading in
-# Mumbai is a night reading in New York, so the hourly beat comes from here.
-# The job decides per user, on their own clock, whether anything is due, so
-# most runs do nothing. The two crons in vercel.json remain as a backstop.
+# The hourly beat is Vercel's own schedule (vercel.json), which keeps time.
+# GitHub's does not: an hourly workflow here really runs three or four times a
+# day. The job decides per user, on their own clock, whether anything is due,
+# so a run that lands beside Vercel's finds little or nothing to do.
 #
-# It is also the outage alarm: the endpoint answers 503 when the AI is not
+# It is the outage alarm: the endpoint answers 503 when the AI is not
 # answering, the run fails, and GitHub emails whoever last edited this schedule.
 # The log is public, so the endpoint reports counts and error types only.
 #
@@ -16,7 +16,7 @@ name: Hourly readings and alerts
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "40 * * * *"
   workflow_dispatch:
 
 permissions: {}

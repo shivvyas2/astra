@@ -2,6 +2,7 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
+import { touchActivity } from "@/lib/data/activity";
 
 // Both the cookie client (@supabase/ssr) and the bearer client (supabase-js)
 // are SupabaseClient instances, so callers can accept either.
@@ -31,8 +32,12 @@ export async function createRouteSupabase(request: Request): Promise<Db> {
   const token = bearerTokenFrom(request);
   if (!token) return createServerSupabase();
 
-  return createClient(env.supabaseUrl(), env.supabaseAnonKey(), {
+  const db = createClient(env.supabaseUrl(), env.supabaseAnonKey(), {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+  // The app calls here whenever it opens. An unverified token cannot lie:
+  // touch_activity runs as whoever the database says it belongs to.
+  touchActivity(db, token);
+  return db;
 }

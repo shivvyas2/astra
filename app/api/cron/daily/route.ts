@@ -11,8 +11,8 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /**
- * The scheduled job: every hour from `.github/workflows/cron.yml`, plus the
- * two daily crons in `vercel.json` as a backstop.
+ * The scheduled job: every hour from Vercel (`schedules` in `vercel.json`),
+ * with `.github/workflows/cron.yml` as a backstop and the outage alarm.
  *
  * All three parts are decided per user rather than per run, on the user's
  * own clock: the morning and night readings have delivery windows, the dosha

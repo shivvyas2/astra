@@ -4,8 +4,8 @@ export type Slot = "morning" | "night";
  * When each of the day's two readings is delivered, in the user's own local
  * hours (start inclusive, end exclusive).
  *
- * The job runs every hour (`.github/workflows/cron.yml`), with the two Vercel
- * crons as a backstop, and each user is handled on their own clock. A slot is
+ * The job runs every hour (`schedules` in vercel.json), with the GitHub
+ * workflow as a backstop, and each user is handled on their own clock. A slot is
  * written by the first run that lands inside its window, so the morning
  * reading arrives between 7 and 8 and the night one between 20 and 21,
  * whether the person is in Mumbai or New York. Between the windows nothing is

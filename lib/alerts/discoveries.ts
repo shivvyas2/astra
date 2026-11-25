@@ -3,7 +3,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { DateTime } from "luxon";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminSupabase } from "@/lib/supabase/admin";
-import { anthropic } from "@/lib/anthropic";
+import { anthropic, READING_MODEL, supportsAdaptiveThinking, LOW_EFFORT } from "@/lib/anthropic";
 import { NO_EM_DASH } from "@/lib/writing";
 import { factsFor, type Derived } from "@/lib/astrology/derived";
 import { computeNumerology, personalCycle, loShu, numberRelationship } from "@/lib/astrology/numerology";
@@ -12,8 +12,11 @@ import type { Chart } from "@/lib/astrology/types";
 import { isMissingRelation, trackUsage } from "@/lib/usage/record";
 import { ApnsClient } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
-import { parseAlertCopy, type AlertCopy } from "./compose";
-import { failureReason } from "@/lib/health/ai";
+import type { AlertCopy } from "./compose";
+import { isListening, loadActivity } from "./audience";
+import { loadPushContext, type PushContext } from "./context";
+import { PUSH_VOICE, TENDER_VOICE } from "./voice";
+import { writeCopy } from "./write";
 import { AiUnavailable, GIVE_UP_AFTER } from "./unavailable";
 import { isWakingHour } from "./slots";
 import { loadDeviceZones, resolveZone } from "./zones";
@@ -32,11 +35,12 @@ import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
  * Which days and which hour are decided by a hash of the user and the local
  * date, so every hourly run agrees and nothing is sent twice. Written to
  * `alerts` with severity "info" and `kinds` starting with "discovery", so it
- * lands in the bell inbox like any other alert. Composed by Haiku for a
- * fraction of a cent.
+ * lands in the bell inbox like any other alert. Composed by the
+ * reading model at low effort: the small one invented relatives to make a line
+ * land, and wrote poor Gujarati.
  */
 
-export const DISCOVERY_MODEL = "claude-haiku-4-5";
+export const DISCOVERY_MODEL = READING_MODEL;
 
 export type DiscoveryTopic = "chart" | "numerology" | "sky" | "prediction";
 const TOPICS: DiscoveryTopic[] = ["chart", "numerology", "sky", "prediction"];
@@ -154,10 +158,11 @@ export async function runDiscoveries(options: { limit?: number } = {}): Promise<
     const languages = await loadReadingLanguages(admin);
     // Nothing goes to the model for someone who has not agreed to the current AI notice.
     const consented = await loadConsentedUserIds(admin);
+    const activity = await loadActivity(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       summary.considered += 1;
-      if (!consentAllows(consented, profile.user_id)) {
+      if (!consentAllows(consented, profile.user_id) || !isListening(activity, profile.user_id)) {
         summary.skipped += 1;
         continue;
       }
@@ -224,6 +229,7 @@ async function writeDueDiscovery(
     today: nowLocal.toFormat("cccc, LLLL d, yyyy"),
     userId: profile.user_id,
     language: languages.get(profile.user_id),
+    context: await loadPushContext(admin, { userId: profile.user_id, chart, today: localDate }),
   });
 
   const { data: row, error } = await admin
@@ -332,36 +338,42 @@ export async function composeDiscovery(args: {
   today: string;
   userId?: string;
   language?: ReadingLanguage;
+  context?: PushContext;
 }): Promise<AlertCopy> {
+  const language = args.language ?? "english";
   const system = `You are Astrya, a warm, precise Vedic astrologer speaking with ${args.firstName}. Write one short "did you know" note about a single true thing. Plain words, second person, specific, never alarming, no jargon left unexplained. Say only what follows from the fact you are given; invent nothing. ${NO_EM_DASH}`;
   const task = `Today is ${args.today}. The one thing to share (${TOPIC_BRIEF[args.fact.topic]}):
 ${args.fact.text}
 
+${args.context?.tender ? TENDER_VOICE : PUSH_VOICE}
+${args.context?.recent.length && !args.context.tender ? `\nTitles they have already had; choose a different first word and kind of sentence:\n${args.context.recent.slice(0, 6).map((t) => `- ${t}`).join("\n")}\n` : ""}
 Reply in exactly this shape, with nothing before or after it:
 
-TITLE: under 38 characters, the thing itself
-BODY: under 140 characters, one plain sentence for a lock screen
+TITLE: under 38 characters, the hook: what this makes them do, notice or want
+BODY: under 110 characters, for a lock screen
 DETAIL:
-three or four short sentences in markdown: what it is, what it tends to mean, one small thing to do with it, ending with **In simple words** and one line${languageRule(args.language ?? "english", { structured: true })}`;
+three or four short sentences in markdown, opening with the answer to the hook: what it is, what it tends to mean, one small thing to do with it, ending with **In simple words** and one line${languageRule(language, { structured: true })}`;
 
-  try {
+  return writeCopy({
+    label: "discovery",
+    task,
+    check: { recent: args.context?.recent, tender: args.context?.tender, secret: args.context?.secret },
+    call: async (messages) => {
     const response = await anthropic().messages.create({
       model: DISCOVERY_MODEL,
-      max_tokens: 600,
+      max_tokens: 1200,
+      ...(supportsAdaptiveThinking(DISCOVERY_MODEL)
+        ? { thinking: { type: "adaptive" } as unknown as Anthropic.ThinkingConfigParam }
+        : {}),
+      ...LOW_EFFORT,
       system,
-      messages: [{ role: "user", content: task }],
+      messages,
     });
     trackUsage({ userId: args.userId, kind: "alert", model: DISCOVERY_MODEL, usage: response.usage });
-    const text = response.content
+    return response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("");
-    const parsed = parseAlertCopy(text);
-    if (parsed) return parsed;
-  } catch (err) {
-    console.error("discovery compose error", err);
-    throw new AiUnavailable(failureReason(err));
-  }
-  console.error("discovery compose: unparseable model output");
-  throw new AiUnavailable("unparseable reply");
+    },
+  });
 }

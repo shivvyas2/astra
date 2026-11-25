@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   upload:
-    runs-on: macos-26
+    runs-on: xcode-27
     defaults:
       run:
         working-directory: mobile
@@ -44,9 +44,10 @@ jobs:
           done
           exit $missing
 
-      - name: Select Xcode 26
+      # The version the app is built and shipped with.
+      - name: Select Xcode 27
         run: |
-          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_27*.app | sort -V | tail -1)"
           xcodebuild -version
 
       - name: Install XcodeGen

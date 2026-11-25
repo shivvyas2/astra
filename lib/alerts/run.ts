@@ -6,6 +6,8 @@ import { computeChart } from "@/lib/astrology/chart";
 import { detectConditions, highestSeverity, type Condition, type Severity } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { composeAlert } from "./compose";
+import { isListening, loadActivity } from "./audience";
+import { loadPushContext } from "./context";
 import { AiUnavailable, GIVE_UP_AFTER } from "./unavailable";
 import { ApnsClient, isPushConfigured } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
@@ -134,9 +136,11 @@ export async function runDailyAlerts(options: { limit?: number } = {}): Promise<
     const languages = await loadReadingLanguages(admin);
     // Nothing goes to the model for someone who has not agreed to the current AI notice.
     const consented = await loadConsentedUserIds(admin);
+    // After a week away nothing is diffed; what changed meanwhile is found when they are back.
+    const activity = await loadActivity(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
-      if (!consentAllows(consented, profile.user_id)) continue;
+      if (!consentAllows(consented, profile.user_id) || !isListening(activity, profile.user_id)) continue;
       try {
         const result = await runAlertsForUser(profile, admin, apns, zones, languages);
         summary.processed += 1;
@@ -298,6 +302,8 @@ export async function runAlertsForUser(
     severity,
     userId: profile.user_id,
     language: languages.get(profile.user_id),
+    context: await loadPushContext(admin, { userId: profile.user_id, chart: natal, today }),
+    firstRead: !hadNatalRows,
   });
 
   await recordChanges();

@@ -8,6 +8,7 @@ import { buildChartSystem, buildTodaySystem, ageOn } from "@/lib/astrology/promp
 import { computeNumerology } from "@/lib/astrology/numerology";
 import { transitChart, describeGochara } from "@/lib/astrology/transits";
 import { factsFor } from "@/lib/astrology/derived";
+import { houseFrom } from "@/lib/astrology/constants";
 import { detectConditions, type Condition } from "@/lib/astrology/doshas";
 import type { Chart } from "@/lib/astrology/types";
 import { isSlotDue, type Slot } from "./slots";
@@ -15,9 +16,12 @@ import { loadDeviceZones, resolveZone } from "./zones";
 import { languageRule, loadReadingLanguages, type ReadingLanguage } from "@/lib/astrology/language";
 import { ApnsClient } from "@/lib/push/apns";
 import { pushToUserDevices } from "@/lib/push/devices";
-import { parseAlertCopy, type AlertCopy } from "./compose";
+import type { AlertCopy } from "./compose";
+import { isListening, loadActivity } from "./audience";
+import { loadPushContext, type PushContext } from "./context";
+import { PUSH_VOICE, TENDER_VOICE } from "./voice";
+import { writeCopy } from "./write";
 import { AiUnavailable, GIVE_UP_AFTER } from "./unavailable";
-import { failureReason } from "@/lib/health/ai";
 import { trackUsage } from "@/lib/usage/record";
 import { consentAllows, loadConsentedUserIds } from "@/lib/billing/consent";
 
@@ -68,10 +72,12 @@ export async function runDuePredictions(options: { limit?: number } = {}): Promi
     const languages = await loadReadingLanguages(admin);
     // Nothing goes to the model for someone who has not agreed to the current AI notice.
     const consented = await loadConsentedUserIds(admin);
+    // A week without opening Astrya and it stops, until they come back.
+    const activity = await loadActivity(admin);
 
     for (const profile of (data ?? []) as ProfileRow[]) {
       summary.considered += 1;
-      if (!consentAllows(consented, profile.user_id)) {
+      if (!consentAllows(consented, profile.user_id) || !isListening(activity, profile.user_id)) {
         summary.skipped += 1;
         continue;
       }
@@ -144,7 +150,9 @@ async function writeDueReading(
     age: ageOn(profile.birth_date, nowLocal),
     slot,
     conditions,
+    area: areaToday(chart, transits),
     userId: profile.user_id,
+    context: await loadPushContext(admin, { userId: profile.user_id, chart, today: forDate }),
   });
 
   const { data: row, error } = await admin
@@ -179,10 +187,27 @@ async function writeDueReading(
 
 const SLOT_BRIEF: Record<Slot, string> = {
   morning:
-    "It is morning where they are. Say what today holds, where their energy is best spent, one thing to watch for, and one small practical step. Look forward, not back.",
+    "It is morning where they are. Find the one moment, choice or person today turns on. Say what to do about it, and what they will be tempted to do instead. Look forward, not back.",
   night:
-    "It is evening where they are. Reflect on the day the sky just described, then say what tomorrow morning opens with. Close on something calm. This is the last thing they read today.",
+    "It is evening where they are. Name the one thing today was really about, then give them one definite thing to walk into tomorrow with. Leave them curious about tomorrow, not wound up.",
 };
+
+/** What each house is about, in words for a hook. */
+const AREA = [
+  "", "how they come across, their body language, starting something", "money in hand, what they say out loud, food, family talk",
+  "messages, courage, siblings, small trips, doing it anyway", "home, mother, comfort, what they come back to", "flirting, children, fun, making things, being noticed",
+  "work pile, routines, rivals, favours owed", "the other person: partner, deal, argument, agreement", "secrets, shared money, the thing not said, letting go",
+  "luck, father or mentor, beliefs, far away", "boss, reputation, being seen at work", "friends, gains, plans, the group chat", "sleep, spending, solitude, the past, what they avoid",
+];
+
+/** The Moon's house today: the one thing in the sky that is different every couple of days. */
+export function areaToday(chart: Chart, sky: Chart): string | null {
+  const moon = sky.planets.find((p) => p.name === "Moon");
+  const from = chart.timeKnown === false ? (chart.moonDay?.changesSign ? null : chart.moonSign) : chart.ascendant.sign;
+  const house = moon && from ? houseFrom(from, moon.sign) : 0;
+  if (!house) return null;
+  return `TODAY'S OWN AREA: ${AREA[house]}. (The Moon is in ${moon!.sign}, house ${house}${chart.timeKnown === false ? " from their Moon" : ""}.) Lead from here unless their history below has more pull. The slow planets sit where they sat last week: use them as the reason, not as the subject again.`;
+}
 
 export async function composePrediction(args: {
   firstName: string;
@@ -197,6 +222,10 @@ export async function composePrediction(args: {
   /** For the usage ledger (model_usage). */
   userId?: string;
   language?: ReadingLanguage;
+  /** From {@link areaToday}. */
+  area?: string | null;
+  /** Their history and what they were last told (lib/alerts/context.ts). */
+  context?: PushContext;
 }): Promise<AlertCopy> {
   const flagged = args.conditions
     .filter((c) => c.severity !== "info" && c.scope !== "natal")
@@ -215,15 +244,21 @@ export async function composePrediction(args: {
 
   const task = `${SLOT_BRIEF[args.slot]}
 
+${args.context?.tender ? TENDER_VOICE : PUSH_VOICE}
+${args.area ? `\n${args.area}\n` : ""}${args.context?.block ? `\n${args.context.block}\n` : ""}
 ${flagged ? `Active in their chart right now:\n${flagged}\n\nWork these in only where they bear on the day. Do not alarm.\n` : ""}
 Reply in exactly this shape, with nothing before or after it:
 
-TITLE: under 38 characters, what today turns on
-BODY: under 140 characters, one plain sentence for a lock screen
+TITLE: under 38 characters, the hook
+BODY: under 110 characters, for a lock screen
 DETAIL:
-the reading itself in markdown, following the format rules above, ending with **In simple words**${languageRule(args.language ?? "english", { structured: true })}`;
+the reading itself in markdown, following the format rules above, its first lines answering the hook with the placement behind it, ending with **In simple words**${languageRule(args.language ?? "english", { structured: true })}`;
 
-  try {
+  return writeCopy({
+    label: "prediction",
+    task,
+    check: { recent: args.context?.recent, tender: args.context?.tender, secret: args.context?.secret },
+    call: async (messages) => {
     const response = await anthropic().messages.create({
       model: READING_MODEL,
       max_tokens: 1600,
@@ -237,20 +272,14 @@ the reading itself in markdown, following the format rules above, ending with **
         { type: "text", text: stable, cache_control: { type: "ephemeral", ttl: "1h" } },
         { type: "text", text: todayBlock },
       ],
-      messages: [{ role: "user", content: task }],
+      messages,
     });
     trackUsage({ userId: args.userId, kind: "daily", model: READING_MODEL, usage: response.usage });
 
-    const text = response.content
+    return response.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
       .map((block) => block.text)
       .join("");
-    const parsed = parseAlertCopy(text);
-    if (parsed) return parsed;
-  } catch (err) {
-    console.error("prediction compose error", err);
-    throw new AiUnavailable(failureReason(err));
-  }
-  console.error("prediction compose: unparseable model output");
-  throw new AiUnavailable("unparseable reply");
+    },
+  });
 }

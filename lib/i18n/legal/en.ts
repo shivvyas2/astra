@@ -24,7 +24,7 @@ export const legalEn = {
           "Every table is protected so your account can only read its own rows. Server keys never leave the server.",
           "There is no advertising, no analytics SDK and no third-party crash reporter. Your data is not sold.",
           "Data is stored and processed in the United States.",
-          "If you turn on alerts, your device's push token is stored so Astrya can send them. Deleting your account removes it; a token Apple reports as no longer valid is removed automatically.",
+          "If you turn on alerts, your device's push token is stored so Astrya can send them. Deleting your account removes it; a token Apple reports as no longer valid is removed automatically. Notifications are written from your chart and what you have shared in Astrya, never from other apps. One timestamp of when you last opened Astrya is kept, so they stop after a week away.",
           "If you add someone else's birth details to compare charts, they are stored with your account and used only for your readings. Add them only with that person's permission.",
         ],
       },
