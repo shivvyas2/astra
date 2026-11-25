@@ -326,6 +326,15 @@ export const hi: Messages = {
     limitPaused: "Astrya आज की सीमा तक पहुँच गया है, इसलिए रीडिंग कुछ घंटों के लिए रुकी हैं। कृपया थोड़ी देर बाद फिर से कोशिश करें।",
     welcome: "मेरी कुंडली के आधार पर आज के लिए एक छोटी रीडिंग से मेरा स्वागत करें। दो या तीन छोटे हिस्से।",
     // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
+    chart: {
+      titles: { D1: "जन्म कुंडली", Moon: "चंद्र कुंडली", SAV: "अष्टकवर्ग", Dasha: "दशा का क्रम", D7: "D7 सप्तमांश, संतान", D9: "D9 नवमांश, विवाह", D10: "D10 दशमांश, करियर" },
+      short: { Sun: "सू", Moon: "चं", Mars: "मं", Mercury: "बु", Jupiter: "गु", Venus: "शु", Saturn: "श", Rahu: "रा", Ketu: "के" },
+      divisional: "{id} कुंडली",
+      house: "भाव {n}, {sign}",
+      points: "{count} बिंदु",
+      empty: "खाली",
+      now: "अभी",
+    },
     match: {
       intro: "क्या यह सही है?",
       reply: "\"हाँ\" लिखें और मैं आप दोनों की कुंडली मिला दूंगी, या बताएं क्या बदलना है।",

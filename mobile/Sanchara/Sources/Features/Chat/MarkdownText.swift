@@ -12,10 +12,16 @@ struct MarkdownText: View {
     let markdown: String
 
     var body: some View {
-        let (blocks, basis) = MarkdownBlock.splitChartBasis(MarkdownBlock.parse(markdown))
+        // Charts it drew come first, whole, above the words.
+        let (charts, prose) = ChartBlock.split(markdown)
+        let (blocks, basis) = MarkdownBlock.splitChartBasis(MarkdownBlock.parse(prose))
         let split = MarkdownBlock.splitSimpleWords(blocks)
 
         VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(charts.enumerated()), id: \.offset) { _, chart in
+                ChartBlockView(block: chart)
+                    .padding(.bottom, 16)
+            }
             ForEach(Array(split.main.enumerated()), id: \.offset) { index, block in
                 row(for: block, ink: Theme.fg)
                     .padding(.top, index == 0 ? 0 : block.topSpacing)

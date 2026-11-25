@@ -61,6 +61,11 @@ export function IntakeForm({
   const [birthDate, setBirthDate] = useState(initial?.birthDate ?? "");
   const [preview, setPreview] = useState<string | null>(initial?.avatarUrl ?? null);
 
+  // MIN_AGE in lib/profiles/birth.ts: the account's own profile only.
+  const latest = new Date();
+  latest.setFullYear(latest.getFullYear() - (someoneElse ? 0 : 13));
+  const latestBirth = latest.toISOString().slice(0, 10);
+
   const prettyDate = birthDate
     ? i18n.date(new Date(`${birthDate}T00:00:00`), { weekday: "long", year: "numeric", month: "long", day: "numeric" })
     : "";
@@ -109,7 +114,7 @@ export function IntakeForm({
 
       <label className="block">
         <span className="eyebrow block">{t.intake.birthDate}</span>
-        <input name="birth_date" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)}
+        <input name="birth_date" type="date" required value={birthDate} onChange={(e) => setBirthDate(e.target.value)} max={latestBirth}
           className="brut-field [color-scheme:dark]" />
         <span className={`mt-1.5 block text-xs ${birthDate ? "text-accent" : "text-muted"}`}>
           {birthDate ? f(t.common.selected, { value: prettyDate }) : t.intake.noDate}

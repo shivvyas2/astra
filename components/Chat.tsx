@@ -8,6 +8,8 @@ import { ScreenHeader } from "@/components/ScreenHeader";
 import { splitReading } from "@/lib/astrology/reading";
 import { useI18n } from "@/lib/i18n/client";
 import dynamic from "next/dynamic";
+import { splitCharts, type ChartBlock } from "@/lib/lookups/chartBlock";
+import { DrawnChart } from "@/components/DrawnChart";
 import { splitCard, type MatchCard as Card } from "@/lib/compat/matchCard";
 
 type Msg = { role: "user" | "assistant"; content: string; card?: Card | null; failed?: boolean };
@@ -325,9 +327,15 @@ function AssistantTurn({ content, streaming }: { content: string; streaming: boo
   if (!content) return <span className="animate-shimmer text-sm text-muted">{t.chat.reading}</span>;
   // The body, then the lime "In simple words" callout, then the chart facts
   // the reading rests on, folded into "Why Astrya said this".
-  const { main, simple, basis } = splitReading(content);
+  // Charts it drew come first, whole, above the words.
+  const parts = splitCharts(content);
+  const charts = parts.filter((p): p is ChartBlock => typeof p !== "string");
+  const { main, simple, basis } = splitReading(parts.filter((p) => typeof p === "string").join("\n"));
   const caret = <span className="caret">▍</span>;
   return (
+    <>
+    {charts.map((c, i) => <DrawnChart key={i} block={c} />)}
+    {charts.length > 0 && streaming && !main.trim() && <span className="animate-shimmer text-sm text-muted">{t.chat.reading}</span>}
     <div className="prose-reading max-w-none break-words text-[15px] text-fg">
       {main.trim() && <ReactMarkdown remarkPlugins={[remarkGfm]}>{main}</ReactMarkdown>}
       {streaming && simple === null && basis === null && caret}
@@ -339,6 +347,7 @@ function AssistantTurn({ content, streaming }: { content: string; streaming: boo
       )}
       {basis !== null && <ChartBasis facts={basis} streaming={streaming} />}
     </div>
+    </>
   );
 }
 

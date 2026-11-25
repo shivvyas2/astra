@@ -1,7 +1,7 @@
 import { createRouteSupabase } from "@/lib/supabase/route";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { saveBirthProfile } from "@/lib/data/birthProfile";
-import { parseBirthFields } from "@/lib/profiles/birth";
+import { MIN_AGE, parseBirthFields } from "@/lib/profiles/birth";
 
 // swisseph-wasm runs during chart computation inside saveBirthProfile.
 export const runtime = "nodejs";
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
   // Shared with the web intake and saved people. `birth_time_known=false`
   // makes `birth_time` optional (noon, or the rough part of day chosen).
-  const parsed = parseBirthFields(form);
+  const parsed = parseBirthFields(form, { minAge: MIN_AGE });
   if (!parsed.ok) return Response.json({ error: parsed.error }, { status: 400 });
   const birth = parsed.value;
 

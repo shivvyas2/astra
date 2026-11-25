@@ -67,7 +67,7 @@ export type Derived = {
 
 // Zodiacal order. oppositeSign, and a later task's house loop, both rely on
 // Object.keys(SIGN_LORD) coming back in this order — do not reorder or sort.
-const SIGN_LORD: Record<string, string> = {
+export const SIGN_LORD: Record<string, string> = {
   Aries: "Mars", Taurus: "Venus", Gemini: "Mercury", Cancer: "Moon",
   Leo: "Sun", Virgo: "Mercury", Libra: "Venus", Scorpio: "Mars",
   Sagittarius: "Jupiter", Capricorn: "Saturn", Aquarius: "Saturn", Pisces: "Jupiter",
@@ -76,7 +76,7 @@ const SIGN_LORD: Record<string, string> = {
 /** The nodes own nothing and are dignified nowhere. */
 const NODES = new Set(["Rahu", "Ketu"]);
 
-const EXALTATION: Record<string, { sign: string; degree: number }> = {
+export const EXALTATION: Record<string, { sign: string; degree: number }> = {
   Sun: { sign: "Aries", degree: 10 },
   Moon: { sign: "Taurus", degree: 3 },
   Mars: { sign: "Capricorn", degree: 28 },

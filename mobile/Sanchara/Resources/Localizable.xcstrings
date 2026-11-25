@@ -12821,6 +12821,134 @@
           }
         }
       }
+    },
+    "Chart from the Moon": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ચંદ્ર કુંડળી"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "चंद्र कुंडली"
+          }
+        }
+      }
+    },
+    "Ashtakavarga": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "અષ્ટકવર્ગ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अष्टकवर्ग"
+          }
+        }
+      }
+    },
+    "Dasha timeline": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "દશાનો ક્રમ"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "दशा का क्रम"
+          }
+        }
+      }
+    },
+    "D7 Saptamsa, children": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D7 સપ્તમાંશ, સંતાન"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D7 सप्तमांश, संतान"
+          }
+        }
+      }
+    },
+    "D9 Navamsa, marriage": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D9 નવમાંશ, લગ્ન"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D9 नवमांश, विवाह"
+          }
+        }
+      }
+    },
+    "D10 Dasamsa, career": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D10 દશમાંશ, કારકિર્દી"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "D10 दशमांश, करियर"
+          }
+        }
+      }
+    },
+    "%@ chart": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ કુંડળી"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ कुंडली"
+          }
+        }
+      }
+    },
+    "now": {
+      "localizations": {
+        "gu": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "હમણાં"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अभी"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

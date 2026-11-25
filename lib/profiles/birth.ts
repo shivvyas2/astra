@@ -75,6 +75,9 @@ function text(src: Source, name: string): string {
   return "";
 }
 
+/** The age in the Terms. Saved people may be any age; the account's own profile may not. */
+export const MIN_AGE = 13;
+
 /** "false", "0", "no", false → false. Anything else, including absent, → true. */
 export function parseTimeKnown(value: unknown): boolean {
   if (value === false) return false;
@@ -91,7 +94,7 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
  */
 export function parseBirthFields(
   input: FormData | Record<string, unknown>,
-  opts: { requireLastName?: boolean; today?: DateTime } = {},
+  opts: { requireLastName?: boolean; /** The account's own profile: at least this old. */ minAge?: number; today?: DateTime } = {},
 ): Parsed<BirthFields> {
   const src = sourceOf(input);
   const requireLastName = opts.requireLastName ?? true;
@@ -109,6 +112,10 @@ export function parseBirthFields(
   const today = opts.today ?? DateTime.utc();
   if (date.year < 1800 || date > today.plus({ days: 1 })) {
     return { ok: false, error: "birth_date must be a real date in the past" };
+  }
+
+  if (opts.minAge !== undefined && date > today.minus({ years: opts.minAge })) {
+    return { ok: false, error: `Check the birth year: ${date.year}. Astrya is for people ${opts.minAge} and older.` };
   }
 
   const birthTimeKnown = parseTimeKnown(src.get("birth_time_known"));

@@ -54,7 +54,7 @@ struct BirthDetailsFields: View {
                         DatePicker(
                             "",
                             selection: $form.birthDate,
-                            in: IntakeStore.earliestBirthDate...Date(),
+                            in: IntakeStore.earliestBirthDate...(someoneElse ? Date() : IntakeStore.latestOwnBirthDate),
                             displayedComponents: .date
                         )
                         .datePickerStyle(.compact)

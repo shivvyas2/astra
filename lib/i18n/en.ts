@@ -342,6 +342,15 @@ export const en = {
     // when that reading is reopened, so it is in the reader's language.
     welcome: "Welcome me with a short reading for today based on my chart. Two or three short sections.",
     // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
+    chart: {
+      titles: { D1: "Birth chart", Moon: "Chart from the Moon", SAV: "Ashtakavarga", Dasha: "Dasha timeline", D7: "D7 Saptamsa, children", D9: "D9 Navamsa, marriage", D10: "D10 Dasamsa, career" },
+      short: { Sun: "Su", Moon: "Mo", Mars: "Ma", Mercury: "Me", Jupiter: "Ju", Venus: "Ve", Saturn: "Sa", Rahu: "Ra", Ketu: "Ke" },
+      divisional: "{id} chart",
+      house: "House {n}, {sign}",
+      points: "{count} points",
+      empty: "empty",
+      now: "now",
+    },
     match: {
       intro: "Is this right?",
       reply: "Reply \"yes\" and I will match your charts, or tell me what to change.",

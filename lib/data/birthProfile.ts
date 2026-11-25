@@ -19,6 +19,7 @@ export type BirthProfileRow = {
   chart: { vedic: unknown; western: unknown } | null;
   /** Migration 0012. Absent on a database that has not had it applied. */
   birth_time_known?: boolean | null;
+  updated_at?: string | null;
 };
 
 /** Both traditions for one birth, computed together so they always agree. */

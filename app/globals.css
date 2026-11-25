@@ -409,3 +409,8 @@ html:lang(gu) [class*="leading-[0."] { line-height: 1.2; }
 /* The monospace stacks have no Indic letters; let those fall back to the sans fonts loaded for them. */
 html:lang(hi) .font-mono,
 html:lang(gu) .font-mono { font-family: var(--font-sans); }
+
+/* A chart in a reading draws its lines once. */
+.chart-ink { stroke-dasharray: 1; animation: chart-ink 1.4s ease-in-out both; }
+@keyframes chart-ink { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .chart-ink { animation: none; } }

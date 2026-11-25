@@ -307,7 +307,7 @@ final class ChatStore {
             if rememberOnDevice, failure == nil, !failed, let id = conversationId,
                let reply = messages.last(where: { $0.role == .assistant })?.content,
                !reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                remember(conversationId: id, message: text, reply: reply)
+                remember(conversationId: id, message: text, reply: ChartBlock.split(reply).prose)
             }
             if wasNewConversation, conversationId != nil { await loadConversations() }
         }

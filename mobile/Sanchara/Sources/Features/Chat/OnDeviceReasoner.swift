@@ -50,12 +50,22 @@ final class OnDeviceReasoner {
         if #available(iOS 26.0, *), Self.isAvailable {
             // A question that names no part of the table cannot be a lookup, so
             // the cheap check runs before the model does.
-            guard Self.mentionsTheTable(question) else { return .escalate }
+            guard Self.mentionsTheTable(question), !Self.needsLookup(question) else { return .escalate }
             guard await isLookup(question) else { return .escalate }
             if let answer = await answer(question) { return .answered(answer) }
         }
         #endif
         return .escalate
+    }
+
+    /// Asks for something only the server computes or draws: a divisional
+    /// chart, a timeline, Sade Sati dates, a muhurat. Never answered from the table.
+    nonisolated static func needsLookup(_ question: String) -> Bool {
+        let lower = question.lowercased()
+        if lower.range(of: #"\bd[- ]?(2|3|4|7|9|10|12|16|20|24|27|30|40|45|60)\b"#, options: .regularExpression) != nil { return true }
+        if lower.range(of: #"(draw|show|make|create|give|banao|dikhao).{0,25}(chart|kundl|timeline)|(chart|kundl\w+|timeline).{0,15}(banao|dikhao|batao)"#, options: .regularExpression) != nil { return true }
+        return ["navam", "saptamsa", "dasamsa", "dashamsha", "divisional", "ashtak", "sade sati", "sadesati", "dhaiya", "muhur", "murat",
+                "panchang", "tithi", "rahu kaal", "rahu kal", "choghadiya", "next dasha", "next mahadasha", "all dasha", "dashas", "after this dasha"].contains { lower.contains($0) }
     }
 
     /// Does the question name a body, a house, or the dasha at all? Purely a

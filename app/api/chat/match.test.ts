@@ -105,7 +105,7 @@ describe("an ordinary question", () => {
     script(says("A reading."));
     expect(await ask("Will I change jobs?", { cards: true })).toBe("A reading.");
     expect(h.stream).toHaveBeenCalledTimes(1);
-    expect(h.stream.mock.calls[0][0].tools.map((t: { name: string }) => t.name)).toEqual(["propose_match", "confirm_match", "use_saved_person"]);
+    expect(h.stream.mock.calls[0][0].tools.map((t: { name: string }) => t.name)).toEqual(["propose_match", "confirm_match", "use_saved_person", "look_up"]);
     expect(system()).toContain(`Kabir (spouse) [${KABIR}]`);
   });
   it("offers no tools in numerology", async () => {
@@ -220,7 +220,7 @@ describe("a reply that fails", () => {
 });
 
 it("always ends in an answer: the last round may not call a tool", async () => {
-  script(calls("use_saved_person", { person_id: "x" }), calls("use_saved_person", { person_id: "x" }), says("Plainly, no."));
+  script(...[1, 2, 3].map(() => calls("use_saved_person", { person_id: "x" })), says("Plainly, no."));
   expect(await ask("him?")).toBe("Plainly, no.");
-  expect(h.stream.mock.calls[2][0].tool_choice).toEqual({ type: "none" });
+  expect(h.stream.mock.calls[3][0].tool_choice).toEqual({ type: "none" });
 });

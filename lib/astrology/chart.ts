@@ -9,7 +9,7 @@ export { CHART_SCHEMA_VERSION };
 
 // Lazily initialize the WASM module once per server process.
 let swePromise: Promise<InstanceType<typeof SwissEph>> | null = null;
-async function getSwe(): Promise<InstanceType<typeof SwissEph>> {
+export async function getSwe(): Promise<InstanceType<typeof SwissEph>> {
   if (!swePromise) {
     swePromise = (async () => {
       const swe = new SwissEph();

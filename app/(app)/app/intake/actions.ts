@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { createAdminSupabase } from "@/lib/supabase/admin";
 import { saveBirthProfile } from "@/lib/data/birthProfile";
-import { parseBirthFields } from "@/lib/profiles/birth";
+import { MIN_AGE, parseBirthFields } from "@/lib/profiles/birth";
 import { languageForLocale } from "@/lib/i18n/config";
 import { getLocale } from "@/lib/i18n/server";
 
@@ -27,7 +27,7 @@ export async function saveIntake(formData: FormData) {
   if (!user) redirect("/login");
 
   // The same checks `POST /api/profile` runs, including the unknown-time path.
-  const parsed = parseBirthFields(formData);
+  const parsed = parseBirthFields(formData, { minAge: MIN_AGE });
   if (!parsed.ok) throw new Error(parsed.error);
   const birth = parsed.value;
 

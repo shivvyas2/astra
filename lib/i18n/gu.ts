@@ -326,6 +326,15 @@ export const gu: Messages = {
     limitPaused: "Astrya આજની મર્યાદા સુધી પહોંચી ગયું છે, તેથી રીડિંગ થોડા કલાકો માટે અટક્યા છે. કૃપા કરીને થોડી વાર પછી ફરી પ્રયત્ન કરો.",
     welcome: "મારી કુંડળીના આધારે આજ માટે એક ટૂંકા રીડિંગથી મારું સ્વાગત કરો. બે કે ત્રણ ટૂંકા ભાગ.",
     // Matching inside a reading: the confirm card and its words (lib/compat/chatMatch.ts).
+    chart: {
+      titles: { D1: "જન્મ કુંડળી", Moon: "ચંદ્ર કુંડળી", SAV: "અષ્ટકવર્ગ", Dasha: "દશાનો ક્રમ", D7: "D7 સપ્તમાંશ, સંતાન", D9: "D9 નવમાંશ, લગ્ન", D10: "D10 દશમાંશ, કારકિર્દી" },
+      short: { Sun: "સૂ", Moon: "ચં", Mars: "મં", Mercury: "બુ", Jupiter: "ગુ", Venus: "શુ", Saturn: "શ", Rahu: "રા", Ketu: "કે" },
+      divisional: "{id} કુંડળી",
+      house: "ભાવ {n}, {sign}",
+      points: "{count} બિંદુ",
+      empty: "ખાલી",
+      now: "હમણાં",
+    },
     match: {
       intro: "શું આ બરાબર છે?",
       reply: "\"હા\" લખો અને હું તમારા બંનેની કુંડળી મેળવીશ, અથવા કહો શું બદલવું છે.",

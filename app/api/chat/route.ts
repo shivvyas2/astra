@@ -38,6 +38,9 @@ import { describeSavedPeople, MATCH_TOOLS } from "@/lib/compat/chatTools";
 import { geocodePlace } from "@/lib/geo";
 import { computeCompatibility, type ChartPair } from "@/lib/compat/compatibility";
 import { describeMatchForPrompt } from "@/lib/compat/prompt";
+import { withoutCharts } from "@/lib/lookups/chartBlock";
+import { readLookup, runLookup, type Subject } from "@/lib/lookups/run";
+import { LOOKUP_RULES, LOOKUP_TOOL } from "@/lib/lookups/tool";
 import { chatLanguageRule, isReadingLanguage, loadReadingLanguage, type ReadingLanguage } from "@/lib/astrology/language";
 import { localeForLanguage } from "@/lib/i18n/config";
 import { messagesFor } from "@/lib/i18n/dictionaries";
@@ -67,8 +70,11 @@ export const runtime = "nodejs";
 const WORDS_STANDARD = 190;
 const WORDS_DEEP = 360;
 
-/** Model calls one message may make: one to raise a match, one to recover from a tool error, one to answer. */
-const MATCH_ROUNDS = 3;
+/** Model calls one message may make: a match, a look-up, one to recover from a tool error, one to answer. */
+const TOOL_ROUNDS = 4;
+
+/** Younger than this, a saved birth year is a slip rather than a person asking for readings. */
+const IMPLAUSIBLE_AGE = 5;
 
 /**
  * How far ahead the sky is sampled for the UPCOMING block, in days. Four
@@ -171,11 +177,13 @@ export async function POST(request: Request) {
   let matchWith: ((person: PersonRow) => string | null) | null = null;
   let attachPersonId: string | null = null;
   let replyLanguage: ReadingLanguage = "english";
+  // What look_up may compute from (lib/lookups). Vedic only.
+  let lookups: { self: Subject; other: Subject | null } | null = null;
 
   try {
     const { data: loaded, error: profileError } = await supabase
       .from("birth_profiles")
-      .select("user_id, first_name, last_name, birth_date, birth_time, lat, lng, timezone, chart")
+      .select("user_id, first_name, last_name, birth_date, birth_time, place_name, lat, lng, timezone, chart, updated_at")
       .maybeSingle();
     if (profileError) {
       console.error("chat profile read error", profileError);
@@ -186,7 +194,7 @@ export async function POST(request: Request) {
       claim.settle(null);
       return new Response("No chart. Complete intake first.", { status: 400 });
     }
-    const profile = await ensureCurrentChart(loaded as BirthProfileRow, supabase);
+    const profile = await ensureCurrentChart(loaded as unknown as BirthProfileRow, supabase);
     // Started now, awaited once the chart work is done. None of them reject.
     const memoryLoad = Promise.all([loadFacts(supabase), loadMemories(supabase), loadPredictions(supabase)]);
 
@@ -294,6 +302,10 @@ export async function POST(request: Request) {
         console.error("chat timeline context skipped", err);
       }
       if (timeline) stableSystem += describeTimelineForPrompt(timeline, { tradition });
+      if (tradition === "vedic") {
+        stableSystem += LOOKUP_RULES;
+        lookups = { self: subjectOf({ ...profile, label: profile.first_name }, chart), other: null };
+      }
 
       // A match reading: the other person's chart and the scores from the
       // two, after the user's own. A person deleted since, or a database
@@ -325,6 +337,7 @@ export async function POST(request: Request) {
           if (block) {
             stableSystem += block;
             personInPrompt = personId;
+            if (lookups && person) lookups.other = subjectOf(person, (person.chart as unknown as ChartPair).vedic);
             if (body.conversationId && askedPersonId) attachPersonId = personId;
           }
         } catch (err) {
@@ -344,6 +357,9 @@ export async function POST(request: Request) {
       // Saved people change, so they sit with the day, after the cached chart.
       const { people } = await listPeople(supabase);
       todaySystem += describeSavedPeople(people, personInPrompt);
+    }
+    if (age !== undefined && age < IMPLAUSIBLE_AGE) {
+      todaySystem += `\n\nTheir saved birth year, ${String(profile.birth_date).slice(0, 4)}, makes them ${age}, so it is almost certainly a slip and this chart is not theirs. Open by saying so in one sentence and asking them to correct the birth date in their profile. Keep the rest short and state no age.`;
     }
 
     // Last in the volatile block: changing language never invalidates the
@@ -380,10 +396,18 @@ export async function POST(request: Request) {
 
     // Build history from persisted messages, then append the new user turn.
     // The budget bounds what a long conversation costs to resend each turn.
-    const stored = (await getMessages(conversationId, supabase)).map((m) => ({
+    const rows = await getMessages(conversationId, supabase);
+    const stored = rows.map((m) => ({
       role: m.role as "user" | "assistant",
-      content: m.content,
+      content: m.role === "assistant" ? withoutCharts(m.content) : m.content,
     }));
+    // Their birth details were edited part way through: the earlier replies
+    // read another chart, which is not Astrya's mistake to apologise for.
+    const editedAt = Date.parse(String(profile.updated_at ?? ""));
+    if (rows.some((m) => m.role === "assistant" && Date.parse(String(m.created_at)) < editedAt)) {
+      todaySystem +=
+        "\n\nTheir profile was saved again after some of your earlier replies here. The chart above is the current one. If an earlier reply named different placements or dates, their birth details changed since: say that once in one clause and read from the current chart. Do not apologise or call the earlier reply a mistake.";
+    }
     // The same question again after it went unanswered (Try again): already
     // stored, so neither sent nor saved a second time.
     const last = stored.at(-1);
@@ -446,6 +470,8 @@ export async function POST(request: Request) {
     async start(controller) {
       let full = "";
       let finished = false;
+      // Whether it has said anything: a drawn chart alone is not a reading.
+      let spoke = false;
       // A reader who locks their phone closes the stream. The reading still
       // finishes and is saved, so it is there when they come back.
       const push = (text: string) => {
@@ -459,7 +485,7 @@ export async function POST(request: Request) {
         // Usually one call. A match adds a second, with the other chart in a
         // tool result; the last round may not call a tool, so it must answer.
         const turns = [...messages];
-        for (let round = 1; round <= MATCH_ROUNDS; round++) {
+        for (let round = 1; round <= TOOL_ROUNDS; round++) {
           const s = anthropic().messages.stream({
             model,
             // A ceiling, not a target — the length rule in the prompt is what
@@ -476,9 +502,9 @@ export async function POST(request: Request) {
             ...(body.deep ? DEEP_EFFORT : READING_EFFORT),
             ...(matchWith
               ? {
-                  tools: MATCH_TOOLS,
+                  tools: lookups ? [...MATCH_TOOLS, LOOKUP_TOOL] : MATCH_TOOLS,
                   tool_choice:
-                    round < MATCH_ROUNDS
+                    round < TOOL_ROUNDS
                       ? { type: "auto" as const, disable_parallel_tool_use: true }
                       : { type: "none" as const },
                 }
@@ -491,6 +517,7 @@ export async function POST(request: Request) {
           for await (const event of s) {
             if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
               full += event.delta.text;
+              spoke ||= event.delta.text.trim() !== "";
               push(event.delta.text);
             }
           }
@@ -502,23 +529,32 @@ export async function POST(request: Request) {
               : undefined;
           if (!call || !matchWith) break;
 
-          const outcome = await runMatchTool(call, {
+          const outcome = call.name === LOOKUP_TOOL.name && lookups ? await lookUp(call, lookups, localDate) : await runMatchTool(call, {
             userId: user.id,
             conversationId,
             previousReply,
             cards: body.cards === true,
             language: replyLanguage,
             describe: matchWith,
+            onAdopt: (person) => {
+              if (lookups) lookups.other = subjectOf(person, (person.chart as unknown as ChartPair).vedic);
+            },
             db: supabase,
           });
           if (outcome.kind === "reply") {
             const text = `${full.trim() ? "\n\n" : ""}${outcome.reply.text}`;
             full += text;
+            spoke = true;
             push(text);
             if (outcome.reply.card) {
               push(CARD_SEPARATOR + JSON.stringify(outcome.reply.card));
             }
             break;
+          }
+          for (const block of outcome.blocks ?? []) {
+            const text = `${full.trim() ? "\n\n" : ""}${block}\n\n`;
+            full = full.trimEnd() + text;
+            push(text);
           }
           turns.push(
             { role: "assistant", content: final.content },
@@ -531,7 +567,7 @@ export async function POST(request: Request) {
           );
         }
         const usage: UsageLike = readingUsage ?? {};
-        if (!full.trim()) throw new Error("empty reading");
+        if (!spoke) throw new Error("empty reading");
         finished = true;
         console.log(
           `chat usage conv=${conversationId} model=${model} in=${usage.input_tokens} ` +
@@ -550,7 +586,7 @@ export async function POST(request: Request) {
         } finally {
           // Signalled first: close() throws if the client has already gone,
           // and the memory pass must not be left waiting on it.
-          readingDone(finished ? full : "");
+          readingDone(finished ? withoutCharts(full) : "");
           claim.settle(finished && full.trim() ? { text: full, conversationId } : null);
           try {
             controller.close();
@@ -611,7 +647,34 @@ type MatchOutcome =
   /** The reply is complete: a read-back or a question, written by code. */
   | { kind: "reply"; reply: Reply }
   /** Hand this back to the model and let it answer. */
-  | { kind: "result"; content: string; error?: boolean };
+  | { kind: "result"; content: string; error?: boolean; /** Charts for the reply, before its words. */ blocks?: string[] };
+
+/** A person's details as look_up needs them. */
+function subjectOf(
+  row: { label?: string; first_name: string; birth_date: string; birth_time: string; timezone: string; place_name: string; lat: number; lng: number },
+  chart: Chart,
+): Subject {
+  return {
+    name: row.label || row.first_name,
+    chart,
+    birthDate: String(row.birth_date),
+    birthTime: String(row.birth_time),
+    timezone: String(row.timezone || "UTC"),
+    place: { name: String(row.place_name ?? ""), lat: Number(row.lat), lng: Number(row.lng) },
+  };
+}
+
+/** Runs look_up. Never throws: a failure is told to the model. */
+async function lookUp(call: Anthropic.ToolUseBlock, people: { self: Subject; other: Subject | null }, today: string): Promise<MatchOutcome> {
+  const input = readLookup(call.input);
+  if (!input) return { kind: "result", content: "That did not arrive in the right shape. Call look_up again.", error: true };
+  try {
+    return { kind: "result", ...(await runLookup(input, { ...people, today, find: async (place) => (await resolvePlaces(place, geocodePlace)).places })) };
+  } catch (err) {
+    console.error("chat lookup failed", input.topics.join(","), err);
+    return { kind: "result", content: "That could not be computed just now. Say so plainly and answer what the chart above shows.", error: true };
+  }
+}
 
 /** Runs one of MATCH_TOOLS. Never throws: a failure is told to the model. */
 async function runMatchTool(
@@ -623,6 +686,7 @@ async function runMatchTool(
     cards: boolean;
     language: ReadingLanguage;
     describe: (person: PersonRow) => string | null;
+    onAdopt: (person: PersonRow) => void;
     db: Awaited<ReturnType<typeof createRouteSupabase>>;
   },
 ): Promise<MatchOutcome> {
@@ -632,6 +696,7 @@ async function runMatchTool(
     const block = ctx.describe(person);
     if (!block) return fail("Their chart could not be read. Say so plainly and ask them to check the details under People.");
     await setConversationPerson({ userId: ctx.userId, conversationId: ctx.conversationId, personId: person.id }, ctx.db);
+    ctx.onAdopt(person);
     return { kind: "result", content: `${block}\n\nAnswer their question now, from both charts.` };
   };
 

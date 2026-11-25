@@ -116,6 +116,9 @@ final class IntakeStore {
 
     var firstName = ""
     var lastName = ""
+    /// The age in the Terms, and `MIN_AGE` on the server. Saved people may be younger.
+    static var latestOwnBirthDate: Date { Calendar.current.date(byAdding: .year, value: -13, to: Date()) ?? Date() }
+
     var birthDate = Calendar.current.date(byAdding: .year, value: -25, to: Date()) ?? Date()
     var birthTime = Calendar.current.date(from: DateComponents(hour: 12, minute: 0)) ?? Date()
     /// Off when they do not know their birth time: the picker gives way to

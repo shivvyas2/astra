@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DateTime } from "luxon";
-import { APPROX_TIMES, UNKNOWN_TIME, approxFromTime, parseBirthFields, parseTimeKnown } from "./birth";
+import { APPROX_TIMES, MIN_AGE, UNKNOWN_TIME, approxFromTime, parseBirthFields, parseTimeKnown } from "./birth";
 
 const valid = {
   first_name: "Shiv",
@@ -84,5 +84,18 @@ describe("parseTimeKnown", () => {
     expect(parseTimeKnown("false")).toBe(false);
     expect(parseTimeKnown("0")).toBe(false);
     expect(parseTimeKnown(false)).toBe(false);
+  });
+});
+
+describe("the account's own birth year", () => {
+  const today = DateTime.fromISO("2026-11-25", { zone: "utc" });
+  const on = (birth_date: string, minAge?: number) => parseBirthFields({ ...valid, birth_date }, { today, minAge });
+  it("cannot be this year's, or under the age in the Terms", () => {
+    expect(on("2026-10-11", MIN_AGE)).toEqual({ ok: false, error: "Check the birth year: 2026. Astrya is for people 13 and older." });
+    expect(on("2013-11-26", MIN_AGE).ok).toBe(false);
+    expect(on("2013-11-25", MIN_AGE).ok).toBe(true);
+  });
+  it("does not limit a saved person, who may be a child", () => {
+    expect(on("2025-01-01").ok).toBe(true);
   });
 });
